@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/src/css/main.css">
 </head>
 <body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
   <div class="app">
     <header class="header">
       <div class="container header__inner">
@@ -40,7 +41,7 @@
       </div>
     </header>
 
-    <main class="main">
+    <main class="main" id="main-content">
       <div class="container">
         <section class="search-section">
           <div class="search-box">
@@ -99,7 +100,7 @@
 
         <section id="results-section" class="hidden">
           <div class="results-info">
-            <p class="results-count" id="results-count"></p>
+            <p class="results-count" id="results-count" aria-live="polite"></p>
           </div>
           <div class="repo-grid" id="repo-grid"></div>
           <div class="pagination" id="pagination"></div>
