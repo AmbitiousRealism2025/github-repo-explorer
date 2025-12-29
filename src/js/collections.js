@@ -187,7 +187,7 @@ const checkImportHash = () => {
   const hash = window.location.hash;
   if (hash.startsWith('#import=')) {
     try {
-      const data = JSON.parse(atob(hash.substring(8)));
+      const data = JSON.parse(decodeURIComponent(escape(atob(hash.substring(8)))));
       if (data.name && Array.isArray(data.repos)) {
         const existingNames = Storage.getCollections().map(c => c.name);
         let newName = data.name;
