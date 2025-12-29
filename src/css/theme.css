@@ -47,6 +47,10 @@
   --shadow-focus: 0 0 0 3px rgba(13, 148, 136, 0.4);
   --shadow-glow: 0 0 15px rgba(13, 148, 136, 0.15);
   
+  --focus-ring-color: var(--color-accent);
+  --focus-ring-offset: 2px;
+  --focus-ring-width: 3px;
+  
   /* Border radius - Geometric/Technical */
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -74,6 +78,14 @@
   --text-2xl: 1.5rem;
   --text-3xl: 2.25rem;
   
+  /* Fluid Typography */
+  --font-size-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --font-size-display: clamp(2rem, 1.5rem + 2.5vw, 3.5rem);
+  --font-size-h1: clamp(1.75rem, 1.5rem + 1.25vw, 2.5rem);
+  --font-size-h2: clamp(1.5rem, 1.3rem + 1vw, 2rem);
+  --font-size-h3: clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem);
+  --content-max-width: 65ch;
+  
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -90,6 +102,7 @@
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.5);
   --glass-blur: blur(12px);
+  --glass-fallback: rgba(255, 255, 255, 0.85);
 }
 
 /* Dark theme (Cyber/Noir) */
@@ -128,6 +141,7 @@
 
   --glass-bg: rgba(24, 24, 27, 0.6);
   --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-fallback: rgba(20, 20, 30, 0.9);
 }
 
 /* System preference detection (fallback) */
@@ -167,5 +181,6 @@
 
     --glass-bg: rgba(24, 24, 27, 0.6);
     --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-fallback: rgba(20, 20, 30, 0.9);
   }
 }

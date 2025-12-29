@@ -3,12 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Your saved favorite GitHub repositories">
-  <title>Favorites - GitHub Explorer</title>
-  <script type="module" crossorigin src="./assets/favorites-BVbpiYe8.js"></script>
-  <link rel="modulepreload" crossorigin href="./assets/errorBoundary-6mNU-65L.js">
-  <link rel="modulepreload" crossorigin href="./assets/RepoGrid-D_5mpwjV.js">
-  <link rel="stylesheet" crossorigin href="./assets/errorBoundary-CvyMBA8T.css">
+  <meta name="description" content="Compare GitHub repositories side by side">
+  <title>Compare Repositories - GitHub Explorer</title>
+  <link rel="stylesheet" href="/src/css/main.css">
 </head>
 <body>
   <div class="app">
@@ -23,7 +20,8 @@
         <nav class="header__nav">
           <a href="/" class="header__nav-link">Search</a>
           <a href="/trending.html" class="header__nav-link">Trending</a>
-          <a href="/favorites.html" class="header__nav-link active">Favorites</a>
+          <a href="/favorites.html" class="header__nav-link">Favorites</a>
+          <a href="/compare.html" class="header__nav-link active">Compare</a>
         </nav>
         <div class="header__actions">
           <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
@@ -41,24 +39,41 @@
     <main class="main">
       <div class="container">
         <div class="page-header">
-          <h1 class="page-title">Your Favorites</h1>
-          <p class="page-subtitle">Repositories you've saved for later</p>
+          <h1 class="page-title">Compare Repositories</h1>
+          <p class="page-subtitle">Side-by-side comparison of up to 4 repositories</p>
         </div>
 
-        <section id="favorites-section" class="hidden">
-          <div class="results-info">
-            <p class="results-count" id="results-count"></p>
+        <div class="compare-inputs mb-lg">
+          <div class="compare-input-row">
+            <input type="text" class="input compare-input" id="repo-1" placeholder="owner/repo (e.g., facebook/react)">
+            <input type="text" class="input compare-input" id="repo-2" placeholder="owner/repo">
+            <input type="text" class="input compare-input" id="repo-3" placeholder="owner/repo (optional)">
+            <input type="text" class="input compare-input" id="repo-4" placeholder="owner/repo (optional)">
           </div>
-          <div class="repo-grid" id="repo-grid"></div>
-        </section>
+          <button class="btn btn--primary btn--lg" id="compare-btn">Compare</button>
+        </div>
+
+        <div id="loading-state" class="hidden">
+          <div class="skeleton" style="height: 400px;"></div>
+        </div>
+
+        <div id="compare-results" class="hidden">
+          <div class="compare-table-container">
+            <table class="compare-table" id="compare-table">
+              <thead>
+                <tr id="compare-header"></tr>
+              </thead>
+              <tbody id="compare-body"></tbody>
+            </table>
+          </div>
+        </div>
 
         <section id="empty-state" class="empty-state">
           <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            <path d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
           </svg>
-          <h2 class="empty-state__title">No favorites yet</h2>
-          <p class="empty-state__description">Start exploring and save repositories you want to remember.</p>
-          <a href="/" class="btn btn--primary mt-md">Explore Repositories</a>
+          <h2 class="empty-state__title">Compare repositories</h2>
+          <p class="empty-state__description">Enter at least 2 repository names above to see a detailed comparison of stars, forks, issues, and more.</p>
         </section>
       </div>
     </main>
@@ -71,5 +86,6 @@
     </footer>
   </div>
 
+  <script type="module" src="/src/js/compare.js"></script>
 </body>
 </html>

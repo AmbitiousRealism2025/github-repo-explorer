@@ -174,3 +174,8 @@ export const checkRateLimit = async () => {
   const url = `${API_BASE}/rate_limit`;
   return fetchWithRetry(url);
 };
+
+export const getCommitActivity = async (owner, repo) => {
+  const url = `${API_BASE}/repos/${owner}/${repo}/stats/commit_activity`;
+  return fetchWithRetry(url);
+};
