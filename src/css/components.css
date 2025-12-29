@@ -905,6 +905,17 @@
   background-color: var(--color-bg-tertiary);
 }
 
+.pagination__ellipsis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 40px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
 @keyframes fadeSlideIn {
   from {
     opacity: 0;
