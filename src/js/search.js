@@ -3,17 +3,19 @@ import {
   initTheme, 
   toggleTheme, 
   Storage, 
-  formatNumber, 
-  formatDate, 
-  getLanguageColor,
+  formatNumber,
   debounce,
   getUrlParam,
   setUrlParams,
-  showToast,
-  updateRateLimitDisplay,
-  Icons
+  updateRateLimitDisplay
 } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
+import { 
+  renderRepoGrid, 
+  renderPagination, 
+  handleFavoriteToggle, 
+  handlePaginationClick 
+} from './components/RepoGrid.js';
 
 initTheme();
 initErrorBoundary();
@@ -43,95 +45,6 @@ const retryBtn = document.getElementById('retry-btn');
 let currentPage = 1;
 let currentQuery = '';
 let totalResults = 0;
-
-const createRepoCard = (repo) => {
-  const isFavorite = Storage.isFavorite(repo.id);
-  const card = document.createElement('article');
-  card.className = 'repo-card';
-  card.dataset.repoId = repo.id;
-  
-  card.innerHTML = `
-    <header class="repo-card__header">
-      <a href="/detail.html?repo=${encodeURIComponent(repo.full_name)}" class="repo-card__name">${repo.full_name}</a>
-      <button class="repo-card__favorite ${isFavorite ? 'active' : ''}" aria-label="${isFavorite ? 'Remove from' : 'Add to'} favorites" data-repo='${JSON.stringify({
-        id: repo.id,
-        full_name: repo.full_name,
-        description: repo.description,
-        html_url: repo.html_url,
-        stargazers_count: repo.stargazers_count,
-        forks_count: repo.forks_count,
-        language: repo.language,
-        updated_at: repo.updated_at
-      }).replace(/'/g, "&#39;")}'>
-        ${isFavorite ? Icons.star : Icons.starOutline}
-      </button>
-    </header>
-    <p class="repo-card__description">${repo.description || 'No description available'}</p>
-    <footer class="repo-card__footer">
-      ${repo.language ? `
-        <span class="repo-card__language">
-          <span class="language-dot" style="--lang-color: ${getLanguageColor(repo.language)}"></span>
-          ${repo.language}
-        </span>
-      ` : ''}
-      <span class="repo-card__stat">
-        ${Icons.star}
-        ${formatNumber(repo.stargazers_count)}
-      </span>
-      <span class="repo-card__stat">
-        ${Icons.fork}
-        ${formatNumber(repo.forks_count)}
-      </span>
-      <span class="repo-card__updated">Updated ${formatDate(repo.updated_at)}</span>
-    </footer>
-  `;
-  
-  return card;
-};
-
-const renderResults = (repos) => {
-  repoGrid.innerHTML = '';
-  const fragment = document.createDocumentFragment();
-  
-  repos.forEach(repo => {
-    fragment.appendChild(createRepoCard(repo));
-  });
-  
-  repoGrid.appendChild(fragment);
-};
-
-const renderPagination = () => {
-  const totalPages = Math.min(Math.ceil(totalResults / 30), 34);
-  if (totalPages <= 1) {
-    pagination.innerHTML = '';
-    return;
-  }
-  
-  let html = '';
-  
-  html += `<button class="pagination__btn" ${currentPage === 1 ? 'disabled' : ''} data-page="${currentPage - 1}">Prev</button>`;
-  
-  const startPage = Math.max(1, currentPage - 2);
-  const endPage = Math.min(totalPages, currentPage + 2);
-  
-  if (startPage > 1) {
-    html += `<button class="pagination__btn" data-page="1">1</button>`;
-    if (startPage > 2) html += `<span class="pagination__btn" style="border: none;">...</span>`;
-  }
-  
-  for (let i = startPage; i <= endPage; i++) {
-    html += `<button class="pagination__btn ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
-  }
-  
-  if (endPage < totalPages) {
-    if (endPage < totalPages - 1) html += `<span class="pagination__btn" style="border: none;">...</span>`;
-    html += `<button class="pagination__btn" data-page="${totalPages}">${totalPages}</button>`;
-  }
-  
-  html += `<button class="pagination__btn" ${currentPage === totalPages ? 'disabled' : ''} data-page="${currentPage + 1}">Next</button>`;
-  
-  pagination.innerHTML = html;
-};
 
 const showState = (state) => {
   emptyState.classList.add('hidden');
@@ -186,8 +99,8 @@ const performSearch = async (page = 1) => {
     totalResults = result.data.total_count;
     resultsCount.innerHTML = `<strong>${formatNumber(totalResults)}</strong> repositories found`;
     
-    renderResults(result.data.items);
-    renderPagination();
+    renderRepoGrid(repoGrid, result.data.items, { dateField: 'updated_at', datePrefix: 'Updated' });
+    renderPagination(pagination, currentPage, totalResults);
     showState('results');
     
     if (result.rateLimit) {
@@ -197,35 +110,6 @@ const performSearch = async (page = 1) => {
     errorMessage.textContent = error.message;
     showState('error');
   }
-};
-
-const handleFavoriteClick = (e) => {
-  const btn = e.target.closest('.repo-card__favorite');
-  if (!btn) return;
-  
-  const repoData = JSON.parse(btn.dataset.repo);
-  const isFavorite = Storage.isFavorite(repoData.id);
-  
-  if (isFavorite) {
-    Storage.removeFavorite(repoData.id);
-    btn.classList.remove('active');
-    btn.innerHTML = Icons.starOutline;
-    showToast('Removed from favorites', 'info');
-  } else {
-    Storage.addFavorite(repoData);
-    btn.classList.add('active');
-    btn.innerHTML = Icons.star;
-    showToast('Added to favorites', 'success');
-  }
-};
-
-const handlePaginationClick = (e) => {
-  const btn = e.target.closest('.pagination__btn');
-  if (!btn || btn.disabled || !btn.dataset.page) return;
-  
-  const page = parseInt(btn.dataset.page);
-  performSearch(page);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 const initFromUrl = () => {
@@ -255,8 +139,8 @@ languageFilter.addEventListener('change', debouncedSearch);
 starsFilter.addEventListener('change', debouncedSearch);
 sortFilter.addEventListener('change', debouncedSearch);
 
-repoGrid.addEventListener('click', handleFavoriteClick);
-pagination.addEventListener('click', handlePaginationClick);
+repoGrid.addEventListener('click', (e) => handleFavoriteToggle(e));
+pagination.addEventListener('click', (e) => handlePaginationClick(e, performSearch));
 retryBtn?.addEventListener('click', () => performSearch(currentPage));
 
 themeToggle.addEventListener('click', toggleTheme);
@@ -280,13 +164,11 @@ saveTokenBtn.addEventListener('click', () => {
   const token = githubTokenInput.value.trim();
   Storage.setToken(token);
   settingsModal.classList.remove('open');
-  showToast(token ? 'Token saved' : 'Token cleared', 'success');
 });
 
 clearTokenBtn.addEventListener('click', () => {
   Storage.setToken(null);
   githubTokenInput.value = '';
-  showToast('Token cleared', 'info');
 });
 
 initFromUrl();
