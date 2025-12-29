@@ -1,9 +1,9 @@
-const API_BASE = 'https://api.github.com';
+import { API_BASE, API_VERSION, CACHE_TTL_MS, CACHE_MAX_ENTRIES, TRENDING_DAYS_BACK } from './constants.js';
 
 const getHeaders = () => {
   const headers = {
     'Accept': 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28'
+    'X-GitHub-Api-Version': API_VERSION
   };
   
   const token = localStorage.getItem('gh-token');
@@ -16,7 +16,41 @@ const getHeaders = () => {
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const fetchWithRetry = async (url, retries = 3, backoff = 1000) => {
+const cache = new Map();
+
+const getCachedResponse = (url) => {
+  const cached = cache.get(url);
+  if (!cached) return null;
+  
+  if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+    cache.delete(url);
+    return null;
+  }
+  
+  console.log(`[Cache] HIT: ${url.substring(0, 60)}...`);
+  return cached.data;
+};
+
+const setCachedResponse = (url, data) => {
+  cache.set(url, { data, timestamp: Date.now() });
+  
+  if (cache.size > CACHE_MAX_ENTRIES) {
+    const firstKey = cache.keys().next().value;
+    cache.delete(firstKey);
+  }
+};
+
+export const clearCache = () => {
+  cache.clear();
+  console.log('[Cache] Cleared');
+};
+
+const fetchWithRetry = async (url, retries = 3, backoff = 1000, useCache = true) => {
+  if (useCache) {
+    const cached = getCachedResponse(url);
+    if (cached) return cached;
+  }
+
   try {
     const response = await fetch(url, { headers: getHeaders() });
     
@@ -40,7 +74,7 @@ const fetchWithRetry = async (url, retries = 3, backoff = 1000) => {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
-    return {
+    const result = {
       data: await response.json(),
       rateLimit: {
         remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
@@ -48,11 +82,17 @@ const fetchWithRetry = async (url, retries = 3, backoff = 1000) => {
         reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
       }
     };
+
+    if (useCache) {
+      setCachedResponse(url, result);
+    }
+
+    return result;
   } catch (error) {
     if (retries > 0 && !error.message.includes('Rate limit')) {
       const jitter = Math.random() * 100;
       await sleep(backoff + jitter);
-      return fetchWithRetry(url, retries - 1, backoff * 2);
+      return fetchWithRetry(url, retries - 1, backoff * 2, useCache);
     }
     throw error;
   }
@@ -85,7 +125,7 @@ export const getTrendingRepositories = async (options = {}) => {
   } = options;
   
   const date = new Date();
-  date.setDate(date.getDate() - 7);
+  date.setDate(date.getDate() - TRENDING_DAYS_BACK);
   const dateStr = date.toISOString().split('T')[0];
   
   let q = `created:>${dateStr}`;
