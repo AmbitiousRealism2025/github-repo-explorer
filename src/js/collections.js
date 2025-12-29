@@ -118,10 +118,12 @@ const attachCollectionListeners = () => {
       e.stopPropagation();
       const collection = Storage.getCollections().find(c => c.id === btn.dataset.id);
       if (collection) {
-        const shareData = btoa(JSON.stringify({
+        // Use UTF-8 encoding before base64 to handle Unicode characters
+        const jsonStr = JSON.stringify({
           name: collection.name,
           repos: collection.repos.map(r => r.full_name)
-        }));
+        });
+        const shareData = btoa(unescape(encodeURIComponent(jsonStr)));
         const shareUrl = `${window.location.origin}/collections.html#import=${shareData}`;
         navigator.clipboard.writeText(shareUrl);
         showToast('Share link copied to clipboard', 'success');

@@ -2,7 +2,21 @@ export const createCommitHeatmap = (commitData) => {
   const container = document.createElement('div');
   container.className = 'commit-heatmap';
   
-  const weeks = commitData || [];
+  // Guard against non-array responses (GitHub returns 202 "processing" object when stats aren't ready)
+  const weeks = Array.isArray(commitData) ? commitData : [];
+  
+  if (weeks.length === 0) {
+    container.innerHTML = `
+      <div class="commit-heatmap__header">
+        <span class="commit-heatmap__title">Commit Activity</span>
+      </div>
+      <div class="commit-heatmap__empty">
+        <p>Commit data not available yet. GitHub is processing stats.</p>
+      </div>
+    `;
+    return container;
+  }
+  
   const maxCommits = Math.max(...weeks.flatMap(w => w.days || []), 1);
   
   const getLevel = (count) => {
