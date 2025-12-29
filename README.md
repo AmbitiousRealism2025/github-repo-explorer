@@ -12,16 +12,23 @@ A professional, high-performance GitHub repository explorer built with vanilla J
 -   **Advanced Search**: Discover repositories with real-time keyword search and filters for programming languages and star counts.
 -   **Trending Feed**: Stay updated with the most popular repositories created within the last 7 days.
 -   **Persistent Favorites**: Save and track repositories of interest using a robust `localStorage` system.
+-   **Smart Collections**: Organize repositories into custom collections with quick-add from any repo card.
+-   **Side-by-Side Compare**: Compare multiple repositories across key metrics (stars, forks, issues, activity).
+-   **Repository Health Score**: Comprehensive health assessment (0-100) based on maintenance, community, documentation, activity, and engagement metrics.
 -   **Deep Analytics**:
     -   Detailed repository statistics (Stars, Forks, Issues, Watchers).
     -   Dynamic SVG Donut charts for language distribution.
+    -   Commit activity heatmap (GitHub-style contribution calendar).
     -   Recent activity timeline via GitHub Events API.
+    -   Clone commands for HTTPS, SSH, GitHub CLI, and Degit.
+    -   Personal notes for each repository.
     -   Raw README preview with monospace styling.
 -   **Cyber-Industrial UI**: A distinctive aesthetic featuring:
     -   Glassmorphism components.
     -   Background grid patterns and neon glow effects.
     -   Full dark/light theme support with persistence.
     -   Responsive grid layouts for mobile, tablet, and desktop.
+    -   Fluid typography and accessibility features (reduced motion, high contrast).
 
 ## 🛠️ Tech Stack
 
@@ -78,17 +85,25 @@ github-repo-explorer/
 ├── index.html          # Search & Results (Entry)
 ├── trending.html       # Trending Repositories
 ├── favorites.html      # Saved Favorites
+├── collections.html    # Smart Collections Management
+├── compare.html        # Side-by-Side Comparison
 ├── detail.html         # Repository Analysis View
 ├── src/
 │   ├── js/
 │   │   ├── api.js      # GitHub API Wrapper (Retry & Cache)
 │   │   ├── common.js   # State & Theme Management
-│   │   ├── components/ # Reusable UI Components
-│   │   └── pages/      # Page-specific logic
+│   │   └── components/
+│   │       ├── RepoGrid.js       # Repository cards with collection picker
+│   │       ├── HealthScore.js    # Repository health assessment
+│   │       ├── CommitHeatmap.js  # Contribution calendar
+│   │       ├── CloneCommands.js  # Clone command generator
+│   │       ├── RepoNotes.js      # Personal notes system
+│   │       └── DiscoveryStats.js # Personal discovery tracking
 │   └── css/
-│       ├── main.css    # Layout & Base Styles
-│       ├── theme.css   # "Cyber-Industrial" Design System
-│       └── components.css # Component-specific styling
+│       ├── main.css        # Layout & Base Styles
+│       ├── theme.css       # "Cyber-Industrial" Design System
+│       ├── components.css  # Component-specific styling
+│       └── accessibility.css # Reduced motion & high contrast
 └── vite.config.js      # Multi-page configuration
 ```
 

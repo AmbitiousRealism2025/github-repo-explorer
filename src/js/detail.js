@@ -14,6 +14,7 @@ import { initErrorBoundary } from './errorBoundary.js';
 import { createCloneCommands } from './components/CloneCommands.js';
 import { createRepoNotes } from './components/RepoNotes.js';
 import { createCommitHeatmap } from './components/CommitHeatmap.js';
+import { createHealthScore } from './components/HealthScore.js';
 
 initTheme();
 initErrorBoundary();
@@ -43,6 +44,7 @@ const repoInfo = document.getElementById('repo-info');
 const cloneCommandsContainer = document.getElementById('clone-commands-container');
 const repoNotesContainer = document.getElementById('repo-notes-container');
 const commitHeatmapContainer = document.getElementById('commit-heatmap-container');
+const healthScoreContainer = document.getElementById('health-score-container');
 
 let currentRepo = null;
 
@@ -241,11 +243,19 @@ const loadRepository = async () => {
     cloneCommandsContainer.appendChild(createCloneCommands(currentRepo.full_name));
     repoNotesContainer.appendChild(createRepoNotes(currentRepo.full_name));
     
+    const hasReadme = readmeResult.status === 'fulfilled' && readmeResult.value.data?.decodedContent;
+    const commitActivityData = commitActivityResult.status === 'fulfilled' ? commitActivityResult.value.data : null;
+    
+    healthScoreContainer.appendChild(createHealthScore(currentRepo, {
+      hasReadme,
+      commitActivity: commitActivityData
+    }));
+    
     if (commitActivityResult.status === 'fulfilled' && commitActivityResult.value.data) {
       commitHeatmapContainer.appendChild(createCommitHeatmap(commitActivityResult.value.data));
     }
     
-    if (readmeResult.status === 'fulfilled' && readmeResult.value.data?.decodedContent) {
+    if (hasReadme) {
       readmeContent.textContent = readmeResult.value.data.decodedContent;
     } else {
       readmeContent.textContent = 'No README available';
