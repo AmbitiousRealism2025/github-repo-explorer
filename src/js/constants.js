@@ -22,3 +22,46 @@ export const TRENDING_DAYS_BACK = 7;
 
 export const TOAST_DURATION_MS = 4000;
 export const TOAST_FADE_MS = 300;
+
+export const TRENDING_CATEGORIES = {
+  all: {
+    label: 'All Categories',
+    topics: [],
+    keywords: []
+  },
+  templates: {
+    label: 'Starter Templates',
+    topics: ['boilerplate', 'starter', 'template', 'scaffold'],
+    keywords: ['starter', 'template', 'boilerplate', 'scaffold', 'kickstart']
+  },
+  cli: {
+    label: 'CLI Tools',
+    topics: ['cli', 'command-line', 'terminal'],
+    keywords: ['cli', 'command-line', 'terminal tool']
+  },
+  libraries: {
+    label: 'Libraries',
+    topics: ['library', 'package', 'module', 'sdk'],
+    keywords: ['library', 'lib', 'package', 'sdk']
+  },
+  frameworks: {
+    label: 'Frameworks',
+    topics: ['framework'],
+    keywords: ['framework']
+  },
+  devtools: {
+    label: 'Developer Tools',
+    topics: ['devtools', 'developer-tools', 'linter', 'formatter', 'ide', 'vscode-extension'],
+    keywords: ['linter', 'formatter', 'plugin', 'extension', 'devtool']
+  },
+  learning: {
+    label: 'Learning Resources',
+    topics: ['awesome', 'awesome-list', 'tutorial', 'learn', 'education'],
+    keywords: ['awesome', 'tutorial', 'learn', 'course', 'roadmap', 'cheatsheet']
+  },
+  apis: {
+    label: 'APIs & Services',
+    topics: ['api', 'rest-api', 'graphql', 'api-wrapper'],
+    keywords: ['api', 'client', 'wrapper', 'integration']
+  }
+};
