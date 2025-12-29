@@ -8,7 +8,9 @@ import {
   getLanguageColor,
   getUrlParam,
   updateRateLimitDisplay,
-  Icons
+  Icons,
+  sanitizeUrl,
+  escapeHtml
 } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
 import { createCloneCommands } from './components/CloneCommands.js';
@@ -164,13 +166,14 @@ const renderActivity = (events) => {
 };
 
 const renderRepoInfo = (repo) => {
+  const safeHomepage = sanitizeUrl(repo.homepage);
   repoInfo.innerHTML = `
     <div style="display: flex; flex-direction: column; gap: 8px; font-size: var(--text-sm);">
-      ${repo.language ? `<div><strong>Language:</strong> ${repo.language}</div>` : ''}
+      ${repo.language ? `<div><strong>Language:</strong> ${escapeHtml(repo.language)}</div>` : ''}
       <div><strong>Created:</strong> ${new Date(repo.created_at).toLocaleDateString()}</div>
       <div><strong>Last push:</strong> ${formatDate(repo.pushed_at)}</div>
-      ${repo.license?.name ? `<div><strong>License:</strong> ${repo.license.name}</div>` : ''}
-      ${repo.homepage ? `<div><strong>Homepage:</strong> <a href="${repo.homepage}" target="_blank" rel="noopener">${repo.homepage}</a></div>` : ''}
+      ${repo.license?.name ? `<div><strong>License:</strong> ${escapeHtml(repo.license.name)}</div>` : ''}
+      ${safeHomepage ? `<div><strong>Homepage:</strong> <a href="${escapeHtml(safeHomepage)}" target="_blank" rel="noopener">${escapeHtml(safeHomepage)}</a></div>` : ''}
     </div>
   `;
 };
