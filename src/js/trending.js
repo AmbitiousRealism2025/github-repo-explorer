@@ -10,8 +10,10 @@ import {
   updateRateLimitDisplay,
   Icons
 } from './common.js';
+import { initErrorBoundary } from './errorBoundary.js';
 
 initTheme();
+initErrorBoundary();
 
 const languageFilter = document.getElementById('language-filter');
 const repoGrid = document.getElementById('repo-grid');

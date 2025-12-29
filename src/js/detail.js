@@ -10,8 +10,10 @@ import {
   updateRateLimitDisplay,
   Icons
 } from './common.js';
+import { initErrorBoundary } from './errorBoundary.js';
 
 initTheme();
+initErrorBoundary();
 
 const loadingState = document.getElementById('loading-state');
 const detailContent = document.getElementById('detail-content');

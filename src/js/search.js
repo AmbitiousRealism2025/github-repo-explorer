@@ -13,8 +13,10 @@ import {
   updateRateLimitDisplay,
   Icons
 } from './common.js';
+import { initErrorBoundary } from './errorBoundary.js';
 
 initTheme();
+initErrorBoundary();
 
 const searchInput = document.getElementById('search-input');
 const searchBtn = document.getElementById('search-btn');

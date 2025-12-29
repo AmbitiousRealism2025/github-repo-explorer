@@ -8,8 +8,10 @@ import {
   showToast,
   Icons
 } from './common.js';
+import { initErrorBoundary } from './errorBoundary.js';
 
 initTheme();
+initErrorBoundary();
 
 const repoGrid = document.getElementById('repo-grid');
 const favoritesSection = document.getElementById('favorites-section');
