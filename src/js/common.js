@@ -72,6 +72,143 @@ export const Storage = {
     } else {
       localStorage.removeItem(TOKEN_KEY);
     }
+  },
+
+  getNotes() {
+    try {
+      const raw = localStorage.getItem('gh-explorer-notes');
+      if (!raw) return {};
+      return JSON.parse(raw);
+    } catch {
+      return {};
+    }
+  },
+
+  getNote(repoFullName) {
+    const notes = this.getNotes();
+    return notes[repoFullName] || null;
+  },
+
+  saveNote(repoFullName, content) {
+    const notes = this.getNotes();
+    if (content && content.trim()) {
+      notes[repoFullName] = {
+        content: content.trim(),
+        updatedAt: Date.now()
+      };
+    } else {
+      delete notes[repoFullName];
+    }
+    localStorage.setItem('gh-explorer-notes', JSON.stringify(notes));
+  },
+
+  deleteNote(repoFullName) {
+    const notes = this.getNotes();
+    delete notes[repoFullName];
+    localStorage.setItem('gh-explorer-notes', JSON.stringify(notes));
+  },
+
+  getDiscoveryStats() {
+    try {
+      const raw = localStorage.getItem('gh-explorer-stats');
+      if (!raw) return { explored: [], languages: {}, streak: 0, lastVisit: null };
+      return JSON.parse(raw);
+    } catch {
+      return { explored: [], languages: {}, streak: 0, lastVisit: null };
+    }
+  },
+
+  trackExploration(repo) {
+    const stats = this.getDiscoveryStats();
+    const today = new Date().toDateString();
+    
+    if (!stats.explored.includes(repo.id)) {
+      stats.explored.push(repo.id);
+    }
+    
+    if (repo.language) {
+      stats.languages[repo.language] = (stats.languages[repo.language] || 0) + 1;
+    }
+    
+    if (stats.lastVisit !== today) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (stats.lastVisit === yesterday.toDateString()) {
+        stats.streak += 1;
+      } else if (stats.lastVisit !== today) {
+        stats.streak = 1;
+      }
+      stats.lastVisit = today;
+    }
+    
+    localStorage.setItem('gh-explorer-stats', JSON.stringify(stats));
+    return stats;
+  },
+
+  getCollections() {
+    try {
+      const raw = localStorage.getItem('gh-explorer-collections');
+      if (!raw) return [];
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  },
+
+  saveCollections(collections) {
+    localStorage.setItem('gh-explorer-collections', JSON.stringify(collections));
+  },
+
+  createCollection(name, description = '') {
+    const collections = this.getCollections();
+    const newCollection = {
+      id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+      name,
+      description,
+      repos: [],
+      createdAt: Date.now()
+    };
+    collections.push(newCollection);
+    this.saveCollections(collections);
+    return newCollection;
+  },
+
+  updateCollection(id, updates) {
+    const collections = this.getCollections();
+    const idx = collections.findIndex(c => c.id === id);
+    if (idx !== -1) {
+      collections[idx] = { ...collections[idx], ...updates };
+      this.saveCollections(collections);
+    }
+  },
+
+  deleteCollection(id) {
+    const collections = this.getCollections().filter(c => c.id !== id);
+    this.saveCollections(collections);
+  },
+
+  addToCollection(collectionId, repo) {
+    const collections = this.getCollections();
+    const collection = collections.find(c => c.id === collectionId);
+    if (collection && !collection.repos.find(r => r.id === repo.id)) {
+      collection.repos.push({
+        id: repo.id,
+        full_name: repo.full_name,
+        description: repo.description,
+        stargazers_count: repo.stargazers_count,
+        language: repo.language
+      });
+      this.saveCollections(collections);
+    }
+  },
+
+  removeFromCollection(collectionId, repoId) {
+    const collections = this.getCollections();
+    const collection = collections.find(c => c.id === collectionId);
+    if (collection) {
+      collection.repos = collection.repos.filter(r => r.id !== repoId);
+      this.saveCollections(collections);
+    }
   }
 };
 

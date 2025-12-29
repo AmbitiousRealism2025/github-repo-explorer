@@ -12,6 +12,8 @@ export default defineConfig({
         detail: resolve(__dirname, 'detail.html'),
         favorites: resolve(__dirname, 'favorites.html'),
         trending: resolve(__dirname, 'trending.html'),
+        collections: resolve(__dirname, 'collections.html'),
+        compare: resolve(__dirname, 'compare.html'),
       },
     },
   },

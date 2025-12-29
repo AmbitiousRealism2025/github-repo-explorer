@@ -1,4 +1,4 @@
-import { getRepository, getRepositoryReadme, getRepositoryLanguages, getRepositoryEvents } from './api.js';
+import { getRepository, getRepositoryReadme, getRepositoryLanguages, getRepositoryEvents, getCommitActivity } from './api.js';
 import { 
   initTheme, 
   toggleTheme, 
@@ -11,6 +11,9 @@ import {
   Icons
 } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
+import { createCloneCommands } from './components/CloneCommands.js';
+import { createRepoNotes } from './components/RepoNotes.js';
+import { createCommitHeatmap } from './components/CommitHeatmap.js';
 
 initTheme();
 initErrorBoundary();
@@ -37,6 +40,9 @@ const languageChart = document.getElementById('language-chart');
 const languageLegend = document.getElementById('language-legend');
 const activityTimeline = document.getElementById('activity-timeline');
 const repoInfo = document.getElementById('repo-info');
+const cloneCommandsContainer = document.getElementById('clone-commands-container');
+const repoNotesContainer = document.getElementById('repo-notes-container');
+const commitHeatmapContainer = document.getElementById('commit-heatmap-container');
 
 let currentRepo = null;
 
@@ -203,11 +209,12 @@ const loadRepository = async () => {
   showState('loading');
   
   try {
-    const [repoResult, readmeResult, languagesResult, eventsResult] = await Promise.allSettled([
+    const [repoResult, readmeResult, languagesResult, eventsResult, commitActivityResult] = await Promise.allSettled([
       getRepository(owner, repo),
       getRepositoryReadme(owner, repo),
       getRepositoryLanguages(owner, repo),
-      getRepositoryEvents(owner, repo)
+      getRepositoryEvents(owner, repo),
+      getCommitActivity(owner, repo)
     ]);
     
     if (repoResult.status === 'rejected') {
@@ -228,6 +235,15 @@ const loadRepository = async () => {
     
     updateFavoriteButton();
     renderRepoInfo(currentRepo);
+    
+    Storage.trackExploration(currentRepo);
+    
+    cloneCommandsContainer.appendChild(createCloneCommands(currentRepo.full_name));
+    repoNotesContainer.appendChild(createRepoNotes(currentRepo.full_name));
+    
+    if (commitActivityResult.status === 'fulfilled' && commitActivityResult.value.data) {
+      commitHeatmapContainer.appendChild(createCommitHeatmap(commitActivityResult.value.data));
+    }
     
     if (readmeResult.status === 'fulfilled' && readmeResult.value.data?.decodedContent) {
       readmeContent.textContent = readmeResult.value.data.decodedContent;

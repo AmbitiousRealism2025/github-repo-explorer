@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Organize your favorite repositories into smart collections">
+  <title>Collections - GitHub Explorer</title>
+  <script type="module" crossorigin src="./assets/collections-hwqr7_1e.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/errorBoundary-6mNU-65L.js">
+  <link rel="stylesheet" crossorigin href="./assets/errorBoundary-CvyMBA8T.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="container header__inner">
+        <a href="/" class="header__logo">
+          <svg class="header__logo-icon" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+          </svg>
+          GitHub Explorer
+        </a>
+        <nav class="header__nav">
+          <a href="/" class="header__nav-link">Search</a>
+          <a href="/trending.html" class="header__nav-link">Trending</a>
+          <a href="/favorites.html" class="header__nav-link">Favorites</a>
+          <a href="/collections.html" class="header__nav-link active">Collections</a>
+        </nav>
+        <div class="header__actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <span class="theme-toggle__sun">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            </span>
+            <span class="theme-toggle__moon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+      <div class="container">
+        <div class="page-header">
+          <h1 class="page-title">Smart Collections</h1>
+          <p class="page-subtitle">Organize repositories into named collections for research and comparison</p>
+        </div>
+
+        <div class="collections-actions mb-lg">
+          <button class="btn btn--primary" id="create-collection-btn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            New Collection
+          </button>
+        </div>
+
+        <div id="collections-list" class="collections-grid"></div>
+
+        <section id="empty-state" class="empty-state hidden">
+          <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+          </svg>
+          <h2 class="empty-state__title">No collections yet</h2>
+          <p class="empty-state__description">Create your first collection to organize repositories by project, technology, or research topic.</p>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer__inner">
+        <p>Built with the GitHub API</p>
+        <p class="footer__rate-limit" id="rate-limit-display"></p>
+      </div>
+    </footer>
+
+    <div class="modal-overlay" id="collection-modal">
+      <div class="modal">
+        <div class="modal__header">
+          <h2 class="modal__title" id="modal-title">New Collection</h2>
+          <button class="modal__close" id="modal-close" aria-label="Close modal">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal__body">
+          <div class="form-group">
+            <label class="filter-label" for="collection-name">Collection Name</label>
+            <input type="text" class="input" id="collection-name" placeholder="e.g., Auth Libraries">
+          </div>
+          <div class="form-group mt-md">
+            <label class="filter-label" for="collection-description">Description (optional)</label>
+            <textarea class="input" id="collection-description" rows="3" placeholder="What is this collection for?"></textarea>
+          </div>
+        </div>
+        <div class="modal__footer">
+          <button class="btn btn--secondary" id="modal-cancel">Cancel</button>
+          <button class="btn btn--primary" id="modal-save">Save Collection</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
