@@ -46,6 +46,12 @@
 
         <div class="filters-bar mb-lg">
           <div class="filter-group">
+            <label class="filter-label" for="category-filter">Category</label>
+            <select class="input select" id="category-filter">
+              <!-- Populated by JavaScript from TRENDING_CATEGORIES -->
+            </select>
+          </div>
+          <div class="filter-group">
             <label class="filter-label" for="language-filter">Language</label>
             <select class="input select" id="language-filter">
               <option value="">All Languages</option>
@@ -92,6 +98,18 @@
           <h2 class="empty-state__title">Something went wrong</h2>
           <p class="empty-state__description" id="error-message">Please try again later.</p>
           <button class="btn btn--primary mt-md" id="retry-btn">Try Again</button>
+        </section>
+
+        <section id="empty-state" class="empty-state hidden">
+          <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <h2 class="empty-state__title" id="empty-state-title">No results found</h2>
+          <p class="empty-state__description">Try broadening your search:</p>
+          <div class="empty-state__actions" id="empty-state-actions">
+            <!-- Buttons populated by JavaScript -->
+          </div>
         </section>
       </div>
     </main>

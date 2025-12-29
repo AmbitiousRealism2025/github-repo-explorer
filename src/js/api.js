@@ -1,4 +1,4 @@
-import { API_BASE, API_VERSION, CACHE_TTL_MS, CACHE_MAX_ENTRIES, TRENDING_DAYS_BACK } from './constants.js';
+import { API_BASE, API_VERSION, CACHE_TTL_MS, CACHE_MAX_ENTRIES, TRENDING_DAYS_BACK, TRENDING_CATEGORIES } from './constants.js';
 
 const getHeaders = () => {
   const headers = {
@@ -120,6 +120,7 @@ export const searchRepositories = async (query, options = {}) => {
 export const getTrendingRepositories = async (options = {}) => {
   const {
     language = '',
+    category = 'all',
     page = 1,
     perPage = 30
   } = options;
@@ -129,7 +130,23 @@ export const getTrendingRepositories = async (options = {}) => {
   const dateStr = date.toISOString().split('T')[0];
   
   let q = `created:>${dateStr}`;
-  if (language) q += `+language:${encodeURIComponent(language)}`;
+  
+  if (language) {
+    q += ` language:${language}`;
+  }
+  
+  if (category && category !== 'all') {
+    const categoryConfig = TRENDING_CATEGORIES[category];
+    if (categoryConfig && (categoryConfig.topics.length > 0 || categoryConfig.keywords.length > 0)) {
+      const topicFilters = categoryConfig.topics.map(t => `topic:${t}`);
+      const keywordFilters = categoryConfig.keywords.map(k => `${k} in:name,description`);
+      const allFilters = [...topicFilters, ...keywordFilters];
+      
+      if (allFilters.length > 0) {
+        q += ` (${allFilters.join(' OR ')})`;
+      }
+    }
+  }
   
   const url = `${API_BASE}/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&page=${page}&per_page=${perPage}`;
   
