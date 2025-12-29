@@ -89,7 +89,12 @@ const fetchWithRetry = async (url, retries = 3, backoff = 1000, useCache = true)
 
     return result;
   } catch (error) {
-    if (retries > 0 && !error.message.includes('Rate limit')) {
+    const isHttpError = error.message.startsWith('HTTP ') ||
+      error.message.includes('Rate limit') ||
+      error.message.includes('Resource not found') ||
+      error.message.includes('Forbidden');
+    
+    if (retries > 0 && !isHttpError) {
       const jitter = Math.random() * 100;
       await sleep(backoff + jitter);
       return fetchWithRetry(url, retries - 1, backoff * 2, useCache);

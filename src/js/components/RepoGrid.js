@@ -26,7 +26,7 @@ export const createRepoCard = (repo, options = {}) => {
     forks_count: repo.forks_count,
     language: repo.language,
     updated_at: repo.updated_at
-  }).replace(/'/g, "&#39;");
+  }).replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
   let dateValue;
   if (dateField === 'addedAt' && repo.addedAt) {
