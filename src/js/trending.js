@@ -10,7 +10,10 @@ import {
   renderRepoGrid, 
   renderPagination, 
   handleFavoriteToggle, 
-  handlePaginationClick 
+  handlePaginationClick,
+  handleCollectionClick,
+  handleCollectionKeydown,
+  initCollectionPickerCloseHandler
 } from './components/RepoGrid.js';
 import { MAX_SEARCH_RESULTS } from './constants.js';
 
@@ -76,9 +79,14 @@ const loadTrending = async (page = 1) => {
 };
 
 languageFilter.addEventListener('change', () => loadTrending(1));
-repoGrid.addEventListener('click', (e) => handleFavoriteToggle(e));
+repoGrid.addEventListener('click', (e) => {
+  handleFavoriteToggle(e);
+  handleCollectionClick(e);
+});
+repoGrid.addEventListener('keydown', handleCollectionKeydown);
 pagination.addEventListener('click', (e) => handlePaginationClick(e, loadTrending));
 retryBtn?.addEventListener('click', () => loadTrending(currentPage));
 themeToggle.addEventListener('click', toggleTheme);
+initCollectionPickerCloseHandler();
 
 loadTrending();

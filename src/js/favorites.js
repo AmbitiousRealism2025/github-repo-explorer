@@ -6,7 +6,10 @@ import {
 import { initErrorBoundary } from './errorBoundary.js';
 import { 
   renderRepoGrid, 
-  handleFavoriteRemove 
+  handleFavoriteRemove,
+  handleCollectionClick,
+  handleCollectionKeydown,
+  initCollectionPickerCloseHandler
 } from './components/RepoGrid.js';
 
 initTheme();
@@ -41,7 +44,12 @@ const renderFavorites = () => {
   });
 };
 
-repoGrid.addEventListener('click', (e) => handleFavoriteRemove(e, () => renderFavorites()));
+repoGrid.addEventListener('click', (e) => {
+  handleFavoriteRemove(e, () => renderFavorites());
+  handleCollectionClick(e);
+});
+repoGrid.addEventListener('keydown', handleCollectionKeydown);
 themeToggle.addEventListener('click', toggleTheme);
+initCollectionPickerCloseHandler();
 
 renderFavorites();

@@ -14,7 +14,10 @@ import {
   renderRepoGrid, 
   renderPagination, 
   handleFavoriteToggle, 
-  handlePaginationClick 
+  handlePaginationClick,
+  handleCollectionClick,
+  handleCollectionKeydown,
+  initCollectionPickerCloseHandler
 } from './components/RepoGrid.js';
 
 initTheme();
@@ -139,9 +142,14 @@ languageFilter.addEventListener('change', debouncedSearch);
 starsFilter.addEventListener('change', debouncedSearch);
 sortFilter.addEventListener('change', debouncedSearch);
 
-repoGrid.addEventListener('click', (e) => handleFavoriteToggle(e));
+repoGrid.addEventListener('click', (e) => {
+  handleFavoriteToggle(e);
+  handleCollectionClick(e);
+});
+repoGrid.addEventListener('keydown', handleCollectionKeydown);
 pagination.addEventListener('click', (e) => handlePaginationClick(e, performSearch));
 retryBtn?.addEventListener('click', () => performSearch(currentPage));
+initCollectionPickerCloseHandler();
 
 themeToggle.addEventListener('click', toggleTheme);
 
