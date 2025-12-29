@@ -1,7 +1,8 @@
-const STORAGE_VERSION = '1.0';
-const FAVORITES_KEY = 'gh-explorer-favorites';
-const THEME_KEY = 'gh-explorer-theme';
-const TOKEN_KEY = 'gh-token';
+import { STORAGE_VERSION, STORAGE_KEYS, TOAST_DURATION_MS, TOAST_FADE_MS } from './constants.js';
+
+const FAVORITES_KEY = STORAGE_KEYS.FAVORITES;
+const THEME_KEY = STORAGE_KEYS.THEME;
+const TOKEN_KEY = STORAGE_KEYS.TOKEN;
 
 export const Storage = {
   getFavorites() {
@@ -190,8 +191,8 @@ export const showToast = (message, type = 'info') => {
   
   setTimeout(() => {
     toast.style.opacity = '0';
-    setTimeout(() => toast.remove(), 300);
-  }, 4000);
+    setTimeout(() => toast.remove(), TOAST_FADE_MS);
+  }, TOAST_DURATION_MS);
 };
 
 const createToastContainer = () => {
