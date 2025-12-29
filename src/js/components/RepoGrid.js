@@ -179,7 +179,7 @@ export const handlePaginationClick = (e, onPageChange) => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
-const renderCollectionList = (picker, repoId) => {
+const renderCollectionList = (picker, repoData) => {
   const list = picker.querySelector('.collection-picker__list');
   const collections = Storage.getCollections();
   
@@ -189,7 +189,10 @@ const renderCollectionList = (picker, repoId) => {
   }
 
   list.innerHTML = collections.map(col => {
-    const isInCollection = col.repos.some(r => r.id === repoId);
+    // Check both id and full_name to handle imported collections (which use full_name as id)
+    const isInCollection = col.repos.some(r => 
+      r.id === repoData.id || r.full_name === repoData.full_name
+    );
     return `
       <button class="collection-picker__item ${isInCollection ? 'collection-picker__item--active' : ''}" 
               data-collection-id="${col.id}"
@@ -209,11 +212,11 @@ const closeAllOtherPickers = () => {
   });
 };
 
-const openCollectionPicker = (wrapper, repoId) => {
+const openCollectionPicker = (wrapper, repoData) => {
   closeAllOtherPickers();
 
   const picker = wrapper.querySelector('.collection-picker');
-  renderCollectionList(picker, repoId);
+  renderCollectionList(picker, repoData);
   picker.classList.add('open');
   picker.setAttribute('aria-hidden', 'false');
 
@@ -233,7 +236,7 @@ const handleToggleButton = (btn, picker, wrapper) => {
   if (picker.classList.contains('open')) {
     closeCollectionPicker(picker);
   } else {
-    openCollectionPicker(wrapper, repoData.id);
+    openCollectionPicker(wrapper, repoData);
   }
 };
 
@@ -246,7 +249,7 @@ const handleCollectionItemSelect = (item, wrapper, picker, onUpdate) => {
   const collection = Storage.getCollections().find(c => c.id === collectionId);
   showToast(`Added to "${collection?.name}"`, 'success');
   
-  renderCollectionList(picker, repoData.id);
+  renderCollectionList(picker, repoData);
   
   if (onUpdate) onUpdate(repoData, collectionId);
 };
@@ -265,7 +268,7 @@ const handleCreateCollection = (picker, wrapper, onUpdate) => {
   showToast(`Created "${name}" and added repo`, 'success');
   
   input.value = '';
-  renderCollectionList(picker, repoData.id);
+  renderCollectionList(picker, repoData);
   
   if (onUpdate) onUpdate(repoData, newCollection.id);
 };
