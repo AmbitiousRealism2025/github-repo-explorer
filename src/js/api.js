@@ -342,3 +342,43 @@ export const getParticipationStats = async (owner, repo, retryOnce = true) => {
     throw error;
   }
 };
+
+/**
+ * Fetches contributor commit activity for a repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {boolean} [retryOnce=true] - Whether to retry once if GitHub returns 202 (processing)
+ * @returns {Promise<{data: Array<{author: Object, total: number, weeks: Array}> | null, processing: boolean, rateLimit: Object | null}>}
+ * @throws {Error} When API request fails
+ */
+export const getContributorStats = async (owner, repo, retryOnce = true) => {
+  const url = `${API_BASE}/repos/${owner}/${repo}/stats/contributors`;
+
+  try {
+    const response = await fetch(url, { headers: getHeaders() });
+
+    if (response.status === 202) {
+      if (retryOnce) {
+        await sleep(2000);
+        return getContributorStats(owner, repo, false);
+      }
+      return { data: null, processing: true, rateLimit: null };
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return {
+      data: await response.json(),
+      processing: false,
+      rateLimit: {
+        remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
+        limit: parseInt(response.headers.get('x-ratelimit-limit') || '0'),
+        reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
+      }
+    };
+  } catch (error) {
+    throw error;
+  }
+};
