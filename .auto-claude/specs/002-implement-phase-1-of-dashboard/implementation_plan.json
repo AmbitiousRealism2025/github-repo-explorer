@@ -334,7 +334,9 @@
             "command": "npm test -- --grep 'STATS_CACHE_TTL_MS' 2>&1 | tail -10",
             "expected": "pass"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added test for STATS_CACHE_TTL_MS constant (10 minutes) in Cache Constants section. Test passes successfully.",
+          "updated_at": "2025-12-30T17:29:24.309206+00:00"
         }
       ]
     },
@@ -360,7 +362,9 @@
             "command": "npm test 2>&1 | tail -20",
             "expected": "All tests pass"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Full test suite passed with 300 tests (exceeds expected 283+). All 8 test files pass: collections (2), constants (19), common (77), HealthScore (40), components (34), RepositoryDNA (42), RepoGrid (45), api (41).",
+          "updated_at": "2025-12-30T17:30:05.494968+00:00"
         },
         {
           "id": "subtask-6-2",
@@ -465,5 +469,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T17:27:57.402103+00:00"
+  "last_updated": "2025-12-30T17:30:05.494975+00:00"
 }
