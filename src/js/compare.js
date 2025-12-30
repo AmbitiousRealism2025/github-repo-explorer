@@ -1,21 +1,22 @@
 import { getRepository } from './api.js';
-import { initTheme, toggleTheme, formatNumber, formatDate, showToast, getUrlParam, setUrlParams } from './common.js';
+import { initTheme, toggleTheme, formatNumber, formatDate, showToast, getUrlParam, setUrlParams, initMobileNav, getRequiredElement } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
 
 initTheme();
+initMobileNav();
 initErrorBoundary();
 
-const repo1Input = document.getElementById('repo-1');
-const repo2Input = document.getElementById('repo-2');
-const repo3Input = document.getElementById('repo-3');
-const repo4Input = document.getElementById('repo-4');
-const compareBtn = document.getElementById('compare-btn');
-const loadingState = document.getElementById('loading-state');
-const compareResults = document.getElementById('compare-results');
-const emptyState = document.getElementById('empty-state');
-const compareHeader = document.getElementById('compare-header');
-const compareBody = document.getElementById('compare-body');
-const themeToggle = document.getElementById('theme-toggle');
+const repo1Input = getRequiredElement('repo-1');
+const repo2Input = getRequiredElement('repo-2');
+const repo3Input = getRequiredElement('repo-3');
+const repo4Input = getRequiredElement('repo-4');
+const compareBtn = getRequiredElement('compare-btn');
+const loadingState = getRequiredElement('loading-state');
+const compareResults = getRequiredElement('compare-results');
+const emptyState = getRequiredElement('empty-state');
+const compareHeader = getRequiredElement('compare-header');
+const compareBody = getRequiredElement('compare-body');
+const themeToggle = getRequiredElement('theme-toggle');
 
 const metrics = [
   { key: 'stargazers_count', label: 'Stars', format: formatNumber },

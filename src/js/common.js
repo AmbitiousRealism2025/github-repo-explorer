@@ -432,3 +432,84 @@ export const getRequiredElement = (id) => {
   if (!el) throw new Error(`Required element not found: #${id}`);
   return el;
 };
+
+/**
+ * Initialize mobile navigation menu
+ * Sets up hamburger toggle, overlay, close button, and keyboard interactions
+ * @returns {void}
+ */
+export const initMobileNav = () => {
+  const toggle = document.getElementById('mobile-nav-toggle');
+  const nav = document.getElementById('mobile-nav');
+  const closeBtn = document.getElementById('mobile-nav-close');
+  const overlay = nav?.querySelector('.mobile-nav__overlay');
+  const panel = nav?.querySelector('.mobile-nav__panel');
+
+  // Exit if elements don't exist (desktop view or missing HTML)
+  if (!toggle || !nav) return;
+
+  // Get all focusable elements in the nav panel for focus trap
+  const getFocusableElements = () => {
+    return panel?.querySelectorAll(
+      'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    ) || [];
+  };
+
+  const openNav = () => {
+    nav.setAttribute('data-open', 'true');
+    toggle.setAttribute('aria-expanded', 'true');
+    document.body.style.overflow = 'hidden';
+    // Focus the close button when opened
+    setTimeout(() => closeBtn?.focus(), 100);
+  };
+
+  const closeNav = () => {
+    nav.setAttribute('data-open', 'false');
+    toggle.setAttribute('aria-expanded', 'false');
+    document.body.style.overflow = '';
+    // Return focus to toggle button
+    toggle.focus();
+  };
+
+  // Toggle button click
+  toggle.addEventListener('click', () => {
+    const isOpen = nav.getAttribute('data-open') === 'true';
+    if (isOpen) {
+      closeNav();
+    } else {
+      openNav();
+    }
+  });
+
+  // Close button click
+  closeBtn?.addEventListener('click', closeNav);
+
+  // Overlay click closes nav
+  overlay?.addEventListener('click', closeNav);
+
+  // Escape key closes nav
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && nav.getAttribute('data-open') === 'true') {
+      closeNav();
+    }
+  });
+
+  // Focus trap within mobile nav
+  nav.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || nav.getAttribute('data-open') !== 'true') return;
+
+    const focusable = getFocusableElements();
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
+};

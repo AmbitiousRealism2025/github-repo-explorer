@@ -1,13 +1,15 @@
 import { searchRepositories } from './api.js';
-import { 
-  initTheme, 
-  toggleTheme, 
-  Storage, 
+import {
+  initTheme,
+  toggleTheme,
+  Storage,
   formatNumber,
   debounce,
   getUrlParam,
   setUrlParams,
-  updateRateLimitDisplay
+  updateRateLimitDisplay,
+  initMobileNav,
+  getRequiredElement
 } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
 import { 
@@ -21,29 +23,30 @@ import {
 } from './components/RepoGrid.js';
 
 initTheme();
+initMobileNav();
 initErrorBoundary();
 
-const searchInput = document.getElementById('search-input');
-const searchBtn = document.getElementById('search-btn');
-const languageFilter = document.getElementById('language-filter');
-const starsFilter = document.getElementById('stars-filter');
-const sortFilter = document.getElementById('sort-filter');
-const repoGrid = document.getElementById('repo-grid');
-const resultsSection = document.getElementById('results-section');
-const resultsCount = document.getElementById('results-count');
-const emptyState = document.getElementById('empty-state');
-const loadingState = document.getElementById('loading-state');
-const errorState = document.getElementById('error-state');
-const errorMessage = document.getElementById('error-message');
-const pagination = document.getElementById('pagination');
-const themeToggle = document.getElementById('theme-toggle');
-const settingsBtn = document.getElementById('settings-btn');
-const settingsModal = document.getElementById('settings-modal');
-const settingsClose = document.getElementById('settings-close');
-const githubTokenInput = document.getElementById('github-token');
-const saveTokenBtn = document.getElementById('save-token');
-const clearTokenBtn = document.getElementById('clear-token');
-const retryBtn = document.getElementById('retry-btn');
+const searchInput = getRequiredElement('search-input');
+const searchBtn = getRequiredElement('search-btn');
+const languageFilter = getRequiredElement('language-filter');
+const starsFilter = getRequiredElement('stars-filter');
+const sortFilter = getRequiredElement('sort-filter');
+const repoGrid = getRequiredElement('repo-grid');
+const resultsSection = getRequiredElement('results-section');
+const resultsCount = getRequiredElement('results-count');
+const emptyState = getRequiredElement('empty-state');
+const loadingState = getRequiredElement('loading-state');
+const errorState = getRequiredElement('error-state');
+const errorMessage = getRequiredElement('error-message');
+const pagination = getRequiredElement('pagination');
+const themeToggle = getRequiredElement('theme-toggle');
+const settingsBtn = getRequiredElement('settings-btn');
+const settingsModal = getRequiredElement('settings-modal');
+const settingsClose = getRequiredElement('settings-close');
+const githubTokenInput = getRequiredElement('github-token');
+const saveTokenBtn = getRequiredElement('save-token');
+const clearTokenBtn = getRequiredElement('clear-token');
+const retryBtn = document.getElementById('retry-btn'); // Optional - may not exist
 
 let currentPage = 1;
 let currentQuery = '';

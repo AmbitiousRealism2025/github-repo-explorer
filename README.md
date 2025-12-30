@@ -28,7 +28,8 @@ A professional, high-performance GitHub repository explorer built with vanilla J
     -   Background grid patterns and neon glow effects.
     -   Full dark/light theme support with persistence.
     -   Responsive grid layouts for mobile, tablet, and desktop.
-    -   Fluid typography and accessibility features (reduced motion, high contrast).
+    -   Mobile hamburger navigation with slide-in panel.
+    -   Fluid typography and accessibility features (reduced motion, high contrast, WCAG AAA contrast).
 
 ## 🛠️ Tech Stack
 

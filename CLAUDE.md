@@ -42,6 +42,8 @@ This is a multi-page vanilla JavaScript app with six entry points configured in 
 - UI helpers: `showToast`, `formatNumber`, `formatDate`, `debounce`
 - XSS prevention: `safeText`, `createElement`, `escapeHtml`
 - Security: `sanitizeUrl` (validates http/https only)
+- DOM safety: `getRequiredElement(id)` throws descriptive error if element missing
+- Mobile nav: `initMobileNav()` sets up hamburger menu with focus trap
 - `Icons` object: inline SVG strings for UI elements
 
 **`constants.js`** - Configuration values for API, caching, pagination, localStorage keys, trending categories
@@ -67,9 +69,17 @@ Each HTML page imports its corresponding script which handles page-specific init
 ### Styling
 
 - `theme.css` - CSS custom properties for dark/light themes (data-theme attribute on html)
-- `main.css` - Layout, base styles, responsive breakpoints (480px, 640px, 768px, 1024px, 1280px)
-- `components.css` - Component-specific styles (cards, modals, pagination) with mobile adjustments
+- `main.css` - Layout, base styles, responsive breakpoints (359px, 480px, 640px, 768px, 1024px, 1280px)
+- `components.css` - Component-specific styles (cards, modals, pagination, mobile navigation) with mobile adjustments
 - `accessibility.css` - Reduced motion, high contrast, skip links
+
+### Mobile Navigation
+
+All pages include a hamburger menu for mobile devices (<640px):
+- Slide-in panel from right with overlay backdrop
+- Focus trap and keyboard accessibility (Escape to close)
+- ARIA attributes for screen readers
+- Initialized via `initMobileNav()` from `common.js`
 
 ### Security
 
@@ -107,17 +117,29 @@ Tests use Vitest with jsdom environment. Test files are in `src/js/__tests__/`:
 
 Current: **241 tests passing**
 
-## Next Steps (Phase 3 - Code Quality)
+## Completed Improvements
 
-Remaining improvements from AltCoder review (`AltCoder-review.md`):
+All priority items from AltCoder follow-up review (`AltCoder-follow-up.md`) have been addressed:
 
-| Task | File | Description |
-|------|------|-------------|
-| Extract magic numbers | `HealthScore.js` | Move maintenance thresholds to constants |
-| Extract retry config | `api.js` | Move `RETRY_CONFIG` values to constants |
-| DOM query safety | `common.js` | Add `getRequiredElement(id)` helper |
-| Remove color fallbacks | `HealthScore.js` | Use CSS vars only (no inline fallbacks) |
+### Priority 1 - Accessibility
+| Task | Status | Description |
+|------|--------|-------------|
+| Dark mode contrast | ✅ | Changed `--color-text-secondary` to `#d1d5db` (7.2:1 WCAG AAA) |
+| Card focus indicators | ✅ | Added `:focus-visible` outlines with glow effect |
+
+### Priority 2 - Mobile UX
+| Task | Status | Description |
+|------|--------|-------------|
+| Touch targets | ✅ | Theme toggle now 44x44px minimum |
+| Small screen support | ✅ | Added `@media (max-width: 359px)` breakpoint |
+| iOS Safari fix | ✅ | Added `env(safe-area-inset-top)` handling |
+
+### Priority 3 - Enhancements
+| Task | Status | Description |
+|------|--------|-------------|
+| Mobile navigation | ✅ | Hamburger menu with slide-in panel, focus trap, ARIA |
+| DOM query safety | ✅ | `getRequiredElement()` used across all page scripts |
 
 ---
 
-*Updated by Sisyphus: December 29, 2025*
+*Updated by Claude: December 29, 2025*

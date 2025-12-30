@@ -1,9 +1,11 @@
 import { getTrendingRepositories } from './api.js';
-import { 
-  initTheme, 
-  toggleTheme, 
+import {
+  initTheme,
+  toggleTheme,
   formatNumber,
-  updateRateLimitDisplay
+  updateRateLimitDisplay,
+  initMobileNav,
+  getRequiredElement
 } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
 import { 
@@ -18,22 +20,23 @@ import {
 import { MAX_SEARCH_RESULTS, TRENDING_CATEGORIES } from './constants.js';
 
 initTheme();
+initMobileNav();
 initErrorBoundary();
 
-const languageFilter = document.getElementById('language-filter');
-const repoGrid = document.getElementById('repo-grid');
-const resultsSection = document.getElementById('results-section');
-const resultsCount = document.getElementById('results-count');
-const loadingState = document.getElementById('loading-state');
-const errorState = document.getElementById('error-state');
-const errorMessage = document.getElementById('error-message');
-const pagination = document.getElementById('pagination');
-const themeToggle = document.getElementById('theme-toggle');
-const retryBtn = document.getElementById('retry-btn');
-const categoryFilter = document.getElementById('category-filter');
-const emptyState = document.getElementById('empty-state');
-const emptyStateTitle = document.getElementById('empty-state-title');
-const emptyStateActions = document.getElementById('empty-state-actions');
+const languageFilter = getRequiredElement('language-filter');
+const repoGrid = getRequiredElement('repo-grid');
+const resultsSection = getRequiredElement('results-section');
+const resultsCount = getRequiredElement('results-count');
+const loadingState = getRequiredElement('loading-state');
+const errorState = getRequiredElement('error-state');
+const errorMessage = getRequiredElement('error-message');
+const pagination = getRequiredElement('pagination');
+const themeToggle = getRequiredElement('theme-toggle');
+const retryBtn = document.getElementById('retry-btn'); // Optional - may not exist
+const categoryFilter = getRequiredElement('category-filter');
+const emptyState = getRequiredElement('empty-state');
+const emptyStateTitle = getRequiredElement('empty-state-title');
+const emptyStateActions = getRequiredElement('empty-state-actions');
 
 const populateCategoryDropdown = () => {
   categoryFilter.innerHTML = Object.entries(TRENDING_CATEGORIES)

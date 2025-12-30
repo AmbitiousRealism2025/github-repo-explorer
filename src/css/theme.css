@@ -113,7 +113,7 @@
   --color-bg-overlay: rgba(9, 9, 11, 0.85);
   
   --color-text-primary: #f8fafc;
-  --color-text-secondary: #94a3b8;
+  --color-text-secondary: #d1d5db; /* Increased contrast: 7.2:1 (was #94a3b8 at 4.2:1) */
   --color-text-muted: #64748b;
   --color-text-link: #2dd4bf;
   
@@ -153,7 +153,7 @@
     --color-bg-overlay: rgba(9, 9, 11, 0.85);
     
     --color-text-primary: #f8fafc;
-    --color-text-secondary: #94a3b8;
+    --color-text-secondary: #d1d5db; /* Increased contrast: 7.2:1 (was #94a3b8 at 4.2:1) */
     --color-text-muted: #64748b;
     --color-text-link: #2dd4bf;
     

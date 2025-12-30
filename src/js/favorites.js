@@ -1,7 +1,9 @@
-import { 
-  initTheme, 
-  toggleTheme, 
-  Storage
+import {
+  initTheme,
+  toggleTheme,
+  Storage,
+  initMobileNav,
+  getRequiredElement
 } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
 import { 
@@ -13,13 +15,14 @@ import {
 } from './components/RepoGrid.js';
 
 initTheme();
+initMobileNav();
 initErrorBoundary();
 
-const repoGrid = document.getElementById('repo-grid');
-const favoritesSection = document.getElementById('favorites-section');
-const resultsCount = document.getElementById('results-count');
-const emptyState = document.getElementById('empty-state');
-const themeToggle = document.getElementById('theme-toggle');
+const repoGrid = getRequiredElement('repo-grid');
+const favoritesSection = getRequiredElement('favorites-section');
+const resultsCount = getRequiredElement('results-count');
+const emptyState = getRequiredElement('empty-state');
+const themeToggle = getRequiredElement('theme-toggle');
 
 const renderFavorites = () => {
   const favorites = Storage.getFavorites();

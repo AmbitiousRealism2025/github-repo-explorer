@@ -49,6 +49,24 @@ body {
   background-attachment: fixed;
 }
 
+/* iOS Safari sticky header compensation */
+@supports (-webkit-touch-callout: none) {
+  body {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .header {
+    top: env(safe-area-inset-top);
+  }
+}
+
+/* Mobile sticky header scroll margin */
+@media (max-width: 767px) {
+  .main {
+    scroll-margin-top: 60px;
+  }
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
@@ -267,6 +285,38 @@ img {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: var(--space-lg);
+}
+
+/* Very small screens (below 360px) - prevent horizontal scroll */
+@media (max-width: 359px) {
+  .container {
+    padding: 0 var(--space-sm);
+  }
+
+  .header__inner {
+    padding: 0 var(--space-xs);
+  }
+
+  .search-box {
+    padding: var(--space-xs);
+  }
+
+  .filters-bar {
+    padding: var(--space-sm);
+  }
+
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-box {
+    grid-template-columns: 1fr;
+    padding: var(--space-md);
+  }
+
+  .detail-layout {
+    gap: var(--space-md);
+  }
 }
 
 /* Mobile styles (base - max 639px) */

@@ -1,4 +1,4 @@
-import { initTheme, toggleTheme, Storage, formatNumber, formatDate, showToast, escapeHtml } from './common.js';
+import { initTheme, toggleTheme, Storage, formatNumber, formatDate, showToast, escapeHtml, initMobileNav, getRequiredElement } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
 
 // Import validation constants
@@ -34,19 +34,20 @@ const validateImportData = (data) => {
 };
 
 initTheme();
+initMobileNav();
 initErrorBoundary();
 
-const collectionsList = document.getElementById('collections-list');
-const emptyState = document.getElementById('empty-state');
-const createBtn = document.getElementById('create-collection-btn');
-const modal = document.getElementById('collection-modal');
-const modalTitle = document.getElementById('modal-title');
-const modalClose = document.getElementById('modal-close');
-const modalCancel = document.getElementById('modal-cancel');
-const modalSave = document.getElementById('modal-save');
-const collectionNameInput = document.getElementById('collection-name');
-const collectionDescInput = document.getElementById('collection-description');
-const themeToggle = document.getElementById('theme-toggle');
+const collectionsList = getRequiredElement('collections-list');
+const emptyState = getRequiredElement('empty-state');
+const createBtn = getRequiredElement('create-collection-btn');
+const modal = getRequiredElement('collection-modal');
+const modalTitle = getRequiredElement('modal-title');
+const modalClose = getRequiredElement('modal-close');
+const modalCancel = getRequiredElement('modal-cancel');
+const modalSave = getRequiredElement('modal-save');
+const collectionNameInput = getRequiredElement('collection-name');
+const collectionDescInput = getRequiredElement('collection-description');
+const themeToggle = getRequiredElement('theme-toggle');
 
 let editingCollectionId = null;
 

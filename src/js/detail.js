@@ -1,16 +1,18 @@
 import { getRepository, getRepositoryReadme, getRepositoryLanguages, getRepositoryEvents, getCommitActivity } from './api.js';
-import { 
-  initTheme, 
-  toggleTheme, 
-  Storage, 
-  formatNumber, 
-  formatDate, 
+import {
+  initTheme,
+  toggleTheme,
+  Storage,
+  formatNumber,
+  formatDate,
   getLanguageColor,
   getUrlParam,
   updateRateLimitDisplay,
   Icons,
   sanitizeUrl,
-  escapeHtml
+  escapeHtml,
+  initMobileNav,
+  getRequiredElement
 } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
 import { createCloneCommands } from './components/CloneCommands.js';
@@ -19,34 +21,35 @@ import { createCommitHeatmap } from './components/CommitHeatmap.js';
 import { createHealthScore } from './components/HealthScore.js';
 
 initTheme();
+initMobileNav();
 initErrorBoundary();
 
-const loadingState = document.getElementById('loading-state');
-const detailContent = document.getElementById('detail-content');
-const errorState = document.getElementById('error-state');
-const errorMessage = document.getElementById('error-message');
-const themeToggle = document.getElementById('theme-toggle');
+const loadingState = getRequiredElement('loading-state');
+const detailContent = getRequiredElement('detail-content');
+const errorState = getRequiredElement('error-state');
+const errorMessage = getRequiredElement('error-message');
+const themeToggle = getRequiredElement('theme-toggle');
 
-const repoName = document.getElementById('repo-name');
-const repoDescription = document.getElementById('repo-description');
-const favoriteBtn = document.getElementById('favorite-btn');
-const favoriteText = document.getElementById('favorite-text');
-const githubLink = document.getElementById('github-link');
+const repoName = getRequiredElement('repo-name');
+const repoDescription = getRequiredElement('repo-description');
+const favoriteBtn = getRequiredElement('favorite-btn');
+const favoriteText = getRequiredElement('favorite-text');
+const githubLink = getRequiredElement('github-link');
 
-const statStars = document.getElementById('stat-stars');
-const statForks = document.getElementById('stat-forks');
-const statWatchers = document.getElementById('stat-watchers');
-const statIssues = document.getElementById('stat-issues');
+const statStars = getRequiredElement('stat-stars');
+const statForks = getRequiredElement('stat-forks');
+const statWatchers = getRequiredElement('stat-watchers');
+const statIssues = getRequiredElement('stat-issues');
 
-const readmeContent = document.getElementById('readme-content');
-const languageChart = document.getElementById('language-chart');
-const languageLegend = document.getElementById('language-legend');
-const activityTimeline = document.getElementById('activity-timeline');
-const repoInfo = document.getElementById('repo-info');
-const cloneCommandsContainer = document.getElementById('clone-commands-container');
-const repoNotesContainer = document.getElementById('repo-notes-container');
-const commitHeatmapContainer = document.getElementById('commit-heatmap-container');
-const healthScoreContainer = document.getElementById('health-score-container');
+const readmeContent = getRequiredElement('readme-content');
+const languageChart = getRequiredElement('language-chart');
+const languageLegend = getRequiredElement('language-legend');
+const activityTimeline = getRequiredElement('activity-timeline');
+const repoInfo = getRequiredElement('repo-info');
+const cloneCommandsContainer = getRequiredElement('clone-commands-container');
+const repoNotesContainer = getRequiredElement('repo-notes-container');
+const commitHeatmapContainer = getRequiredElement('commit-heatmap-container');
+const healthScoreContainer = getRequiredElement('health-score-container');
 
 let currentRepo = null;
 
