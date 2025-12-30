@@ -1,6 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createSparkline, createMiniSparkline, calculateTrend } from '../components/PulseDashboard/Sparkline.js';
 import { createTrendArrow, createMiniTrendArrow, getTrendDirection, formatPercentage } from '../components/PulseDashboard/TrendArrow.js';
+import {
+  createTemperatureIndicator,
+  getTemperatureLevel,
+  createPRFunnel,
+  createContributorBars,
+  getBusFactorRisk,
+  createFreshnessGauge,
+  getFreshnessLevel,
+  calculateFreshnessScore
+} from '../components/PulseDashboard/visualizations.js';
 
 describe('Sparkline', () => {
   describe('createSparkline', () => {
@@ -440,6 +450,578 @@ describe('TrendArrow', () => {
     it('should handle non-numbers gracefully', () => {
       expect(formatPercentage('invalid', 'stable')).toBe('0%');
       expect(formatPercentage(null, 'stable')).toBe('0%');
+    });
+  });
+});
+
+// =============================================================================
+// Visualizations Tests
+// =============================================================================
+
+describe('visualizations', () => {
+  describe('createTemperatureIndicator', () => {
+    it('should create temperature indicator container', () => {
+      const element = createTemperatureIndicator('hot');
+
+      expect(element.className).toContain('temperature-indicator');
+    });
+
+    it('should set aria-hidden for accessibility', () => {
+      const element = createTemperatureIndicator('warm');
+
+      expect(element.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should apply hot modifier class', () => {
+      const element = createTemperatureIndicator('hot');
+
+      expect(element.className).toContain('temperature-indicator--hot');
+    });
+
+    it('should apply warm modifier class', () => {
+      const element = createTemperatureIndicator('warm');
+
+      expect(element.className).toContain('temperature-indicator--warm');
+    });
+
+    it('should apply cool modifier class', () => {
+      const element = createTemperatureIndicator('cool');
+
+      expect(element.className).toContain('temperature-indicator--cool');
+    });
+
+    it('should default to cool for null temperature', () => {
+      const element = createTemperatureIndicator(null);
+
+      expect(element.className).toContain('temperature-indicator--cool');
+    });
+
+    it('should default to cool for invalid temperature', () => {
+      const element = createTemperatureIndicator('invalid');
+
+      expect(element.className).toContain('temperature-indicator--cool');
+    });
+
+    it('should create temperature bar element', () => {
+      const element = createTemperatureIndicator('hot');
+      const bar = element.querySelector('.temperature-indicator__bar');
+
+      expect(bar).not.toBeNull();
+    });
+
+    it('should create temperature fill element', () => {
+      const element = createTemperatureIndicator('warm');
+      const fill = element.querySelector('.temperature-indicator__fill');
+
+      expect(fill).not.toBeNull();
+    });
+
+    it('should create markers for all temperature levels', () => {
+      const element = createTemperatureIndicator('hot');
+      const markers = element.querySelectorAll('.temperature-indicator__marker');
+
+      expect(markers.length).toBe(3);
+    });
+  });
+
+  describe('getTemperatureLevel', () => {
+    it('should return hot for ratio >= 0.7', () => {
+      expect(getTemperatureLevel(0.7)).toBe('hot');
+      expect(getTemperatureLevel(0.85)).toBe('hot');
+      expect(getTemperatureLevel(1.0)).toBe('hot');
+    });
+
+    it('should return warm for ratio >= 0.4', () => {
+      expect(getTemperatureLevel(0.4)).toBe('warm');
+      expect(getTemperatureLevel(0.5)).toBe('warm');
+      expect(getTemperatureLevel(0.69)).toBe('warm');
+    });
+
+    it('should return cool for ratio < 0.4', () => {
+      expect(getTemperatureLevel(0)).toBe('cool');
+      expect(getTemperatureLevel(0.2)).toBe('cool');
+      expect(getTemperatureLevel(0.39)).toBe('cool');
+    });
+
+    it('should handle percentage values > 1', () => {
+      expect(getTemperatureLevel(70)).toBe('hot');
+      expect(getTemperatureLevel(50)).toBe('warm');
+      expect(getTemperatureLevel(20)).toBe('cool');
+    });
+
+    it('should return cool for null/NaN', () => {
+      expect(getTemperatureLevel(null)).toBe('cool');
+      expect(getTemperatureLevel(NaN)).toBe('cool');
+      expect(getTemperatureLevel(undefined)).toBe('cool');
+    });
+  });
+
+  describe('createPRFunnel', () => {
+    it('should create PR funnel container', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+
+      expect(element.className).toContain('pr-funnel');
+    });
+
+    it('should set aria-label for accessibility', () => {
+      const element = createPRFunnel({ opened: 10, merged: 5, closed: 2 });
+
+      expect(element.getAttribute('aria-label')).toContain('Pull request');
+    });
+
+    it('should display empty state for null data', () => {
+      const element = createPRFunnel(null);
+
+      expect(element.className).toContain('pr-funnel--empty');
+      expect(element.textContent).toContain('No PR data');
+    });
+
+    it('should display empty state for invalid data', () => {
+      const element = createPRFunnel('invalid');
+
+      expect(element.className).toContain('pr-funnel--empty');
+    });
+
+    it('should create three stage elements', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+      const stages = element.querySelectorAll('.pr-funnel__stage');
+
+      expect(stages.length).toBe(3);
+    });
+
+    it('should display opened stage', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+      const openedStage = element.querySelector('.pr-funnel__stage--opened');
+
+      expect(openedStage).not.toBeNull();
+      expect(openedStage.textContent).toContain('Opened');
+      expect(openedStage.textContent).toContain('25');
+    });
+
+    it('should display merged stage', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+      const mergedStage = element.querySelector('.pr-funnel__stage--merged');
+
+      expect(mergedStage).not.toBeNull();
+      expect(mergedStage.textContent).toContain('Merged');
+      expect(mergedStage.textContent).toContain('18');
+    });
+
+    it('should display closed stage', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+      const closedStage = element.querySelector('.pr-funnel__stage--closed');
+
+      expect(closedStage).not.toBeNull();
+      expect(closedStage.textContent).toContain('Closed');
+      expect(closedStage.textContent).toContain('5');
+    });
+
+    it('should calculate and display merge rate', () => {
+      const element = createPRFunnel({ opened: 100, merged: 75, closed: 25 });
+      const rate = element.querySelector('.pr-funnel__rate-value');
+
+      expect(rate.textContent).toBe('75%');
+    });
+
+    it('should handle zero opened PRs', () => {
+      const element = createPRFunnel({ opened: 0, merged: 0, closed: 0 });
+      const rate = element.querySelector('.pr-funnel__rate-value');
+
+      expect(rate.textContent).toBe('0%');
+    });
+
+    it('should handle missing values gracefully', () => {
+      const element = createPRFunnel({ opened: 10 });
+      const stages = element.querySelectorAll('.pr-funnel__stage');
+
+      expect(stages.length).toBe(3);
+    });
+
+    it('should include arrows between stages', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+      const arrows = element.querySelectorAll('.pr-funnel__arrow');
+
+      expect(arrows.length).toBe(2); // Between opened-merged and merged-closed
+    });
+
+    it('should format large numbers with abbreviations', () => {
+      const element = createPRFunnel({ opened: 1500, merged: 1200, closed: 300 });
+
+      expect(element.textContent).toContain('1.5k');
+    });
+  });
+
+  describe('createContributorBars', () => {
+    it('should create contributor bars container', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45 }
+      ]);
+
+      expect(element.className).toContain('contributor-bars');
+    });
+
+    it('should set role="list" for accessibility', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45 }
+      ]);
+
+      expect(element.getAttribute('role')).toBe('list');
+    });
+
+    it('should display empty state for null data', () => {
+      const element = createContributorBars(null);
+
+      expect(element.className).toContain('contributor-bars--empty');
+      expect(element.textContent).toContain('No contributor data');
+    });
+
+    it('should display empty state for empty array', () => {
+      const element = createContributorBars([]);
+
+      expect(element.className).toContain('contributor-bars--empty');
+    });
+
+    it('should create row for each contributor', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45 },
+        { login: 'user2', percentage: 30 },
+        { login: 'user3', percentage: 25 }
+      ]);
+      const rows = element.querySelectorAll('.contributor-bars__row');
+
+      expect(rows.length).toBe(3);
+    });
+
+    it('should limit to 5 contributors maximum', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 30 },
+        { login: 'user2', percentage: 20 },
+        { login: 'user3', percentage: 15 },
+        { login: 'user4', percentage: 15 },
+        { login: 'user5', percentage: 10 },
+        { login: 'user6', percentage: 5 },
+        { login: 'user7', percentage: 5 }
+      ]);
+      const rows = element.querySelectorAll('.contributor-bars__row');
+
+      expect(rows.length).toBe(5);
+    });
+
+    it('should show "others" summary for additional contributors', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 30 },
+        { login: 'user2', percentage: 20 },
+        { login: 'user3', percentage: 15 },
+        { login: 'user4', percentage: 15 },
+        { login: 'user5', percentage: 10 },
+        { login: 'user6', percentage: 5 },
+        { login: 'user7', percentage: 5 }
+      ]);
+      const others = element.querySelector('.contributor-bars__others');
+
+      expect(others).not.toBeNull();
+      expect(others.textContent).toContain('+2 others');
+      expect(others.textContent).toContain('10%');
+    });
+
+    it('should display contributor login names', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45 }
+      ]);
+
+      expect(element.textContent).toContain('user1');
+    });
+
+    it('should display percentage values', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45.7 }
+      ]);
+
+      expect(element.textContent).toContain('46%');
+    });
+
+    it('should display rank numbers', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45 },
+        { login: 'user2', percentage: 30 }
+      ]);
+      const ranks = element.querySelectorAll('.contributor-bars__rank');
+
+      expect(ranks[0].textContent).toBe('1');
+      expect(ranks[1].textContent).toBe('2');
+    });
+
+    it('should apply critical class for top contributor > 50%', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 55 }
+      ]);
+      const bar = element.querySelector('.contributor-bars__bar--critical');
+
+      expect(bar).not.toBeNull();
+    });
+
+    it('should apply warning class for top contributor > 30%', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 40 }
+      ]);
+      const bar = element.querySelector('.contributor-bars__bar--warning');
+
+      expect(bar).not.toBeNull();
+    });
+
+    it('should handle missing login gracefully', () => {
+      const element = createContributorBars([
+        { percentage: 45 }
+      ]);
+
+      expect(element.textContent).toContain('Unknown');
+    });
+
+    it('should handle missing percentage gracefully', () => {
+      const element = createContributorBars([
+        { login: 'user1' }
+      ]);
+
+      expect(element.textContent).toContain('0%');
+    });
+  });
+
+  describe('getBusFactorRisk', () => {
+    it('should return critical for null distribution', () => {
+      expect(getBusFactorRisk(null)).toBe('critical');
+    });
+
+    it('should return critical for empty distribution', () => {
+      expect(getBusFactorRisk([])).toBe('critical');
+    });
+
+    it('should return critical for top contributor > 50%', () => {
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 55 }])).toBe('critical');
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 80 }])).toBe('critical');
+    });
+
+    it('should return warning for top contributor > 30%', () => {
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 35 }])).toBe('warning');
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 50 }])).toBe('warning');
+    });
+
+    it('should return healthy for top contributor <= 30%', () => {
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 30 }])).toBe('healthy');
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 20 }])).toBe('healthy');
+    });
+  });
+
+  describe('createFreshnessGauge', () => {
+    it('should create freshness gauge container', () => {
+      const element = createFreshnessGauge(85, 3);
+
+      expect(element.className).toContain('freshness-gauge');
+    });
+
+    it('should set role="meter" for accessibility', () => {
+      const element = createFreshnessGauge(75, 5);
+
+      expect(element.getAttribute('role')).toBe('meter');
+    });
+
+    it('should set aria-valuenow', () => {
+      const element = createFreshnessGauge(75, 5);
+
+      expect(element.getAttribute('aria-valuenow')).toBe('75');
+    });
+
+    it('should set aria-valuemin and aria-valuemax', () => {
+      const element = createFreshnessGauge(75, 5);
+
+      expect(element.getAttribute('aria-valuemin')).toBe('0');
+      expect(element.getAttribute('aria-valuemax')).toBe('100');
+    });
+
+    it('should apply fresh modifier class for recent repos', () => {
+      const element = createFreshnessGauge(90, 3);
+
+      expect(element.className).toContain('freshness-gauge--fresh');
+    });
+
+    it('should apply recent modifier class', () => {
+      const element = createFreshnessGauge(70, 15);
+
+      expect(element.className).toContain('freshness-gauge--recent');
+    });
+
+    it('should apply aging modifier class', () => {
+      const element = createFreshnessGauge(40, 60);
+
+      expect(element.className).toContain('freshness-gauge--aging');
+    });
+
+    it('should apply stale modifier class', () => {
+      const element = createFreshnessGauge(10, 200);
+
+      expect(element.className).toContain('freshness-gauge--stale');
+    });
+
+    it('should create SVG gauge element', () => {
+      const element = createFreshnessGauge(85, 3);
+      const svg = element.querySelector('.freshness-gauge__svg');
+
+      expect(svg).not.toBeNull();
+    });
+
+    it('should display score value', () => {
+      const element = createFreshnessGauge(85, 3);
+      const score = element.querySelector('.freshness-gauge__score');
+
+      expect(score.textContent).toBe('85');
+    });
+
+    it('should display freshness label', () => {
+      const element = createFreshnessGauge(90, 3);
+      const label = element.querySelector('.freshness-gauge__label');
+
+      expect(label.textContent).toBe('Fresh');
+    });
+
+    it('should display days since push', () => {
+      const element = createFreshnessGauge(85, 5);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('5 days');
+    });
+
+    it('should format "Today" for 0 days', () => {
+      const element = createFreshnessGauge(100, 0);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('Today');
+    });
+
+    it('should format "1 day" for single day', () => {
+      const element = createFreshnessGauge(95, 1);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('1 day');
+    });
+
+    it('should format weeks for 7-29 days', () => {
+      const element = createFreshnessGauge(70, 14);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('2 weeks');
+    });
+
+    it('should format months for 30-364 days', () => {
+      const element = createFreshnessGauge(40, 90);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('3 months');
+    });
+
+    it('should format years for 365+ days', () => {
+      const element = createFreshnessGauge(5, 730);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('2 years');
+    });
+
+    it('should handle null days gracefully', () => {
+      const element = createFreshnessGauge(50, null);
+      const daysLabel = element.querySelector('.freshness-gauge__days-label');
+
+      expect(daysLabel.textContent).toContain('No release data');
+    });
+
+    it('should clamp score to 0-100 range', () => {
+      const element1 = createFreshnessGauge(-10, 5);
+      const element2 = createFreshnessGauge(150, 5);
+
+      expect(element1.getAttribute('aria-valuenow')).toBe('0');
+      expect(element2.getAttribute('aria-valuenow')).toBe('100');
+    });
+
+    it('should handle null score gracefully', () => {
+      const element = createFreshnessGauge(null, 5);
+
+      expect(element.getAttribute('aria-valuenow')).toBe('0');
+    });
+  });
+
+  describe('getFreshnessLevel', () => {
+    it('should return fresh for days <= 7', () => {
+      expect(getFreshnessLevel(0)).toBe('fresh');
+      expect(getFreshnessLevel(3)).toBe('fresh');
+      expect(getFreshnessLevel(7)).toBe('fresh');
+    });
+
+    it('should return recent for days <= 30', () => {
+      expect(getFreshnessLevel(8)).toBe('recent');
+      expect(getFreshnessLevel(15)).toBe('recent');
+      expect(getFreshnessLevel(30)).toBe('recent');
+    });
+
+    it('should return aging for days <= 90', () => {
+      expect(getFreshnessLevel(31)).toBe('aging');
+      expect(getFreshnessLevel(60)).toBe('aging');
+      expect(getFreshnessLevel(90)).toBe('aging');
+    });
+
+    it('should return stale for days > 90', () => {
+      expect(getFreshnessLevel(91)).toBe('stale');
+      expect(getFreshnessLevel(365)).toBe('stale');
+      expect(getFreshnessLevel(1000)).toBe('stale');
+    });
+
+    it('should return stale for null days', () => {
+      expect(getFreshnessLevel(null)).toBe('stale');
+    });
+
+    it('should return stale for NaN', () => {
+      expect(getFreshnessLevel(NaN)).toBe('stale');
+    });
+  });
+
+  describe('calculateFreshnessScore', () => {
+    it('should return 100 for 0 days', () => {
+      expect(calculateFreshnessScore(0)).toBe(100);
+    });
+
+    it('should return ~80 for 7 days', () => {
+      const score = calculateFreshnessScore(7);
+      expect(score).toBeGreaterThanOrEqual(79);
+      expect(score).toBeLessThanOrEqual(81);
+    });
+
+    it('should return ~50 for 30 days', () => {
+      const score = calculateFreshnessScore(30);
+      expect(score).toBeGreaterThanOrEqual(49);
+      expect(score).toBeLessThanOrEqual(51);
+    });
+
+    it('should return ~20 for 90 days', () => {
+      const score = calculateFreshnessScore(90);
+      expect(score).toBeGreaterThanOrEqual(19);
+      expect(score).toBeLessThanOrEqual(21);
+    });
+
+    it('should approach 0 for very old repos', () => {
+      const score = calculateFreshnessScore(365);
+      expect(score).toBeLessThanOrEqual(10);
+    });
+
+    it('should return 0 for null days', () => {
+      expect(calculateFreshnessScore(null)).toBe(0);
+    });
+
+    it('should return 0 for negative days', () => {
+      expect(calculateFreshnessScore(-5)).toBe(0);
+    });
+
+    it('should return 0 for NaN', () => {
+      expect(calculateFreshnessScore(NaN)).toBe(0);
+    });
+
+    it('should never return negative values', () => {
+      expect(calculateFreshnessScore(10000)).toBeGreaterThanOrEqual(0);
     });
   });
 });
