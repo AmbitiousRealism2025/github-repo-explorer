@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self';
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+                 font-src 'self' https://fonts.gstatic.com;
+                 img-src 'self' data: https://avatars.githubusercontent.com;
+                 connect-src https://api.github.com;">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Repository Pulse Dashboard - predictive trend analysis and vital signs metrics">
+  <title>Repository Pulse - GitHub Explorer</title>
+  <link rel="stylesheet" href="/src/css/main.css">
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <div class="app">
+    <header class="header">
+      <div class="container header__inner">
+        <a href="/" class="header__logo">
+          <svg class="header__logo-icon" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+          </svg>
+          GitHub Explorer
+        </a>
+        <nav class="header__nav">
+          <a href="/" class="header__nav-link">Search</a>
+          <a href="/trending.html" class="header__nav-link">Trending</a>
+          <a href="/favorites.html" class="header__nav-link">Favorites</a>
+          <a href="/collections.html" class="header__nav-link">Collections</a>
+          <a href="/compare.html" class="header__nav-link">Compare</a>
+        </nav>
+        <div class="header__actions">
+          <button class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-nav">
+            <span class="mobile-nav-toggle__bars">
+              <span class="mobile-nav-toggle__bar"></span>
+              <span class="mobile-nav-toggle__bar"></span>
+              <span class="mobile-nav-toggle__bar"></span>
+            </span>
+          </button>
+          <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+            <span class="theme-toggle__sun">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            </span>
+            <span class="theme-toggle__moon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            </span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Mobile Navigation Panel -->
+    <nav class="mobile-nav" id="mobile-nav" aria-label="Mobile navigation" data-open="false">
+      <div class="mobile-nav__overlay"></div>
+      <div class="mobile-nav__panel">
+        <div class="mobile-nav__header">
+          <span class="mobile-nav__title">Navigation</span>
+          <button class="mobile-nav__close" id="mobile-nav-close" aria-label="Close navigation menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <ul class="mobile-nav__list">
+          <li class="mobile-nav__item">
+            <a href="/" class="mobile-nav__link">
+              <svg class="mobile-nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              Search
+            </a>
+          </li>
+          <li class="mobile-nav__item">
+            <a href="/trending.html" class="mobile-nav__link">
+              <svg class="mobile-nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              Trending
+            </a>
+          </li>
+          <li class="mobile-nav__item">
+            <a href="/favorites.html" class="mobile-nav__link">
+              <svg class="mobile-nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+              Favorites
+            </a>
+          </li>
+          <li class="mobile-nav__item">
+            <a href="/collections.html" class="mobile-nav__link">
+              <svg class="mobile-nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
+              Collections
+            </a>
+          </li>
+          <li class="mobile-nav__item">
+            <a href="/compare.html" class="mobile-nav__link">
+              <svg class="mobile-nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+              Compare
+            </a>
+          </li>
+        </ul>
+        <div class="mobile-nav__footer">
+          <div class="mobile-nav__brand">
+            <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            GitHub Explorer
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="main" id="main-content">
+      <div class="container">
+        <section id="loading-state">
+          <div class="skeleton skeleton--title" style="width: 300px; height: 2rem; margin-bottom: 1rem;"></div>
+          <div class="skeleton skeleton--text" style="width: 60%; margin-bottom: 2rem;"></div>
+          <div class="pulse-dashboard-skeleton">
+            <div class="skeleton" style="height: 200px; margin-bottom: 1.5rem;"></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+              <div class="skeleton" style="height: 180px;"></div>
+              <div class="skeleton" style="height: 180px;"></div>
+              <div class="skeleton" style="height: 180px;"></div>
+              <div class="skeleton" style="height: 180px;"></div>
+              <div class="skeleton" style="height: 180px;"></div>
+              <div class="skeleton" style="height: 180px;"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="pulse-content" class="hidden">
+          <div class="page-header">
+            <div class="flex-between gap-md">
+              <div>
+                <h1 class="page-title" id="repo-name"></h1>
+                <p class="page-subtitle" id="repo-description"></p>
+              </div>
+              <div class="flex gap-sm">
+                <a class="btn btn--secondary" id="view-details-btn" href="#">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  View Details
+                </a>
+                <a class="btn btn--primary" id="github-link" href="#" target="_blank" rel="noopener noreferrer">
+                  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"/></svg>
+                  View on GitHub
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <div id="pulse-container"></div>
+        </section>
+
+        <section id="error-state" class="empty-state hidden">
+          <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+          <h2 class="empty-state__title">Repository not found</h2>
+          <p class="empty-state__description" id="error-message">The repository you're looking for doesn't exist or is private.</p>
+          <a href="/" class="btn btn--primary mt-md">Back to Search</a>
+        </section>
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="container footer__inner">
+        <p>Built with the GitHub API</p>
+        <p class="footer__rate-limit" id="rate-limit-display"></p>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="/src/js/pulse.js"></script>
+</body>
+</html>
