@@ -2606,3 +2606,103 @@
 .pulse-card--at_risk:hover {
   border-color: rgba(239, 68, 68, 0.6);
 }
+
+/* ============================================
+   Sparkline Draw Animation
+   ============================================ */
+
+/* Sparkline path draw effect - progressively draws from left to right */
+@keyframes sparkline-draw {
+  from {
+    stroke-dashoffset: 200;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Base sparkline styling with draw animation */
+.sparkline path {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: sparkline-draw 1s ease-out forwards;
+}
+
+/* Sparkline gradient fill animation delay */
+.sparkline path.sparkline__fill {
+  animation-delay: 0.2s;
+}
+
+/* ============================================
+   Trend Arrow Animations
+   ============================================ */
+
+/* Bounce up animation for upward trends */
+@keyframes arrow-bounce-up {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+  60% {
+    transform: translateY(-2px);
+  }
+  80% {
+    transform: translateY(-3px);
+  }
+  100% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Bounce down animation for downward trends */
+@keyframes arrow-bounce-down {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  40% {
+    transform: translateY(4px);
+    opacity: 1;
+  }
+  60% {
+    transform: translateY(2px);
+  }
+  80% {
+    transform: translateY(3px);
+  }
+  100% {
+    transform: translateY(2px);
+  }
+}
+
+/* Subtle pulse for stable/neutral trend */
+@keyframes arrow-bounce-stable {
+  0% {
+    transform: scale(1);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Apply animations to trend arrow variants */
+.trend-arrow--up .trend-arrow__icon {
+  animation: arrow-bounce-up 0.6s ease-out both;
+}
+
+.trend-arrow--down .trend-arrow__icon {
+  animation: arrow-bounce-down 0.6s ease-out both;
+}
+
+.trend-arrow--stable .trend-arrow__icon {
+  animation: arrow-bounce-stable 0.6s ease-out both;
+}
