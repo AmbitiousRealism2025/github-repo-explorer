@@ -53,7 +53,19 @@ export const createCloneCommands = (fullName, hasDevContainer = false) => {
       await navigator.clipboard.writeText(input.value);
       showToast('Copied to clipboard', 'success');
     } catch {
-      showToast('Failed to copy - please copy manually', 'error');
+      // Fallback for file://, HTTP, or browsers without Clipboard API
+      try {
+        input.select();
+        input.setSelectionRange(0, 99999); // Mobile support
+        const success = document.execCommand('copy');
+        if (success) {
+          showToast('Copied to clipboard', 'success');
+        } else {
+          throw new Error('execCommand returned false');
+        }
+      } catch {
+        showToast('Failed to copy - please copy manually', 'error');
+      }
     }
   });
 
