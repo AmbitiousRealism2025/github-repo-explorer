@@ -26,7 +26,8 @@ import {
   DEFAULT_METRIC,
   TIME_MS,
   COMMUNITY,
-  ISSUES
+  ISSUES,
+  PR_HEALTH
 } from './constants.js';
 
 // =============================================================================
@@ -793,6 +794,221 @@ function generateIssueSparkline(issues, days) {
     if (!issue?.created_at) continue;
 
     const createdDate = safeParseDate(issue.created_at);
+    if (!createdDate) continue;
+
+    const daysAgo = Math.floor((now - createdDate.getTime()) / dayMs);
+    if (daysAgo >= 0 && daysAgo < days) {
+      // Index 0 = oldest, index (days-1) = most recent
+      const index = days - 1 - daysAgo;
+      sparkline[index]++;
+    }
+  }
+
+  return sparkline;
+}
+
+/**
+ * Calculate PR health from pull request data
+ * Analyzes merge rate, time-to-merge, and PR funnel metrics
+ *
+ * @param {Object[]} pullRequests - Array of GitHub pull request objects
+ * @param {string} pullRequests[].created_at - PR creation date (ISO string)
+ * @param {string} [pullRequests[].merged_at] - PR merge date (ISO string, null if not merged)
+ * @param {string} [pullRequests[].closed_at] - PR close date (ISO string, null if open)
+ * @param {string} pullRequests[].state - PR state ('open' or 'closed')
+ * @param {boolean} [pullRequests[].merged] - Whether the PR was merged
+ * @returns {Object} MetricResult with merge rate, time-to-merge, and funnel data
+ *
+ * @example
+ * // Healthy repo with PRs being merged quickly
+ * const prs = [
+ *   { created_at: '2024-01-01', merged_at: '2024-01-02', merged: true, state: 'closed' },
+ *   { created_at: '2024-01-05', merged_at: '2024-01-06', merged: true, state: 'closed' },
+ *   { created_at: '2024-01-10', state: 'open' }
+ * ];
+ * const result = calculatePRHealth(prs);
+ * // result.funnel.merged === 2
+ * // result.mergeRate >= 60
+ *
+ * @example
+ * // Handle no PRs
+ * const result = calculatePRHealth([]);
+ * // result.funnel === { opened: 0, merged: 0, closed: 0, open: 0 }
+ * // result.label === 'No recent pull requests'
+ */
+export function calculatePRHealth(pullRequests) {
+  // Handle missing or invalid PR data
+  if (!pullRequests || !Array.isArray(pullRequests)) {
+    return getDefaultMetric('prs');
+  }
+
+  // Filter to PRs within the analysis window (last 30 days)
+  const windowDays = PR_HEALTH.WINDOW_DAYS;
+  const windowCutoff = Date.now() - (windowDays * TIME_MS.DAY);
+
+  const recentPRs = pullRequests.filter(pr => {
+    if (!pr?.created_at) return false;
+    const createdDate = safeParseDate(pr.created_at);
+    return createdDate && createdDate.getTime() >= windowCutoff;
+  });
+
+  // No recent PRs = default state
+  if (recentPRs.length === 0) {
+    return getDefaultMetric('prs');
+  }
+
+  // Categorize PRs
+  const mergedPRs = recentPRs.filter(pr => pr.merged === true || pr.merged_at);
+  const closedPRs = recentPRs.filter(pr => pr.state === 'closed' && !pr.merged && !pr.merged_at);
+  const openPRs = recentPRs.filter(pr => pr.state === 'open');
+
+  const totalOpened = recentPRs.length;
+  const mergedCount = mergedPRs.length;
+  const closedCount = closedPRs.length; // Closed without merge
+  const openCount = openPRs.length;
+
+  // Build funnel data
+  const funnel = {
+    opened: totalOpened,
+    merged: mergedCount,
+    closed: closedCount,
+    open: openCount
+  };
+
+  // Calculate merge rate (percentage of PRs that were merged)
+  // We consider only closed PRs for rate calculation (merged / (merged + closed))
+  const completedPRs = mergedCount + closedCount;
+  const mergeRate = completedPRs > 0 ? (mergedCount / completedPRs) * 100 : 0;
+
+  // Calculate average time to merge for merged PRs
+  let avgTimeToMerge = 0;
+  const mergeTimes = [];
+
+  for (const pr of mergedPRs) {
+    if (pr.created_at && pr.merged_at) {
+      const days = daysBetween(pr.created_at, pr.merged_at);
+      if (days >= 0) {
+        mergeTimes.push(days);
+      }
+    }
+  }
+
+  if (mergeTimes.length > 0) {
+    avgTimeToMerge = average(mergeTimes);
+  }
+
+  // Calculate score based on merge rate
+  let mergeRateScore = 0;
+  if (mergeRate >= PR_HEALTH.MERGE_RATE.EXCELLENT) mergeRateScore = 100;
+  else if (mergeRate >= PR_HEALTH.MERGE_RATE.GOOD) mergeRateScore = 75;
+  else if (mergeRate >= PR_HEALTH.MERGE_RATE.FAIR) mergeRateScore = 50;
+  else if (mergeRate >= PR_HEALTH.MERGE_RATE.POOR) mergeRateScore = 25;
+  else mergeRateScore = 10;
+
+  // Time to merge modifier
+  let timeModifier = 0;
+  if (avgTimeToMerge <= PR_HEALTH.TIME_TO_MERGE.EXCELLENT) timeModifier = 15;
+  else if (avgTimeToMerge <= PR_HEALTH.TIME_TO_MERGE.GOOD) timeModifier = 10;
+  else if (avgTimeToMerge <= PR_HEALTH.TIME_TO_MERGE.FAIR) timeModifier = 0;
+  else if (avgTimeToMerge <= PR_HEALTH.TIME_TO_MERGE.SLOW) timeModifier = -10;
+  else timeModifier = -15;
+
+  // Volume bonus for active repositories
+  const weeklyVolume = totalOpened / (windowDays / 7);
+  let volumeModifier = 0;
+  if (weeklyVolume >= PR_HEALTH.VOLUME.HIGH) volumeModifier = 5;
+  else if (weeklyVolume >= PR_HEALTH.VOLUME.MEDIUM) volumeModifier = 0;
+  else if (weeklyVolume >= PR_HEALTH.VOLUME.LOW) volumeModifier = -5;
+  else volumeModifier = -10;
+
+  // Final score
+  const score = clamp(mergeRateScore + timeModifier + volumeModifier, 0, 100);
+
+  // Determine status based on score
+  const status = getMetricStatus(score);
+
+  // Calculate trend by comparing first half vs second half of window
+  const halfWindow = windowCutoff + (windowDays * TIME_MS.DAY / 2);
+
+  const olderPRs = recentPRs.filter(pr => {
+    const date = safeParseDate(pr.created_at);
+    return date && date.getTime() < halfWindow;
+  });
+
+  const newerPRs = recentPRs.filter(pr => {
+    const date = safeParseDate(pr.created_at);
+    return date && date.getTime() >= halfWindow;
+  });
+
+  // Calculate merge rates for each half
+  const olderMerged = olderPRs.filter(pr => pr.merged === true || pr.merged_at).length;
+  const olderClosed = olderPRs.filter(pr => pr.state === 'closed' && !pr.merged && !pr.merged_at).length;
+  const olderCompleted = olderMerged + olderClosed;
+
+  const newerMerged = newerPRs.filter(pr => pr.merged === true || pr.merged_at).length;
+  const newerClosed = newerPRs.filter(pr => pr.state === 'closed' && !pr.merged && !pr.merged_at).length;
+  const newerCompleted = newerMerged + newerClosed;
+
+  const olderMergeRate = olderCompleted > 0 ? (olderMerged / olderCompleted) * 100 : 0;
+  const newerMergeRate = newerCompleted > 0 ? (newerMerged / newerCompleted) * 100 : 0;
+
+  // Trend: positive = improving (higher merge rate recently), negative = worsening
+  const trend = Math.round(percentageChange(newerMergeRate, olderMergeRate));
+  const direction = getTrendDirection(trend);
+
+  // Generate sparkline data (daily PR activity over window)
+  const sparklineData = generatePRSparkline(recentPRs, windowDays);
+
+  // Generate human-readable label
+  const roundedMergeRate = Math.round(mergeRate);
+  const roundedTimeToMerge = Math.round(avgTimeToMerge * 10) / 10;
+  let label;
+
+  if (mergedCount === 0 && completedPRs === 0 && openCount > 0) {
+    label = `${openCount} open PRs`;
+  } else if (avgTimeToMerge > 0) {
+    label = `${roundedMergeRate}% merged, ~${roundedTimeToMerge}d avg`;
+  } else {
+    label = `${roundedMergeRate}% merge rate`;
+  }
+
+  return {
+    value: roundedMergeRate,
+    trend: clamp(trend, -100, 100),
+    direction,
+    sparklineData,
+    status,
+    label,
+    funnel,
+    // Additional metadata
+    mergeRate: Math.round(mergeRate * 10) / 10,
+    avgTimeToMerge: Math.round(avgTimeToMerge * 10) / 10,
+    totalOpened,
+    mergedCount,
+    closedCount,
+    openCount,
+    weeklyVolume: Math.round(weeklyVolume * 10) / 10,
+    score
+  };
+}
+
+/**
+ * Generate sparkline data for PR activity
+ * Creates an array representing daily PR counts over the window
+ *
+ * @param {Object[]} prs - Array of PR objects with created_at
+ * @param {number} days - Number of days in the window
+ * @returns {number[]} Array of daily PR counts (oldest to newest)
+ */
+function generatePRSparkline(prs, days) {
+  const sparkline = Array(days).fill(0);
+  const now = Date.now();
+  const dayMs = TIME_MS.DAY;
+
+  for (const pr of prs) {
+    if (!pr?.created_at) continue;
+
+    const createdDate = safeParseDate(pr.created_at);
     if (!createdDate) continue;
 
     const daysAgo = Math.floor((now - createdDate.getTime()) / dayMs);
