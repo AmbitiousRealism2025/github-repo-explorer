@@ -5,7 +5,8 @@
  * @module components/RepositoryDNA/DNAGenerator
  */
 
-import { LANGUAGE_COLORS, getLanguageColor, getComplementaryColor } from './colors.js';
+import { LANGUAGE_COLORS, getLanguageColor, getComplementaryColor, generateColorFamily } from './colors.js';
+import { getLanguageShape, getShapeMetadata, SHAPE_TYPES } from './shapes.js';
 
 /**
  * Mulberry32 - A simple seeded PRNG
@@ -39,33 +40,42 @@ export function generateSeed(repo) {
 }
 
 /**
- * Calculate the number of polygon sides based on language count
- * @param {number} languageCount - Number of languages in the repository
- * @returns {number} - Number of polygon sides (3-12)
- */
-function calculatePolygonSides(languageCount) {
-  if (languageCount <= 1) return 6; // Hexagon for single-language repos
-  if (languageCount <= 3) return 3 + languageCount; // 4-6 sides
-  if (languageCount <= 6) return Math.min(languageCount + 2, 8); // 5-8 sides
-  return Math.min(languageCount, 12); // Cap at 12 sides
-}
-
-/**
  * Calculate radius based on star count (logarithmic scale)
+ * UPDATED: Larger base size, smaller variance
  * @param {number} stars - Number of stars
- * @returns {number} - Radius value (30-80)
+ * @returns {number} - Radius value (65-85)
  */
 function calculateRadius(stars) {
-  const MIN_RADIUS = 30;
-  const MAX_RADIUS = 80;
+  const MIN_RADIUS = 65;  // Increased from 30
+  const MAX_RADIUS = 85;  // Increased from 80, tighter range
 
   if (stars === 0) return MIN_RADIUS;
 
-  // Logarithmic scaling: 1 star = 30, 1M stars = 80
+  // Logarithmic scaling: 1 star = 65, 1M stars = 85
   const logStars = Math.log10(stars + 1);
   const normalized = Math.min(logStars / 6, 1); // 6 = log10(1,000,000)
 
   return MIN_RADIUS + (MAX_RADIUS - MIN_RADIUS) * normalized;
+}
+
+/**
+ * Calculate star-based glow intensity for perimeter pulse
+ * @param {number} stars - Number of stars
+ * @returns {Object} - Glow configuration
+ */
+function calculateStarGlow(stars) {
+  // Tiers based on star count
+  if (stars < 100) {
+    return { intensity: 0.2, pulseSpeed: 4000, glowSize: 8 };
+  } else if (stars < 1000) {
+    return { intensity: 0.4, pulseSpeed: 3500, glowSize: 12 };
+  } else if (stars < 10000) {
+    return { intensity: 0.6, pulseSpeed: 3000, glowSize: 16 };
+  } else if (stars < 100000) {
+    return { intensity: 0.8, pulseSpeed: 2500, glowSize: 22 };
+  } else {
+    return { intensity: 1.0, pulseSpeed: 2000, glowSize: 30 };
+  }
 }
 
 /**
@@ -154,14 +164,21 @@ export function generateDNAData(repo, options = {}) {
   const languageCount = Object.keys(languages).length || 1;
   const primaryLanguage = repo.language || 'Unknown';
 
-  // Get colors
-  const colors = getLanguageColor(primaryLanguage);
-  const complementary = getComplementaryColor(colors.primary);
+  // Get base colors and generate full color family
+  const baseColors = getLanguageColor(primaryLanguage);
+  const colorFamily = generateColorFamily(baseColors.primary, repo);
+  const complementary = getComplementaryColor(baseColors.primary);
+
+  // Get language-based shape
+  const shapeType = getLanguageShape(primaryLanguage);
+  const shapeMeta = getShapeMetadata(shapeType);
 
   // Calculate geometry
-  const sides = calculatePolygonSides(languageCount);
   const radius = calculateRadius(repo.stargazers_count || 0);
   const rotation = calculateRotation(repo.created_at);
+
+  // Calculate star-based glow effect
+  const starGlow = calculateStarGlow(repo.stargazers_count || 0);
 
   // Calculate pattern attributes
   const density = calculateDensity(repo.forks_count || 0);
@@ -178,21 +195,45 @@ export function generateDNAData(repo, options = {}) {
     glowSpread: 10 + random() * 20,
   };
 
+  // Extract additional metadata
+  const ownerType = repo.owner?.type || 'User';
+  const license = repo.license?.spdx_id || repo.license?.name || 'none';
+
   return {
     seed,
     repoId: repo.id,
     repoName: repo.full_name,
     geometry: {
-      sides,
+      shapeType,
+      shapeName: shapeMeta.name,
+      sides: shapeMeta.sides,
       radius,
       rotation,
       innerRotation: variations.innerRotation,
     },
+    // Star-based perimeter glow effect
+    starGlow: {
+      intensity: starGlow.intensity,
+      pulseSpeed: starGlow.pulseSpeed,
+      glowSize: starGlow.glowSize,
+    },
+    // Use enhanced color family instead of basic colors
     colors: {
-      primary: colors.primary,
-      secondary: colors.secondary,
+      primary: colorFamily.primary,
+      secondary: colorFamily.secondary,
+      tertiary: colorFamily.tertiary,
       accent: complementary,
-      background: colors.background || adjustAlpha(colors.primary, 0.1),
+      background: baseColors.background || adjustAlpha(colorFamily.primary, 0.1),
+      // Bio-circuit specific colors
+      trace: colorFamily.trace,
+      traceAlpha: colorFamily.traceAlpha,
+      node: colorFamily.node,
+      glow: colorFamily.glow,
+      bridge: colorFamily.bridge,
+      ambient: colorFamily.ambient,
+      ambientAlpha: colorFamily.ambientAlpha,
+      rail: colorFamily.rail,
+      dot: colorFamily.dot,
     },
     pattern: {
       density,
@@ -210,6 +251,8 @@ export function generateDNAData(repo, options = {}) {
       languageCount,
       stars: repo.stargazers_count || 0,
       forks: repo.forks_count || 0,
+      ownerType,
+      license,
     }
   };
 }

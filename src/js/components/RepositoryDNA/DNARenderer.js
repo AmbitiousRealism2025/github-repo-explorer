@@ -12,6 +12,16 @@ import {
   drawCenterElement,
   getPatternFunctions,
 } from './patterns.js';
+import {
+  drawHelixTrace,
+  drawCircuitNodes,
+  drawDataBridges,
+  drawBranchTraces,
+  drawSignalDots,
+  drawPowerRails,
+  drawEnhancedCenter,
+  getBioCircuitPatterns,
+} from './bioCircuitPatterns.js';
 
 /**
  * Create a canvas element with DNA visualization
@@ -35,17 +45,20 @@ export function createDNACanvas(dnaData, size = 200) {
 
 /**
  * Draw complete DNA visualization to canvas context
+ * Uses Bio-Circuit pattern system for enhanced uniqueness
  * @param {CanvasRenderingContext2D} ctx - Canvas context
  * @param {Object} dnaData - DNA data structure
  * @param {Object} [options] - Rendering options
  * @param {number} [options.size=200] - Canvas size
  * @param {boolean} [options.drawBackground=true] - Whether to draw background
+ * @param {number} [options.time=0] - Animation time for ripple effects
+ * @param {boolean} [options.useBioCircuit=true] - Use bio-circuit patterns
  */
 export function drawDNA(ctx, dnaData, options = {}) {
   // Guard against null context (jsdom doesn't support canvas)
   if (!ctx) return;
 
-  const { size = 200, drawBackground = true } = options;
+  const { size = 200, drawBackground = true, time = 0, useBioCircuit = true } = options;
 
   const cx = size / 2;
   const cy = size / 2;
@@ -62,18 +75,54 @@ export function drawDNA(ctx, dnaData, options = {}) {
     drawBackgroundGradient(ctx, cx, cy, size, dnaData);
   }
 
-  // Draw patterns based on density
-  const patternFunctions = getPatternFunctions(dnaData.pattern.density);
-  patternFunctions.forEach(drawPattern => {
-    drawPattern(ctx, cx, cy, scaledRadius, dnaData);
-  });
+  if (useBioCircuit) {
+    // === Bio-Circuit Pattern System ===
 
-  // Draw main polygon
-  drawFilledPolygon(ctx, cx, cy, scaledRadius, dnaData);
-  drawPolygonOutline(ctx, cx, cy, scaledRadius, dnaData);
+    // Layer 1: Subtle helix trace (background)
+    drawHelixTrace(ctx, cx, cy, scaledRadius, dnaData);
 
-  // Draw center element
-  drawCenterElement(ctx, cx, cy, dnaData);
+    // Layer 2: Signal dots constellation (unique fingerprint)
+    drawSignalDots(ctx, cx, cy, scaledRadius, dnaData);
+
+    // Layer 3: Power rails (frame based on license)
+    if (dnaData.pattern.complexity >= 4) {
+      drawPowerRails(ctx, cx, cy, scaledRadius, dnaData);
+    }
+
+    // Layer 4: Data bridges (based on star tier)
+    drawDataBridges(ctx, cx, cy, scaledRadius, dnaData);
+
+    // Layer 5: Main shape (core shape with star-based glow)
+    drawFilledPolygon(ctx, cx, cy, scaledRadius, dnaData);
+    drawPolygonOutline(ctx, cx, cy, scaledRadius, dnaData, time);
+
+    // Layer 6: Branch traces (topic-driven)
+    if (dnaData.pattern.complexity >= 3) {
+      drawBranchTraces(ctx, cx, cy, scaledRadius, dnaData);
+    }
+
+    // Layer 7: Circuit nodes with ripple animation
+    if (dnaData.pattern.complexity >= 2) {
+      drawCircuitNodes(ctx, cx, cy, scaledRadius, dnaData, time);
+    }
+
+    // Layer 8: Enhanced center element (owner type variation)
+    drawEnhancedCenter(ctx, cx, cy, dnaData);
+
+  } else {
+    // === Legacy Pattern System (fallback) ===
+    const patternFunctions = getPatternFunctions(dnaData.pattern.density);
+    patternFunctions.forEach(drawPattern => {
+      drawPattern(ctx, cx, cy, scaledRadius, dnaData);
+    });
+
+    // Draw main polygon
+    drawFilledPolygon(ctx, cx, cy, scaledRadius, dnaData);
+    drawPolygonOutline(ctx, cx, cy, scaledRadius, dnaData);
+
+    // Draw center element
+    drawCenterElement(ctx, cx, cy, dnaData);
+  }
 }
 
 /**
@@ -140,7 +189,8 @@ export function createAnimatedDNACanvas(dnaData, size = 200) {
       },
     };
 
-    drawDNA(ctx, animatedDnaData, { size });
+    // Pass elapsed time for node ripple animations
+    drawDNA(ctx, animatedDnaData, { size, time: elapsed });
     animationId = requestAnimationFrame(animate);
   }
 

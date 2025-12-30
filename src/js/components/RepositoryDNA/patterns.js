@@ -7,6 +7,7 @@
 
 import { createSeededRandom } from './DNAGenerator.js';
 import { hexToRgba, lightenColor, darkenColor } from './colors.js';
+import { drawShapePath, SHAPE_TYPES } from './shapes.js';
 
 /**
  * Draw radial rays from center
@@ -210,54 +211,88 @@ export function drawPolygon(ctx, cx, cy, radius, sides, rotation = 0) {
 }
 
 /**
- * Draw filled polygon with gradient
+ * Draw filled shape with gradient (supports all shape types)
  * @param {CanvasRenderingContext2D} ctx - Canvas context
  * @param {number} cx - Center X
  * @param {number} cy - Center Y
- * @param {number} radius - Polygon radius
+ * @param {number} radius - Shape radius
  * @param {Object} dnaData - DNA data structure
  */
 export function drawFilledPolygon(ctx, cx, cy, radius, dnaData) {
   const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-  gradient.addColorStop(0, hexToRgba(dnaData.colors.primary, 0.15));
-  gradient.addColorStop(0.7, hexToRgba(dnaData.colors.primary, 0.08));
-  gradient.addColorStop(1, hexToRgba(dnaData.colors.primary, 0.02));
+  gradient.addColorStop(0, hexToRgba(dnaData.colors.primary, 0.12));
+  gradient.addColorStop(0.7, hexToRgba(dnaData.colors.primary, 0.06));
+  gradient.addColorStop(1, hexToRgba(dnaData.colors.primary, 0.01));
 
   ctx.save();
-  ctx.beginPath();
-  drawPolygon(ctx, cx, cy, radius, dnaData.geometry.sides, dnaData.geometry.rotation);
+
+  // Use new shape system if shapeType is defined, fall back to polygon
+  const shapeType = dnaData.geometry.shapeType || SHAPE_TYPES.HEXAGON;
+  drawShapePath(ctx, cx, cy, radius, shapeType, dnaData.geometry.rotation);
+
   ctx.fillStyle = gradient;
   ctx.fill();
   ctx.restore();
 }
 
 /**
- * Draw polygon outline with glow effect
+ * Draw shape outline with star-based glow effect
+ * The glow intensity increases based on star count
  * @param {CanvasRenderingContext2D} ctx - Canvas context
  * @param {number} cx - Center X
  * @param {number} cy - Center Y
- * @param {number} radius - Polygon radius
+ * @param {number} radius - Shape radius
  * @param {Object} dnaData - DNA data structure
+ * @param {number} [time=0] - Animation time for pulsing glow
  */
-export function drawPolygonOutline(ctx, cx, cy, radius, dnaData) {
+export function drawPolygonOutline(ctx, cx, cy, radius, dnaData, time = 0) {
   ctx.save();
 
-  // Glow effect
-  ctx.shadowColor = dnaData.colors.primary;
-  ctx.shadowBlur = dnaData.animation.glowSpread;
+  const shapeType = dnaData.geometry.shapeType || SHAPE_TYPES.HEXAGON;
+  const starGlow = dnaData.starGlow || { intensity: 0.3, glowSize: 10, pulseSpeed: 3000 };
 
-  ctx.beginPath();
-  drawPolygon(ctx, cx, cy, radius, dnaData.geometry.sides, dnaData.geometry.rotation);
-  ctx.strokeStyle = dnaData.colors.primary;
+  // Calculate pulsing glow based on time and star count
+  let glowIntensity = starGlow.intensity;
+  let glowSize = starGlow.glowSize;
+
+  if (time > 0) {
+    // Pulsing effect - faster pulse for more stars
+    const pulsePhase = (Math.sin((time / starGlow.pulseSpeed) * Math.PI * 2) + 1) / 2;
+    glowIntensity = starGlow.intensity * (0.6 + pulsePhase * 0.4);
+    glowSize = starGlow.glowSize * (0.7 + pulsePhase * 0.3);
+  }
+
+  // Outer glow layer (most diffuse)
+  if (glowIntensity > 0.3) {
+    ctx.shadowColor = dnaData.colors.glow || dnaData.colors.primary;
+    ctx.shadowBlur = glowSize * 1.5;
+
+    drawShapePath(ctx, cx, cy, radius, shapeType, dnaData.geometry.rotation);
+    ctx.strokeStyle = hexToRgba(dnaData.colors.primary, glowIntensity * 0.3);
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  // Middle glow layer
+  ctx.shadowColor = dnaData.colors.primary;
+  ctx.shadowBlur = glowSize;
+
+  drawShapePath(ctx, cx, cy, radius, shapeType, dnaData.geometry.rotation);
+  ctx.strokeStyle = hexToRgba(dnaData.colors.primary, glowIntensity * 0.6);
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Reset shadow and draw sharper line
+  // Core outline (sharp)
   ctx.shadowBlur = 0;
-  ctx.beginPath();
-  drawPolygon(ctx, cx, cy, radius, dnaData.geometry.sides, dnaData.geometry.rotation);
-  ctx.strokeStyle = lightenColor(dnaData.colors.primary, 0.2);
-  ctx.lineWidth = 1;
+  drawShapePath(ctx, cx, cy, radius, shapeType, dnaData.geometry.rotation);
+  ctx.strokeStyle = dnaData.colors.primary;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Inner highlight
+  drawShapePath(ctx, cx, cy, radius * 0.97, shapeType, dnaData.geometry.rotation);
+  ctx.strokeStyle = hexToRgba(lightenColor(dnaData.colors.primary, 0.3), 0.5);
+  ctx.lineWidth = 0.5;
   ctx.stroke();
 
   ctx.restore();
