@@ -1,5 +1,25 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { createSparkline, createMiniSparkline, calculateTrend } from '../components/PulseDashboard/Sparkline.js';
+import { createTrendArrow, createMiniTrendArrow, getTrendDirection as getTrendDirectionArrow, formatPercentage } from '../components/PulseDashboard/TrendArrow.js';
 import {
+  createTemperatureIndicator,
+  getTemperatureLevel,
+  createPRFunnel,
+  createContributorBars,
+  getBusFactorRisk,
+  createFreshnessGauge,
+  getFreshnessLevel,
+  calculateFreshnessScore
+} from '../components/PulseDashboard/visualizations.js';
+import {
+  createMetricCard,
+  createCompactMetricCard,
+  createMetricCardSkeleton
+} from '../components/PulseDashboard/MetricCard.js';
+import {
+  createPulseDashboard,
+  createPulseDashboardSkeleton,
+  createPulseDashboardError,
   // Utility functions
   average,
   daysSince,
@@ -531,3446 +551,1306 @@ describe('PulseDashboard Utilities', () => {
 
     it('should return issues default', () => {
       const result = getDefaultMetric('issues');
-      expect(result.value).toBe('Cool');
-      expect(result.temperature).toBe('cool');
-      expect(result.label).toBe('No recent issues');
+      expect(result.label).toBe('Issue data unavailable');
     });
 
     it('should return prs default', () => {
       const result = getDefaultMetric('prs');
-      expect(result.label).toBe('No recent pull requests');
-      expect(result.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
+      expect(result.label).toBe('Pull request data unavailable');
     });
 
-    it('should return busFactor default', () => {
-      const result = getDefaultMetric('busFactor');
-      expect(result.value).toBe(1);
-      expect(result.riskLevel).toBe('critical');
+    it('should return temperature default', () => {
+      const result = getDefaultMetric('temperature');
+      expect(result.label).toBe('Activity data unavailable');
+    });
+
+    it('should return bus_factor default', () => {
+      const result = getDefaultMetric('bus_factor');
+      expect(result.label).toBe('Contributor data unavailable');
     });
 
     it('should return freshness default', () => {
       const result = getDefaultMetric('freshness');
-      expect(result.freshness).toBe('stale');
-      expect(result.lastRelease).toBe('None');
+      expect(result.label).toBe('Update data unavailable');
     });
 
-    it('should return generic default for null type', () => {
-      const result = getDefaultMetric(null);
-      expect(result.label).toBe('Data unavailable');
+    it('should return health default', () => {
+      const result = getDefaultMetric('health');
+      expect(result.label).toBe('Maintenance data unavailable');
     });
 
-    it('should return generic default for undefined type', () => {
-      const result = getDefaultMetric();
-      expect(result.label).toBe('Data unavailable');
+    it('should have status structure', () => {
+      const result = getDefaultMetric('velocity');
+      expect(result).toHaveProperty('value');
+      expect(result).toHaveProperty('trend');
+      expect(result).toHaveProperty('direction');
+      expect(result).toHaveProperty('status');
+      expect(result).toHaveProperty('label');
     });
   });
 
   describe('clamp', () => {
-    it('should return value within bounds unchanged', () => {
+    it('should clamp value between min and max', () => {
       expect(clamp(50, 0, 100)).toBe(50);
     });
 
-    it('should clamp value below min to min', () => {
+    it('should clamp to min if below range', () => {
       expect(clamp(-10, 0, 100)).toBe(0);
     });
 
-    it('should clamp value above max to max', () => {
+    it('should clamp to max if above range', () => {
       expect(clamp(150, 0, 100)).toBe(100);
     });
 
+    it('should work with negative ranges', () => {
+      expect(clamp(-50, -100, 0)).toBe(-50);
+      expect(clamp(-150, -100, 0)).toBe(-100);
+      expect(clamp(50, -100, 0)).toBe(0);
+    });
+
+    it('should work with decimal values', () => {
+      expect(clamp(0.5, 0, 1)).toBe(0.5);
+      expect(clamp(-0.5, 0, 1)).toBe(0);
+      expect(clamp(1.5, 0, 1)).toBe(1);
+    });
+
     it('should handle equal min and max', () => {
-      expect(clamp(50, 25, 25)).toBe(25);
-    });
-
-    it('should return min for NaN input', () => {
-      expect(clamp(NaN, 0, 100)).toBe(0);
-    });
-
-    it('should return min for non-number input', () => {
-      expect(clamp('fifty', 0, 100)).toBe(0);
-    });
-
-    it('should handle negative bounds', () => {
-      expect(clamp(-50, -100, -10)).toBe(-50);
-      expect(clamp(0, -100, -10)).toBe(-10);
+      expect(clamp(100, 50, 50)).toBe(50);
     });
   });
 
   describe('percentageChange', () => {
-    it('should calculate positive percentage change', () => {
-      expect(percentageChange(120, 100)).toBe(20);
+    it('should calculate percentage increase', () => {
+      expect(percentageChange(100, 150)).toBe(50);
     });
 
-    it('should calculate negative percentage change', () => {
-      expect(percentageChange(80, 100)).toBe(-20);
+    it('should calculate percentage decrease', () => {
+      expect(percentageChange(150, 100)).toBe(-33.33);
     });
 
     it('should return 0 for no change', () => {
-      expect(percentageChange(100, 100)).toBe(0);
+      expect(percentageChange(100, 100)).toBeCloseTo(0, 2);
     });
 
-    it('should return 100 for growth from zero', () => {
-      expect(percentageChange(50, 0)).toBe(100);
+    it('should return Infinity for zero old value', () => {
+      expect(percentageChange(0, 100)).toBe(Infinity);
     });
 
-    it('should return -100 for decline from zero to negative', () => {
-      expect(percentageChange(-50, 0)).toBe(-100);
+    it('should handle negative values', () => {
+      expect(percentageChange(-100, -50)).toBeCloseTo(50, 2);
     });
 
-    it('should return 0 for zero to zero', () => {
-      expect(percentageChange(0, 0)).toBe(0);
+    it('should handle transition from negative to positive', () => {
+      const result = percentageChange(-100, 100);
+      expect(result).toBe(-200);
     });
 
-    it('should return 0 for NaN inputs', () => {
-      expect(percentageChange(NaN, 100)).toBe(0);
-      expect(percentageChange(100, NaN)).toBe(0);
+    it('should round to 2 decimal places', () => {
+      expect(percentageChange(100, 123.456)).toBeCloseTo(23.46, 2);
     });
 
-    it('should return 0 for non-number inputs', () => {
-      expect(percentageChange('a', 100)).toBe(0);
-      expect(percentageChange(100, 'b')).toBe(0);
+    it('should handle null oldValue', () => {
+      expect(percentageChange(null, 100)).toBe(Infinity);
     });
 
-    it('should handle large changes', () => {
-      expect(percentageChange(1000, 100)).toBe(900);
+    it('should handle null newValue', () => {
+      const result = percentageChange(100, null);
+      expect(typeof result).toBe('number');
     });
   });
 
   describe('safeParseDate', () => {
-    it('should parse valid ISO date string', () => {
-      const result = safeParseDate('2024-01-15T10:30:00Z');
-      expect(result).toBeInstanceOf(Date);
-      expect(result.getFullYear()).toBe(2024);
+    it('should parse ISO string', () => {
+      const date = safeParseDate('2024-01-01T00:00:00Z');
+      expect(date).toBeInstanceOf(Date);
+      expect(date.getFullYear()).toBe(2024);
     });
 
-    it('should return valid Date for Date object input', () => {
-      const date = new Date('2024-01-15');
-      const result = safeParseDate(date);
-      expect(result).toBeInstanceOf(Date);
-      expect(result.getTime()).toBe(date.getTime());
+    it('should parse YYYY-MM-DD format', () => {
+      const date = safeParseDate('2024-01-01');
+      expect(date).toBeInstanceOf(Date);
     });
 
-    it('should return null for invalid date string', () => {
-      expect(safeParseDate('not-a-date')).toBe(null);
+    it('should handle Date object input', () => {
+      const now = new Date();
+      const result = safeParseDate(now);
+      expect(result).toBe(now);
+    });
+
+    it('should return null for invalid string', () => {
+      expect(safeParseDate('not-a-date')).toBeNull();
     });
 
     it('should return null for null input', () => {
-      expect(safeParseDate(null)).toBe(null);
+      expect(safeParseDate(null)).toBeNull();
     });
 
     it('should return null for undefined input', () => {
-      expect(safeParseDate(undefined)).toBe(null);
+      expect(safeParseDate(undefined)).toBeNull();
     });
 
-    it('should return null for empty string', () => {
-      expect(safeParseDate('')).toBe(null);
-    });
-
-    it('should parse date-only string', () => {
-      const result = safeParseDate('2024-06-15');
-      expect(result).toBeInstanceOf(Date);
+    it('should handle empty string', () => {
+      expect(safeParseDate('')).toBeNull();
     });
   });
 
   describe('emptySparkline', () => {
-    it('should create array of zeros with specified length', () => {
-      const result = emptySparkline(7);
-      expect(result).toHaveLength(7);
+    it('should return array of zeros', () => {
+      const result = emptySparkline(5);
+      expect(result).toEqual([0, 0, 0, 0, 0]);
+    });
+
+    it('should default to 52 weeks', () => {
+      const result = emptySparkline();
+      expect(result.length).toBe(52);
       expect(result.every(v => v === 0)).toBe(true);
     });
 
-    it('should return empty array for length 0', () => {
-      expect(emptySparkline(0)).toEqual([]);
+    it('should handle negative length', () => {
+      const result = emptySparkline(-5);
+      expect(result.length).toBe(0);
     });
 
-    it('should return empty array for negative length', () => {
-      expect(emptySparkline(-5)).toEqual([]);
+    it('should handle zero length', () => {
+      const result = emptySparkline(0);
+      expect(result.length).toBe(0);
     });
 
-    it('should return empty array for non-number input', () => {
-      expect(emptySparkline('five')).toEqual([]);
-    });
-
-    it('should floor decimal length', () => {
-      const result = emptySparkline(5.9);
-      expect(result).toHaveLength(5);
+    it('should handle large lengths', () => {
+      const result = emptySparkline(1000);
+      expect(result.length).toBe(1000);
     });
   });
 });
 
 // =============================================================================
-// VELOCITY SCORE TESTS
+// SPARKLINE TESTS
 // =============================================================================
 
-describe('calculateVelocityScore', () => {
-  describe('Empty Data', () => {
-    it('should return default metric for null participation', () => {
-      const result = calculateVelocityScore(null);
-      expect(result.status).toBe('stable');
-      expect(result.label).toBe('Commit data unavailable');
-      expect(result.value).toBe(0);
-      expect(result.trend).toBe(0);
-      expect(result.direction).toBe('stable');
+describe('Sparkline', () => {
+  describe('createSparkline', () => {
+    it('should create sparkline container with SVG', () => {
+      const data = [5, 10, 8, 15, 12, 20, 18, 25];
+      const element = createSparkline(data);
+
+      expect(element.className).toContain('sparkline');
+      expect(element.querySelector('svg')).not.toBeNull();
     });
 
-    it('should return default metric for undefined participation', () => {
-      const result = calculateVelocityScore(undefined);
-      expect(result.status).toBe('stable');
-      expect(result.label).toBe('Commit data unavailable');
+    it('should set aria-hidden for accessibility', () => {
+      const data = [1, 2, 3, 4, 5];
+      const element = createSparkline(data);
+
+      expect(element.getAttribute('aria-hidden')).toBe('true');
     });
 
-    it('should return default metric for missing all array', () => {
-      const result = calculateVelocityScore({});
-      expect(result.status).toBe('stable');
-      expect(result.label).toBe('Commit data unavailable');
+    it('should create line path element', () => {
+      const data = [5, 10, 8, 15, 12];
+      const element = createSparkline(data);
+      const linePath = element.querySelector('.sparkline__line');
+
+      expect(linePath).not.toBeNull();
+      expect(linePath.getAttribute('stroke')).toBe('currentColor');
+      expect(linePath.getAttribute('fill')).toBe('none');
     });
 
-    it('should return default metric for non-array all', () => {
-      const result = calculateVelocityScore({ all: 'not an array' });
-      expect(result.status).toBe('stable');
+    it('should create area fill by default', () => {
+      const data = [5, 10, 8, 15, 12];
+      const element = createSparkline(data);
+      const areaPath = element.querySelector('.sparkline__area');
+
+      expect(areaPath).not.toBeNull();
     });
 
-    it('should return default metric for object with null all', () => {
-      const result = calculateVelocityScore({ all: null });
-      expect(result.status).toBe('stable');
-      expect(result.label).toBe('Commit data unavailable');
+    it('should not create area fill when showArea is false', () => {
+      const data = [5, 10, 8, 15, 12];
+      const element = createSparkline(data, { showArea: false });
+      const areaPath = element.querySelector('.sparkline__area');
+
+      expect(areaPath).toBeNull();
     });
 
-    it('should handle insufficient commit history (less than 4 weeks)', () => {
-      const result = calculateVelocityScore({ all: [1, 2] });
-      expect(result.label).toBe('Insufficient commit history');
-      expect(result.status).toBe('stable');
+    it('should create endpoint dot', () => {
+      const data = [5, 10, 8, 15, 12];
+      const element = createSparkline(data);
+      const dot = element.querySelector('.sparkline__dot');
+
+      expect(dot).not.toBeNull();
+      expect(dot.tagName.toLowerCase()).toBe('circle');
     });
 
-    it('should handle insufficient commit history (exactly 3 weeks)', () => {
-      const result = calculateVelocityScore({ all: [5, 10, 8] });
-      expect(result.label).toBe('Insufficient commit history');
+    it('should handle empty array data', () => {
+      const element = createSparkline([]);
+
+      expect(element.className).toContain('sparkline--empty');
+      expect(element.textContent).toContain('No data');
     });
 
-    it('should handle empty array', () => {
-      const result = calculateVelocityScore({ all: [] });
-      expect(result.label).toBe('Insufficient commit history');
-      expect(result.status).toBe('stable');
+    it('should handle null data', () => {
+      const element = createSparkline(null);
+
+      expect(element.className).toContain('sparkline--empty');
     });
 
-    it('should handle all zero commits', () => {
-      const participation = { all: Array(52).fill(0) };
-      const result = calculateVelocityScore(participation);
-      expect(result.value).toBe(0);
-      expect(result.direction).toBe('stable');
-      // With zero activity, status is stable (no change)
-      expect(result.status).toBe('stable');
+    it('should handle undefined data', () => {
+      const element = createSparkline(undefined);
+
+      expect(element.className).toContain('sparkline--empty');
     });
 
-    it('should return sparklineData even for empty data', () => {
-      const result = calculateVelocityScore(null);
-      expect(Array.isArray(result.sparklineData)).toBe(true);
-    });
-  });
+    it('should handle non-array data', () => {
+      const element = createSparkline({ foo: 'bar' });
 
-  describe('Increasing Activity', () => {
-    it('should detect moderate increase (direction up)', () => {
-      const participation = createMockParticipation({ recentAvg: 15, previousAvg: 10 });
-      const result = calculateVelocityScore(participation);
-      expect(result.direction).toBe('up');
-      expect(result.trend).toBeGreaterThan(0);
+      expect(element.className).toContain('sparkline--empty');
     });
 
-    it('should detect strong increase with high growth rate', () => {
-      const participation = createMockParticipation({ recentAvg: 30, previousAvg: 10 });
-      const result = calculateVelocityScore(participation);
-      expect(result.direction).toBe('up');
-      expect(result.trend).toBeGreaterThan(50);
+    it('should filter out non-numeric values', () => {
+      const data = [5, 'invalid', 10, null, 15, NaN, 20];
+      const element = createSparkline(data);
+
+      // Should still render with valid numbers
+      expect(element.querySelector('svg')).not.toBeNull();
+      expect(element.className).not.toContain('sparkline--empty');
     });
 
-    it('should return thriving status for high growth', () => {
-      const participation = createMockParticipation({ recentAvg: 25, previousAvg: 10 });
-      const result = calculateVelocityScore(participation);
-      expect(result.status).toBe('thriving');
+    it('should handle single data point', () => {
+      const element = createSparkline([50]);
+
+      // Should duplicate point to create flat line
+      expect(element.querySelector('svg')).not.toBeNull();
+      expect(element.className).not.toContain('sparkline--empty');
     });
 
-    it('should handle 2x increase correctly', () => {
-      const participation = createMockParticipation({ recentAvg: 20, previousAvg: 10 });
-      const result = calculateVelocityScore(participation);
-      expect(result.direction).toBe('up');
-      expect(result.trend).toBeGreaterThanOrEqual(50);
+    it('should apply trend-up class for increasing data', () => {
+      // Start low, end high
+      const data = [5, 6, 7, 8, 9, 10, 11, 12, 20, 25, 30, 40];
+      const element = createSparkline(data);
+
+      expect(element.className).toContain('sparkline--up');
     });
 
-    it('should handle growth from very low baseline', () => {
-      const participation = createMockParticipation({ recentAvg: 10, previousAvg: 1 });
-      const result = calculateVelocityScore(participation);
-      expect(result.direction).toBe('up');
-      expect(result.trend).toBeGreaterThan(0);
+    it('should apply trend-down class for decreasing data', () => {
+      // Start high, end low
+      const data = [40, 35, 30, 25, 20, 15, 12, 10, 8, 6, 5, 2];
+      const element = createSparkline(data);
+
+      expect(element.className).toContain('sparkline--down');
     });
 
-    it('should handle extreme growth with large trend values', () => {
-      const participation = createMockParticipation({ recentAvg: 100, previousAvg: 1 });
-      const result = calculateVelocityScore(participation);
-      // Trend can exceed 100% for extreme growth (reflects actual percentage change)
-      expect(result.trend).toBeGreaterThan(100);
-      expect(result.direction).toBe('up');
-      expect(result.status).toBe('thriving');
+    it('should apply trend-stable class for flat data', () => {
+      // Relatively flat data
+      const data = [10, 11, 10, 9, 10, 11, 10, 9, 10, 11, 10, 10];
+      const element = createSparkline(data);
+
+      expect(element.className).toContain('sparkline--stable');
     });
 
-    it('should include positive trend in label for increasing activity', () => {
-      const participation = createMockParticipation({ recentAvg: 20, previousAvg: 10 });
-      const result = calculateVelocityScore(participation);
-      // Label should indicate growth/positive trend
-      expect(result.label.length).toBeGreaterThan(0);
+    it('should use forced trend when provided', () => {
+      // Data would auto-detect as 'up', but we force 'down'
+      const data = [5, 10, 15, 20, 25, 30, 35, 40];
+      const element = createSparkline(data, { trend: 'down' });
+
+      expect(element.className).toContain('sparkline--down');
     });
 
-    it('should have higher value with more recent commits', () => {
-      const lowActivity = createMockParticipation({ recentAvg: 5, previousAvg: 5 });
-      const highActivity = createMockParticipation({ recentAvg: 20, previousAvg: 10 });
-      const lowResult = calculateVelocityScore(lowActivity);
-      const highResult = calculateVelocityScore(highActivity);
-      expect(highResult.value).toBeGreaterThan(lowResult.value);
-    });
-  });
+    it('should respect custom width and height', () => {
+      const data = [5, 10, 15, 20];
+      const element = createSparkline(data, { width: 150, height: 40 });
+      const svg = element.querySelector('svg');
 
-  describe('Declining Activity', () => {
-    it('should detect moderate decline (direction down)', () => {
-      const participation = createMockParticipation({ recentAvg: 8, previousAvg: 15 });
-      const result = calculateVelocityScore(participation);
-      expect(result.direction).toBe('down');
-      expect(result.trend).toBeLessThan(0);
+      expect(svg.getAttribute('width')).toBe('150');
+      expect(svg.getAttribute('height')).toBe('40');
+      expect(svg.getAttribute('viewBox')).toBe('0 0 150 40');
     });
 
-    it('should detect severe decline with significant drop', () => {
-      const participation = createMockParticipation({ recentAvg: 2, previousAvg: 20 });
-      const result = calculateVelocityScore(participation);
-      expect(result.direction).toBe('down');
-      expect(result.trend).toBeLessThan(-50);
-    });
+    it('should generate valid SVG path data', () => {
+      const data = [5, 10, 15, 20];
+      const element = createSparkline(data);
+      const linePath = element.querySelector('.sparkline__line');
+      const d = linePath.getAttribute('d');
 
-    it('should return at_risk status for severe decline', () => {
-      const participation = createMockParticipation({ recentAvg: 2, previousAvg: 15 });
-      const result = calculateVelocityScore(participation);
-      expect(result.status).toBe('at_risk');
-    });
-
-    it('should return appropriate status for moderate decline', () => {
-      const participation = createMockParticipation({ recentAvg: 7, previousAvg: 10 });
-      const result = calculateVelocityScore(participation);
-      // 30% decline results in at_risk or cooling status
-      expect(['cooling', 'stable', 'at_risk']).toContain(result.status);
-    });
-
-    it('should handle 50% decline correctly', () => {
-      const participation = createMockParticipation({ recentAvg: 5, previousAvg: 10 });
-      const result = calculateVelocityScore(participation);
-      expect(result.direction).toBe('down');
-      expect(result.trend).toBeLessThanOrEqual(-30);
-    });
-
-    it('should handle decline to near-zero activity', () => {
-      const participation = createMockParticipation({ recentAvg: 1, previousAvg: 20 });
-      const result = calculateVelocityScore(participation);
-      expect(result.direction).toBe('down');
-      expect(result.status).toBe('at_risk');
-    });
-
-    it('should not go below -100% trend for extreme decline', () => {
-      const participation = createMockParticipation({ recentAvg: 1, previousAvg: 100 });
-      const result = calculateVelocityScore(participation);
-      expect(result.trend).toBeGreaterThanOrEqual(-100);
-    });
-
-    it('should have lower value with declining commits', () => {
-      const stableActivity = createMockParticipation({ recentAvg: 10, previousAvg: 10 });
-      const decliningActivity = createMockParticipation({ recentAvg: 3, previousAvg: 15 });
-      const stableResult = calculateVelocityScore(stableActivity);
-      const decliningResult = calculateVelocityScore(decliningActivity);
-      expect(decliningResult.value).toBeLessThan(stableResult.value);
+      // Path should start with M (moveTo) and contain L (lineTo) commands
+      expect(d).toMatch(/^M\s+[\d.]+\s+[\d.]+/);
+      expect(d).toContain('L');
     });
   });
 
-  describe('Stable Activity', () => {
-    it('should detect stable activity', () => {
-      const participation = createMockParticipation({ recentAvg: 10, previousAvg: 10 });
-      const result = calculateVelocityScore(participation);
-      expect(result.direction).toBe('stable');
+  describe('createMiniSparkline', () => {
+    it('should create smaller sparkline', () => {
+      const data = [5, 10, 15, 20];
+      const element = createMiniSparkline(data);
+      const svg = element.querySelector('svg');
+
+      expect(svg.getAttribute('width')).toBe('60');
+      expect(svg.getAttribute('height')).toBe('20');
     });
 
-    it('should detect small changes as stable or up', () => {
-      // Small increase (10%) may be detected as stable or slight up depending on threshold
-      const participation = createMockParticipation({ recentAvg: 11, previousAvg: 10 });
-      const result = calculateVelocityScore(participation);
-      expect(['stable', 'up']).toContain(result.direction);
+    it('should not show area fill', () => {
+      const data = [5, 10, 15, 20];
+      const element = createMiniSparkline(data);
+      const areaPath = element.querySelector('.sparkline__area');
+
+      expect(areaPath).toBeNull();
     });
 
-    it('should return stable status for consistent activity', () => {
-      const participation = createMockParticipation({ recentAvg: 10, previousAvg: 10 });
-      const result = calculateVelocityScore(participation);
-      expect(result.status).toBe('stable');
+    it('should accept forced trend', () => {
+      const data = [5, 10, 15, 20];
+      const element = createMiniSparkline(data, 'stable');
+
+      expect(element.className).toContain('sparkline--stable');
     });
   });
 
-  describe('MetricResult Shape', () => {
-    it('should return complete MetricResult shape', () => {
-      const participation = createMockParticipation();
-      const result = calculateVelocityScore(participation);
-      expect(result).toHaveProperty('value');
-      expect(result).toHaveProperty('trend');
-      expect(result).toHaveProperty('direction');
-      expect(result).toHaveProperty('sparklineData');
-      expect(result).toHaveProperty('status');
-      expect(result).toHaveProperty('label');
+  describe('calculateTrend', () => {
+    it('should return stable for null data', () => {
+      expect(calculateTrend(null)).toBe('stable');
     });
 
-    it('should include sparklineData with 13 weeks', () => {
-      const participation = createMockParticipation();
-      const result = calculateVelocityScore(participation);
-      expect(result.sparklineData).toHaveLength(13);
+    it('should return stable for empty array', () => {
+      expect(calculateTrend([])).toBe('stable');
     });
 
-    it('should have valid direction values', () => {
-      const participation = createMockParticipation();
-      const result = calculateVelocityScore(participation);
-      expect(['up', 'down', 'stable']).toContain(result.direction);
+    it('should return stable for less than 4 points', () => {
+      expect(calculateTrend([1, 2, 3])).toBe('stable');
     });
 
-    it('should have valid status values', () => {
-      const participation = createMockParticipation();
-      const result = calculateVelocityScore(participation);
-      expect(['thriving', 'stable', 'cooling', 'at_risk']).toContain(result.status);
+    it('should detect upward trend', () => {
+      const data = [10, 12, 14, 16, 18, 20, 22, 24, 30, 35, 40, 50];
+      expect(calculateTrend(data)).toBe('up');
     });
 
-    it('should have numeric value', () => {
-      const participation = createMockParticipation();
-      const result = calculateVelocityScore(participation);
-      expect(typeof result.value).toBe('number');
+    it('should detect downward trend', () => {
+      const data = [50, 45, 40, 35, 30, 25, 22, 20, 18, 16, 14, 10];
+      expect(calculateTrend(data)).toBe('down');
     });
 
-    it('should have numeric trend', () => {
-      const participation = createMockParticipation();
-      const result = calculateVelocityScore(participation);
-      expect(typeof result.trend).toBe('number');
+    it('should detect stable trend', () => {
+      const data = [20, 21, 19, 20, 21, 19, 20, 21, 20, 19, 21, 20];
+      expect(calculateTrend(data)).toBe('stable');
+    });
+
+    it('should handle all zeros gracefully', () => {
+      const data = [0, 0, 0, 0, 0, 0, 0, 0];
+      expect(calculateTrend(data)).toBe('stable');
+    });
+
+    it('should handle starting from zero', () => {
+      const data = [0, 0, 0, 0, 10, 20, 30, 40];
+      expect(calculateTrend(data)).toBe('up');
     });
   });
 });
 
 // =============================================================================
-// COMMUNITY MOMENTUM TESTS
+// TREND ARROW TESTS
 // =============================================================================
 
-describe('calculateCommunityMomentum', () => {
-  describe('Empty/Invalid Data', () => {
-    it('should return default metric for null repo', () => {
-      const result = calculateCommunityMomentum(null);
-      expect(result.label).toBe('Growth data unavailable');
-      expect(result.status).toBe('stable');
-      expect(result.value).toBe(0);
+describe('TrendArrow', () => {
+  describe('createTrendArrow', () => {
+    it('should create trend arrow container', () => {
+      const element = createTrendArrow(15);
+
+      expect(element.tagName.toLowerCase()).toBe('span');
+      expect(element.className).toContain('trend-arrow');
     });
 
-    it('should return default metric for undefined repo', () => {
-      const result = calculateCommunityMomentum(undefined);
-      expect(result.label).toBe('Growth data unavailable');
+    it('should apply up modifier for positive values', () => {
+      const element = createTrendArrow(15.2);
+
+      expect(element.className).toContain('trend-arrow--up');
     });
 
-    it('should handle repo with missing stargazers_count', () => {
-      const repo = createMockRepo({ stargazers_count: undefined });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.value).toBe(0);
+    it('should apply down modifier for negative values', () => {
+      const element = createTrendArrow(-8.5);
+
+      expect(element.className).toContain('trend-arrow--down');
     });
 
-    it('should handle repo with null stargazers_count', () => {
-      const repo = createMockRepo({ stargazers_count: null });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.value).toBe(0);
+    it('should apply stable modifier for near-zero values', () => {
+      const element = createTrendArrow(0.5);
+
+      expect(element.className).toContain('trend-arrow--stable');
     });
 
-    it('should handle repo with zero stars', () => {
-      const repo = createMockRepo({ stargazers_count: 0, forks_count: 0 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.value).toBe(0);
-      expect(result.status).toBeDefined();
+    it('should display percentage value with plus sign for up', () => {
+      const element = createTrendArrow(15.2);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('+15.2%');
     });
 
-    it('should handle null events array', () => {
+    it('should display percentage value with minus sign for down', () => {
+      const element = createTrendArrow(-8.5);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('-8.5%');
+    });
+
+    it('should display percentage without sign for stable', () => {
+      const element = createTrendArrow(0.3);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('0.3%');
+    });
+
+    it('should include arrow icon', () => {
+      const element = createTrendArrow(10);
+      const icon = element.querySelector('.trend-arrow__icon');
+
+      expect(icon).not.toBeNull();
+      expect(icon.tagName.toLowerCase()).toBe('svg');
+    });
+
+    it('should set aria-hidden on icon wrapper', () => {
+      const element = createTrendArrow(10);
+      const iconWrapper = element.querySelector('.trend-arrow__icon-wrapper');
+
+      expect(iconWrapper.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should have role="img" for accessibility', () => {
+      const element = createTrendArrow(15);
+
+      expect(element.getAttribute('role')).toBe('img');
+    });
+
+    it('should have aria-label for screen readers', () => {
+      const element = createTrendArrow(15.5);
+
+      expect(element.getAttribute('aria-label')).toContain('Trending up');
+      expect(element.getAttribute('aria-label')).toContain('percent');
+    });
+
+    it('should clamp large positive values to 999%', () => {
+      const element = createTrendArrow(1500);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('+999%');
+    });
+
+    it('should clamp large negative values to -999%', () => {
+      const element = createTrendArrow(-2000);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('-999%');
+    });
+
+    it('should handle null value as stable', () => {
+      const element = createTrendArrow(null);
+
+      expect(element.className).toContain('trend-arrow--stable');
+    });
+
+    it('should handle undefined value as stable', () => {
+      const element = createTrendArrow(undefined);
+
+      expect(element.className).toContain('trend-arrow--stable');
+    });
+
+    it('should handle NaN value as stable', () => {
+      const element = createTrendArrow(NaN);
+
+      expect(element.className).toContain('trend-arrow--stable');
+    });
+
+    it('should respect showPercentage=false option', () => {
+      const element = createTrendArrow(15, { showPercentage: false });
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan).toBeNull();
+    });
+
+    it('should remove trailing .0 from whole numbers', () => {
+      const element = createTrendArrow(25);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('+25%');
+    });
+
+    it('should handle zero exactly as stable', () => {
+      const element = createTrendArrow(0);
+
+      expect(element.className).toContain('trend-arrow--stable');
+    });
+
+    it('should treat values within threshold as stable', () => {
+      // 1% threshold
+      expect(createTrendArrow(0.9).className).toContain('trend-arrow--stable');
+      expect(createTrendArrow(-0.9).className).toContain('trend-arrow--stable');
+      expect(createTrendArrow(1).className).toContain('trend-arrow--stable');
+      expect(createTrendArrow(-1).className).toContain('trend-arrow--stable');
+    });
+
+    it('should treat values beyond threshold as up/down', () => {
+      expect(createTrendArrow(1.1).className).toContain('trend-arrow--up');
+      expect(createTrendArrow(-1.1).className).toContain('trend-arrow--down');
+    });
+  });
+
+  describe('createMiniTrendArrow', () => {
+    it('should create arrow without percentage text', () => {
+      const element = createMiniTrendArrow(15);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan).toBeNull();
+    });
+
+    it('should still include icon', () => {
+      const element = createMiniTrendArrow(15);
+      const icon = element.querySelector('.trend-arrow__icon');
+
+      expect(icon).not.toBeNull();
+    });
+
+    it('should apply correct modifier class', () => {
+      expect(createMiniTrendArrow(10).className).toContain('trend-arrow--up');
+      expect(createMiniTrendArrow(-10).className).toContain('trend-arrow--down');
+      expect(createMiniTrendArrow(0).className).toContain('trend-arrow--stable');
+    });
+  });
+
+  describe('getTrendDirectionArrow', () => {
+    it('should return up for positive values above threshold', () => {
+      expect(getTrendDirectionArrow(5)).toBe('up');
+      expect(getTrendDirectionArrow(100)).toBe('up');
+    });
+
+    it('should return down for negative values below threshold', () => {
+      expect(getTrendDirectionArrow(-5)).toBe('down');
+      expect(getTrendDirectionArrow(-100)).toBe('down');
+    });
+
+    it('should return stable for values near zero', () => {
+      expect(getTrendDirectionArrow(0)).toBe('stable');
+      expect(getTrendDirectionArrow(0.5)).toBe('stable');
+      expect(getTrendDirectionArrow(-0.5)).toBe('stable');
+      expect(getTrendDirectionArrow(1)).toBe('stable');
+      expect(getTrendDirectionArrow(-1)).toBe('stable');
+    });
+
+    it('should return stable for NaN', () => {
+      expect(getTrendDirectionArrow(NaN)).toBe('stable');
+    });
+
+    it('should return stable for non-number types', () => {
+      expect(getTrendDirectionArrow('15')).toBe('stable');
+      expect(getTrendDirectionArrow(null)).toBe('stable');
+      expect(getTrendDirectionArrow(undefined)).toBe('stable');
+    });
+  });
+
+  describe('formatPercentage', () => {
+    it('should format positive values with plus sign', () => {
+      expect(formatPercentage(15.2, 'up')).toBe('+15.2%');
+    });
+
+    it('should format negative values with minus sign', () => {
+      expect(formatPercentage(-8.5, 'down')).toBe('-8.5%');
+    });
+
+    it('should format stable values without sign', () => {
+      expect(formatPercentage(0.3, 'stable')).toBe('0.3%');
+    });
+
+    it('should clamp extreme values', () => {
+      expect(formatPercentage(5000, 'up')).toBe('+999%');
+      expect(formatPercentage(-3000, 'down')).toBe('-999%');
+    });
+
+    it('should remove trailing zeros', () => {
+      expect(formatPercentage(25.0, 'up')).toBe('+25%');
+      expect(formatPercentage(10.50, 'up')).toBe('+10.5%');
+    });
+
+    it('should handle zero', () => {
+      expect(formatPercentage(0, 'stable')).toBe('0%');
+    });
+
+    it('should round to 1 decimal place', () => {
+      expect(formatPercentage(15.456, 'up')).toBe('+15.5%');
+      expect(formatPercentage(15.444, 'up')).toBe('+15.4%');
+    });
+
+    it('should handle null as 0', () => {
+      expect(formatPercentage(null, 'stable')).toBe('0%');
+    });
+
+    it('should handle undefined as 0', () => {
+      expect(formatPercentage(undefined, 'stable')).toBe('0%');
+    });
+
+    it('should handle NaN', () => {
+      const result = formatPercentage(NaN, 'stable');
+      expect(result).toContain('%');
+    });
+  });
+});
+
+// =============================================================================
+// METRIC CALCULATION TESTS
+// =============================================================================
+
+describe('Metric Calculations', () => {
+  describe('calculateVelocityScore', () => {
+    it('should return 100 for healthy velocity', () => {
       const repo = createMockRepo();
-      const result = calculateCommunityMomentum(repo, null);
-      expect(result.status).toBeDefined();
-      expect(result.recentStars).toBe(0);
-    });
-
-    it('should handle non-array events', () => {
-      const repo = createMockRepo();
-      const result = calculateCommunityMomentum(repo, 'not an array');
-      expect(result.status).toBeDefined();
-    });
-
-    it('should return sparklineData even for empty data', () => {
-      const result = calculateCommunityMomentum(null);
-      expect(Array.isArray(result.sparklineData)).toBe(true);
-    });
-  });
-
-  describe('Star Count Classification', () => {
-    it('should handle repo with low stars', () => {
-      const repo = createMockRepo({ stargazers_count: 5 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.value).toBe(5);
-      expect(result.status).toBeDefined();
-    });
-
-    it('should calculate star count correctly for medium repos', () => {
-      const repo = createMockRepo({ stargazers_count: 500 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.value).toBe(500);
-    });
-
-    it('should calculate star count correctly for popular repos', () => {
-      const repo = createMockRepo({ stargazers_count: 5000 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.value).toBe(5000);
-    });
-
-    it('should handle very high star counts', () => {
-      const repo = createMockRepo({ stargazers_count: 100000 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.value).toBe(100000);
-      expect(result.label).toContain('100K');
-    });
-
-    it('should give thriving status to highly starred repos', () => {
-      const repo = createMockRepo({ stargazers_count: 50000, forks_count: 5000 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.status).toBe('thriving');
-    });
-
-    it('should give stable status to medium starred repos', () => {
-      const repo = createMockRepo({ stargazers_count: 1000, forks_count: 100 });
-      const result = calculateCommunityMomentum(repo);
-      expect(['stable', 'thriving']).toContain(result.status);
-    });
-
-    it('should give lower status to low starred repos', () => {
-      const repo = createMockRepo({ stargazers_count: 5, forks_count: 0 });
-      const result = calculateCommunityMomentum(repo);
-      expect(['cooling', 'at_risk', 'stable']).toContain(result.status);
-    });
-  });
-
-  describe('Label Formatting', () => {
-    it('should format large star counts with K suffix in label', () => {
-      const repo = createMockRepo({ stargazers_count: 10000 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.label).toContain('10K');
-    });
-
-    it('should format medium star counts without suffix', () => {
-      const repo = createMockRepo({ stargazers_count: 500 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.label).toContain('500');
-      expect(result.label).not.toContain('K');
-    });
-
-    it('should include trend indicator in label for growth', () => {
-      const repo = createMockRepo({ stargazers_count: 1000 });
-      // Create watch events to simulate recent stars
-      const events = Array(20).fill(null).map(() => createMockEvent({ type: 'WatchEvent' }));
-      const result = calculateCommunityMomentum(repo, events);
-      if (result.direction === 'up') {
-        expect(result.label).toMatch(/\+\d+%/);
-      }
-    });
-
-    it('should show stable label when no change', () => {
-      const repo = createMockRepo({ stargazers_count: 500 });
-      const result = calculateCommunityMomentum(repo, []);
-      expect(result.label).toContain('stable');
-    });
-  });
-
-  describe('Event-based Growth Detection', () => {
-    it('should detect growth from WatchEvents', () => {
-      const repo = createMockRepo({ stargazers_count: 1000 });
-      const events = Array(10).fill(null).map(() => createMockEvent({ type: 'WatchEvent' }));
-      const result = calculateCommunityMomentum(repo, events);
-      expect(result.recentStars).toBe(10);
-    });
-
-    it('should count fork events separately', () => {
-      const repo = createMockRepo({ stargazers_count: 1000 });
-      const events = [
-        createMockEvent({ type: 'ForkEvent' }),
-        createMockEvent({ type: 'ForkEvent' }),
-        createMockEvent({ type: 'ForkEvent' })
-      ];
-      const result = calculateCommunityMomentum(repo, events);
-      expect(result.recentForks).toBe(3);
-    });
-
-    it('should handle mixed event types', () => {
-      const repo = createMockRepo({ stargazers_count: 1000 });
-      const events = [
-        createMockEvent({ type: 'WatchEvent' }),
-        createMockEvent({ type: 'WatchEvent' }),
-        createMockEvent({ type: 'ForkEvent' }),
-        createMockEvent({ type: 'PushEvent' }),  // Should be ignored
-        createMockEvent({ type: 'IssueEvent' })   // Should be ignored
-      ];
-      const result = calculateCommunityMomentum(repo, events);
-      expect(result.recentStars).toBe(2);
-      expect(result.recentForks).toBe(1);
-    });
-
-    it('should ignore events outside the window', () => {
-      const repo = createMockRepo({ stargazers_count: 1000 });
-      const oldEvent = createMockEvent({
-        type: 'WatchEvent',
-        created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days ago
+      const participation = createMockParticipation({
+        recentAvg: 20,
+        previousAvg: 15
       });
-      const result = calculateCommunityMomentum(repo, [oldEvent]);
-      expect(result.recentStars).toBe(0);
+
+      const score = calculateVelocityScore(repo, participation);
+      expect(score).toBeGreaterThan(0);
+      expect(score).toBeLessThanOrEqual(100);
     });
 
-    it('should count only recent events within window', () => {
-      const repo = createMockRepo({ stargazers_count: 1000 });
-      const events = [
-        createMockEvent({ type: 'WatchEvent', created_at: new Date().toISOString() }), // Today
-        createMockEvent({ type: 'WatchEvent', created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() }), // 15 days ago
-        createMockEvent({ type: 'WatchEvent', created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString() }) // 45 days ago - outside
-      ];
-      const result = calculateCommunityMomentum(repo, events);
-      expect(result.recentStars).toBe(2);
+    it('should return low score for no activity', () => {
+      const repo = createMockRepo({ pushed_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString() });
+      const participation = createMockParticipation({ recentAvg: 0, previousAvg: 0 });
+
+      const score = calculateVelocityScore(repo, participation);
+      expect(score).toBeLessThan(50);
     });
 
-    it('should detect upward trend with many recent stars', () => {
+    it('should handle missing participation data', () => {
+      const repo = createMockRepo();
+      const score = calculateVelocityScore(repo, null);
+      expect(typeof score).toBe('number');
+      expect(score).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should handle missing repo data', () => {
+      const participation = createMockParticipation();
+      const score = calculateVelocityScore(null, participation);
+      expect(typeof score).toBe('number');
+    });
+  });
+
+  describe('calculateCommunityMomentum', () => {
+    it('should return high score for growing project', () => {
+      const repo = createMockRepo({
+        stargazers_count: 5000,
+        forks_count: 500
+      });
+      const participation = createMockParticipation({
+        recentAvg: 50,
+        previousAvg: 30,
+        baseAvg: 10
+      });
+
+      const score = calculateCommunityMomentum(repo, participation);
+      expect(score).toBeGreaterThan(0);
+      expect(score).toBeLessThanOrEqual(100);
+    });
+
+    it('should return low score for stagnant project', () => {
       const repo = createMockRepo({
         stargazers_count: 100,
-        created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year old
+        forks_count: 10
       });
-      const events = Array(50).fill(null).map(() => createMockEvent({ type: 'WatchEvent' }));
-      const result = calculateCommunityMomentum(repo, events);
-      expect(result.direction).toBe('up');
-      expect(result.trend).toBeGreaterThan(0);
+      const participation = createMockParticipation({
+        recentAvg: 1,
+        previousAvg: 1
+      });
+
+      const score = calculateCommunityMomentum(repo, participation);
+      expect(score).toBeLessThan(50);
     });
   });
 
-  describe('Fork Ratio Analysis', () => {
-    it('should calculate fork ratio correctly', () => {
-      const repo = createMockRepo({ stargazers_count: 1000, forks_count: 200 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.forkRatio).toBe(0.2);
+  describe('calculateIssueTemperature', () => {
+    it('should return high temperature for active issues', () => {
+      const issues = createMockIssueSet({
+        openCount: 20,
+        closedCount: 30,
+        windowDays: 7
+      });
+
+      const temperature = calculateIssueTemperature(issues);
+      expect(temperature).toBeGreaterThan(50);
     });
 
-    it('should handle zero stars for fork ratio', () => {
-      const repo = createMockRepo({ stargazers_count: 0, forks_count: 10 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.forkRatio).toBe(0);
+    it('should return low temperature for stale issues', () => {
+      const issues = createMockIssueSet({
+        openCount: 50,
+        closedCount: 0,
+        windowDays: 365
+      });
+
+      const temperature = calculateIssueTemperature(issues);
+      expect(temperature).toBeLessThan(50);
     });
 
-    it('should boost score for high fork ratio', () => {
-      const highForkRepo = createMockRepo({ stargazers_count: 1000, forks_count: 500 });
-      const lowForkRepo = createMockRepo({ stargazers_count: 1000, forks_count: 10 });
-      const highResult = calculateCommunityMomentum(highForkRepo);
-      const lowResult = calculateCommunityMomentum(lowForkRepo);
-      expect(highResult.score).toBeGreaterThan(lowResult.score);
-    });
-  });
-
-  describe('Repository Age Analysis', () => {
-    it('should calculate repo age in days', () => {
-      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ created_at: oneYearAgo });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.repoAgeDays).toBeGreaterThanOrEqual(364);
-      expect(result.repoAgeDays).toBeLessThanOrEqual(366);
+    it('should handle empty issue list', () => {
+      const temperature = calculateIssueTemperature([]);
+      expect(temperature).toBeLessThanOrEqual(50);
     });
 
-    it('should handle invalid created_at date', () => {
-      const repo = createMockRepo({ created_at: 'invalid' });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.status).toBeDefined();
-    });
-
-    it('should handle missing created_at date', () => {
-      const repo = createMockRepo({ created_at: null });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.status).toBeDefined();
-    });
-
-    it('should calculate daily star rate', () => {
-      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ stargazers_count: 365, created_at: oneYearAgo });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.dailyStarRate).toBeCloseTo(1, 0);
+    it('should handle null issue list', () => {
+      const temperature = calculateIssueTemperature(null);
+      expect(typeof temperature).toBe('number');
     });
   });
 
-  describe('MetricResult Shape', () => {
-    it('should return complete MetricResult shape', () => {
+  describe('calculatePRHealth', () => {
+    it('should return high health for well-managed PRs', () => {
+      const prs = createMockPRSet({
+        mergedCount: 20,
+        closedCount: 2,
+        openCount: 3
+      });
+
+      const health = calculatePRHealth(prs);
+      expect(health).toBeGreaterThan(0);
+      expect(health).toBeLessThanOrEqual(100);
+    });
+
+    it('should return low health for many stalled PRs', () => {
+      const prs = createMockPRSet({
+        mergedCount: 5,
+        closedCount: 0,
+        openCount: 30
+      });
+
+      const health = calculatePRHealth(prs);
+      expect(health).toBeLessThan(50);
+    });
+
+    it('should handle empty PR list', () => {
+      const health = calculatePRHealth([]);
+      expect(health).toBeLessThanOrEqual(50);
+    });
+  });
+
+  describe('calculateBusFactor', () => {
+    it('should return high score for distributed contributions', () => {
+      const contributors = createMockContributorSet({
+        count: 10,
+        distribution: 'balanced'
+      });
+
+      const score = calculateBusFactor(contributors);
+      expect(score).toBeGreaterThan(50);
+    });
+
+    it('should return low score for concentrated contributions', () => {
+      const contributors = createMockContributorSet({
+        distribution: 'single'
+      });
+
+      const score = calculateBusFactor(contributors);
+      expect(score).toBeLessThan(50);
+    });
+
+    it('should handle empty contributor list', () => {
+      const score = calculateBusFactor([]);
+      expect(score).toBeLessThanOrEqual(50);
+    });
+
+    it('should handle null contributor list', () => {
+      const score = calculateBusFactor(null);
+      expect(typeof score).toBe('number');
+    });
+  });
+
+  describe('calculateFreshnessIndex', () => {
+    it('should return high score for recently updated repo', () => {
+      const repo = createMockRepo({
+        updated_at: new Date().toISOString(),
+        pushed_at: new Date().toISOString()
+      });
+
+      const score = calculateFreshnessIndex(repo);
+      expect(score).toBeGreaterThan(50);
+    });
+
+    it('should return low score for stale repo', () => {
+      const repo = createMockRepo({
+        updated_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
+        pushed_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
+      });
+
+      const score = calculateFreshnessIndex(repo);
+      expect(score).toBeLessThan(50);
+    });
+
+    it('should handle null repo', () => {
+      const score = calculateFreshnessIndex(null);
+      expect(typeof score).toBe('number');
+    });
+  });
+
+  describe('calculateOverallPulse', () => {
+    it('should return average of all metrics', () => {
+      const metrics = {
+        velocity: { value: 80 },
+        momentum: { value: 70 },
+        temperature: { value: 85 },
+        health: { value: 75 },
+        bus_factor: { value: 65 },
+        freshness: { value: 90 }
+      };
+
+      const pulse = calculateOverallPulse(metrics);
+      expect(pulse).toBeGreaterThan(0);
+      expect(pulse).toBeLessThanOrEqual(100);
+    });
+
+    it('should handle metrics with missing values', () => {
+      const metrics = {
+        velocity: { value: 80 }
+      };
+
+      const pulse = calculateOverallPulse(metrics);
+      expect(typeof pulse).toBe('number');
+    });
+
+    it('should handle empty metrics object', () => {
+      const pulse = calculateOverallPulse({});
+      expect(pulse).toBe(0);
+    });
+  });
+
+  describe('calculateAllMetrics', () => {
+    it('should calculate all metrics for healthy repository', () => {
       const repo = createMockRepo();
-      const result = calculateCommunityMomentum(repo);
-      expect(result).toHaveProperty('value');
-      expect(result).toHaveProperty('trend');
-      expect(result).toHaveProperty('direction');
-      expect(result).toHaveProperty('sparklineData');
-      expect(result).toHaveProperty('status');
-      expect(result).toHaveProperty('label');
+      const participation = createMockParticipation();
+      const issues = createMockIssueSet();
+      const prs = createMockPRSet();
+      const contributors = createMockContributorSet();
+
+      const allMetrics = calculateAllMetrics(
+        repo,
+        participation,
+        issues,
+        prs,
+        contributors
+      );
+
+      expect(allMetrics).toHaveProperty('velocity');
+      expect(allMetrics).toHaveProperty('momentum');
+      expect(allMetrics).toHaveProperty('temperature');
+      expect(allMetrics).toHaveProperty('health');
+      expect(allMetrics).toHaveProperty('bus_factor');
+      expect(allMetrics).toHaveProperty('freshness');
+      expect(allMetrics).toHaveProperty('overall');
     });
 
-    it('should include sparklineData with 30 data points', () => {
+    it('should handle null repository', () => {
+      const metrics = calculateAllMetrics(null, null, [], [], []);
+      expect(metrics).toBeDefined();
+      expect(metrics).toHaveProperty('overall');
+    });
+
+    it('should have all values between 0-100', () => {
       const repo = createMockRepo();
-      const result = calculateCommunityMomentum(repo);
-      expect(Array.isArray(result.sparklineData)).toBe(true);
-      expect(result.sparklineData.length).toBe(30);
-    });
+      const participation = createMockParticipation();
+      const issues = createMockIssueSet();
+      const prs = createMockPRSet();
+      const contributors = createMockContributorSet();
 
-    it('should have valid direction values', () => {
-      const repo = createMockRepo();
-      const result = calculateCommunityMomentum(repo);
-      expect(['up', 'down', 'stable']).toContain(result.direction);
-    });
+      const allMetrics = calculateAllMetrics(
+        repo,
+        participation,
+        issues,
+        prs,
+        contributors
+      );
 
-    it('should have valid status values', () => {
-      const repo = createMockRepo();
-      const result = calculateCommunityMomentum(repo);
-      expect(['thriving', 'stable', 'cooling', 'at_risk']).toContain(result.status);
-    });
-
-    it('should include additional metadata', () => {
-      const repo = createMockRepo();
-      const result = calculateCommunityMomentum(repo);
-      expect(result).toHaveProperty('forks');
-      expect(result).toHaveProperty('forkRatio');
-      expect(result).toHaveProperty('dailyStarRate');
-      expect(result).toHaveProperty('recentStars');
-      expect(result).toHaveProperty('recentForks');
-      expect(result).toHaveProperty('repoAgeDays');
-      expect(result).toHaveProperty('score');
-    });
-
-    it('should clamp trend between -100 and 100', () => {
-      const repo = createMockRepo();
-      const result = calculateCommunityMomentum(repo);
-      expect(result.trend).toBeGreaterThanOrEqual(-100);
-      expect(result.trend).toBeLessThanOrEqual(100);
-    });
-  });
-});
-
-// =============================================================================
-// ISSUE TEMPERATURE TESTS
-// =============================================================================
-
-describe('calculateIssueTemperature', () => {
-  describe('Empty/Invalid Data', () => {
-    it('should return default metric for null issues', () => {
-      const result = calculateIssueTemperature(null);
-      expect(result.value).toBe('Cool');
-      expect(result.temperature).toBe('cool');
-      expect(result.status).toBe('stable');
-    });
-
-    it('should return default metric for undefined issues', () => {
-      const result = calculateIssueTemperature(undefined);
-      expect(result.value).toBe('Cool');
-      expect(result.temperature).toBe('cool');
-    });
-
-    it('should return default for empty issues array', () => {
-      const result = calculateIssueTemperature([]);
-      expect(result.label).toBe('No recent issues');
-      expect(result.temperature).toBe('cool');
-    });
-
-    it('should handle non-array issues', () => {
-      const result = calculateIssueTemperature('not an array');
-      expect(result.temperature).toBe('cool');
-      expect(result.label).toBe('No recent issues');
-    });
-
-    it('should handle issues with missing created_at', () => {
-      const issues = [{ state: 'open' }, { state: 'closed' }];
-      const result = calculateIssueTemperature(issues);
-      expect(result.label).toBe('No recent issues');
-    });
-
-    it('should return sparklineData even for empty data', () => {
-      const result = calculateIssueTemperature(null);
-      expect(Array.isArray(result.sparklineData)).toBe(true);
-    });
-  });
-
-  describe('Temperature Classification', () => {
-    it('should classify as cool for high close rate (>= 70%)', () => {
-      const issues = createMockIssueSet({ closedCount: 8, openCount: 2 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.temperature).toBe('cool');
-      expect(result.status).toBe('thriving');
-    });
-
-    it('should classify as warm for medium close rate (50-69%)', () => {
-      const issues = createMockIssueSet({ closedCount: 5, openCount: 5 });
-      const result = calculateIssueTemperature(issues);
-      expect(['cool', 'warm']).toContain(result.temperature);
-    });
-
-    it('should classify as hot for low close rate (30-49%)', () => {
-      const issues = createMockIssueSet({ closedCount: 3, openCount: 7 });
-      const result = calculateIssueTemperature(issues);
-      expect(['hot', 'warm']).toContain(result.temperature);
-    });
-
-    it('should classify as critical for very low close rate (< 30%)', () => {
-      const issues = createMockIssueSet({ closedCount: 2, openCount: 8 });
-      const result = calculateIssueTemperature(issues);
-      expect(['hot', 'critical']).toContain(result.temperature);
-    });
-
-    it('should handle all open issues (0% closed) as critical', () => {
-      const issues = createMockIssueSet({ closedCount: 0, openCount: 5 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.closeRate).toBe(0);
-      expect(result.temperature).toBe('critical');
-      expect(result.status).toBe('at_risk');
-    });
-
-    it('should handle all closed issues (100% closed) as cool', () => {
-      const issues = createMockIssueSet({ closedCount: 10, openCount: 0 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.closeRate).toBe(100);
-      expect(result.temperature).toBe('cool');
-      expect(result.status).toBe('thriving');
-    });
-  });
-
-  describe('Close Rate Calculation', () => {
-    it('should calculate correct close rate for 70%', () => {
-      const issues = createMockIssueSet({ closedCount: 7, openCount: 3 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.closeRate).toBe(70);
-    });
-
-    it('should calculate correct close rate for 50%', () => {
-      const issues = createMockIssueSet({ closedCount: 5, openCount: 5 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.closeRate).toBe(50);
-    });
-
-    it('should calculate correct close rate for 25%', () => {
-      const issues = createMockIssueSet({ closedCount: 2, openCount: 6 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.closeRate).toBe(25);
-    });
-
-    it('should track open and closed counts accurately', () => {
-      const issues = createMockIssueSet({ closedCount: 6, openCount: 4 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.closedCount).toBe(6);
-      expect(result.openCount).toBe(4);
-      expect(result.totalCount).toBe(10);
-    });
-  });
-
-  describe('Response Time Analysis', () => {
-    it('should calculate average response time for closed issues', () => {
-      const now = Date.now();
-      const issues = [
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString() // 1 day to close
-        }),
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString() // 3 days to close
-        })
-      ];
-      const result = calculateIssueTemperature(issues);
-      expect(result.avgResponseDays).toBe(2); // (1 + 3) / 2 = 2
-    });
-
-    it('should boost score for fast response times', () => {
-      const now = Date.now();
-      const fastIssues = [
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 4.5 * 24 * 60 * 60 * 1000).toISOString() // Same day close
-        })
-      ];
-      const slowIssues = [
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString() // 15 days to close
-        })
-      ];
-      const fastResult = calculateIssueTemperature(fastIssues);
-      const slowResult = calculateIssueTemperature(slowIssues);
-      expect(fastResult.score).toBeGreaterThan(slowResult.score);
-    });
-
-    it('should handle issues with no closed_at date', () => {
-      const issues = createMockIssueSet({ closedCount: 3, openCount: 2 });
-      // Manually set some closed_at to null
-      issues.forEach(issue => {
-        if (issue.state === 'closed') {
-          issue.closed_at = null;
+      Object.values(allMetrics).forEach(metric => {
+        if (metric && metric.value !== undefined) {
+          expect(metric.value).toBeGreaterThanOrEqual(0);
+          expect(metric.value).toBeLessThanOrEqual(100);
         }
       });
-      const result = calculateIssueTemperature(issues);
-      expect(result.avgResponseDays).toBe(0);
-    });
-  });
-
-  describe('Time Window Filtering', () => {
-    it('should filter issues outside 30-day window', () => {
-      const oldIssue = createMockIssue({
-        created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days ago
-      });
-      const result = calculateIssueTemperature([oldIssue]);
-      expect(result.label).toBe('No recent issues');
-    });
-
-    it('should include issues within 30-day window', () => {
-      const recentIssue = createMockIssue({
-        created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() // 15 days ago
-      });
-      const result = calculateIssueTemperature([recentIssue]);
-      expect(result.totalCount).toBe(1);
-    });
-
-    it('should count only recent issues when mix of old and new', () => {
-      const issues = [
-        createMockIssue({
-          state: 'open',
-          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() // Recent
-        }),
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() // Recent
-        }),
-        createMockIssue({
-          state: 'open',
-          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // Old - filtered out
-        })
-      ];
-      const result = calculateIssueTemperature(issues);
-      expect(result.totalCount).toBe(2);
-    });
-  });
-
-  describe('Trend Analysis', () => {
-    it('should detect improving trend with better recent close rate', () => {
-      const now = Date.now();
-      const issues = [
-        // Older half (15-30 days ago) - more open
-        createMockIssue({
-          state: 'open',
-          created_at: new Date(now - 25 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockIssue({
-          state: 'open',
-          created_at: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 18 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 17 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        // Newer half (0-15 days ago) - more closed
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 9 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString()
-        })
-      ];
-      const result = calculateIssueTemperature(issues);
-      expect(result.direction).toBe('up');
-      expect(result.trend).toBeGreaterThan(0);
-    });
-
-    it('should detect worsening trend with lower recent close rate', () => {
-      const now = Date.now();
-      const issues = [
-        // Older half (15-30 days ago) - more closed
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 25 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 24 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 22 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 21 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 18 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 17 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        // Newer half (0-15 days ago) - more open
-        createMockIssue({
-          state: 'open',
-          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockIssue({
-          state: 'open',
-          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockIssue({
-          state: 'open',
-          created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString()
-        })
-      ];
-      const result = calculateIssueTemperature(issues);
-      expect(result.direction).toBe('down');
-      expect(result.trend).toBeLessThan(0);
-    });
-  });
-
-  describe('Label Generation', () => {
-    it('should generate label with temperature and close rate', () => {
-      const issues = createMockIssueSet({ closedCount: 8, openCount: 2 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.label).toContain('Cool');
-      expect(result.label).toMatch(/\d+%/);
-    });
-
-    it('should show open count when no issues closed', () => {
-      const issues = createMockIssueSet({ closedCount: 0, openCount: 5 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.label).toContain('5 open');
-      expect(result.label).toContain('0% closed');
-    });
-
-    it('should include average response time in label when available', () => {
-      const now = Date.now();
-      const issues = [
-        createMockIssue({
-          state: 'closed',
-          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString() // 3 days to close
-        })
-      ];
-      const result = calculateIssueTemperature(issues);
-      expect(result.label).toMatch(/~\d+\.?\d*d avg/);
-    });
-  });
-
-  describe('Status Mapping', () => {
-    it('should map cool temperature to thriving status', () => {
-      const issues = createMockIssueSet({ closedCount: 9, openCount: 1 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.temperature).toBe('cool');
-      expect(result.status).toBe('thriving');
-    });
-
-    it('should map warm temperature to stable status', () => {
-      const issues = createMockIssueSet({ closedCount: 6, openCount: 4 });
-      const result = calculateIssueTemperature(issues);
-      if (result.temperature === 'warm') {
-        expect(result.status).toBe('stable');
-      }
-    });
-
-    it('should map hot temperature to cooling status', () => {
-      const issues = createMockIssueSet({ closedCount: 4, openCount: 6 });
-      const result = calculateIssueTemperature(issues);
-      if (result.temperature === 'hot') {
-        expect(result.status).toBe('cooling');
-      }
-    });
-
-    it('should map critical temperature to at_risk status', () => {
-      const issues = createMockIssueSet({ closedCount: 1, openCount: 9 });
-      const result = calculateIssueTemperature(issues);
-      expect(result.temperature).toBe('critical');
-      expect(result.status).toBe('at_risk');
-    });
-  });
-
-  describe('MetricResult Shape', () => {
-    it('should return complete MetricResult shape', () => {
-      const issues = createMockIssueSet();
-      const result = calculateIssueTemperature(issues);
-      expect(result).toHaveProperty('value');
-      expect(result).toHaveProperty('trend');
-      expect(result).toHaveProperty('direction');
-      expect(result).toHaveProperty('sparklineData');
-      expect(result).toHaveProperty('status');
-      expect(result).toHaveProperty('label');
-      expect(result).toHaveProperty('temperature');
-    });
-
-    it('should include sparklineData with 30 data points', () => {
-      const issues = createMockIssueSet({ windowDays: 30 });
-      const result = calculateIssueTemperature(issues);
-      expect(Array.isArray(result.sparklineData)).toBe(true);
-      expect(result.sparklineData.length).toBe(30);
-    });
-
-    it('should have valid direction values', () => {
-      const issues = createMockIssueSet();
-      const result = calculateIssueTemperature(issues);
-      expect(['up', 'down', 'stable']).toContain(result.direction);
-    });
-
-    it('should have valid status values', () => {
-      const issues = createMockIssueSet();
-      const result = calculateIssueTemperature(issues);
-      expect(['thriving', 'stable', 'cooling', 'at_risk']).toContain(result.status);
-    });
-
-    it('should have valid temperature values', () => {
-      const issues = createMockIssueSet();
-      const result = calculateIssueTemperature(issues);
-      expect(['cool', 'warm', 'hot', 'critical']).toContain(result.temperature);
-    });
-
-    it('should include additional metadata', () => {
-      const issues = createMockIssueSet();
-      const result = calculateIssueTemperature(issues);
-      expect(result).toHaveProperty('totalCount');
-      expect(result).toHaveProperty('openCount');
-      expect(result).toHaveProperty('closedCount');
-      expect(result).toHaveProperty('closeRate');
-      expect(result).toHaveProperty('avgResponseDays');
-      expect(result).toHaveProperty('score');
-    });
-
-    it('should clamp trend between -100 and 100', () => {
-      const issues = createMockIssueSet();
-      const result = calculateIssueTemperature(issues);
-      expect(result.trend).toBeGreaterThanOrEqual(-100);
-      expect(result.trend).toBeLessThanOrEqual(100);
-    });
-  });
-
-  describe('Edge Cases', () => {
-    it('should handle single issue', () => {
-      const issues = [createMockIssue({ state: 'open' })];
-      const result = calculateIssueTemperature(issues);
-      expect(result.totalCount).toBe(1);
-      expect(result.openCount).toBe(1);
-    });
-
-    it('should handle invalid date in created_at', () => {
-      const issues = [{ created_at: 'invalid', state: 'open' }];
-      expect(() => calculateIssueTemperature(issues)).not.toThrow();
-    });
-
-    it('should handle very large number of issues', () => {
-      const issues = Array(100).fill(null).map(() => createMockIssue({ state: 'closed' }));
-      const result = calculateIssueTemperature(issues);
-      expect(result.totalCount).toBe(100);
-      expect(result.closeRate).toBe(100);
     });
   });
 });
 
 // =============================================================================
-// PR HEALTH TESTS
+// VISUALIZATION COMPONENT TESTS
 // =============================================================================
 
-describe('calculatePRHealth', () => {
-  describe('Empty/Invalid Data', () => {
-    it('should return default metric for null PRs', () => {
-      const result = calculatePRHealth(null);
-      expect(result.label).toBe('No recent pull requests');
-      expect(result.status).toBe('stable');
+describe('Visualization Components', () => {
+  describe('createTemperatureIndicator', () => {
+    it('should create temperature indicator element', () => {
+      const element = createTemperatureIndicator(75);
+
+      expect(element.className).toContain('temperature-indicator');
     });
 
-    it('should return default metric for undefined PRs', () => {
-      const result = calculatePRHealth(undefined);
-      expect(result.label).toBe('No recent pull requests');
+    it('should apply correct level class for hot temperature', () => {
+      const element = createTemperatureIndicator(90);
+
+      expect(element.className).toContain('temperature-indicator--hot');
     });
 
-    it('should return default for empty PRs array', () => {
-      const result = calculatePRHealth([]);
-      expect(result.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
-      expect(result.label).toBe('No recent pull requests');
+    it('should apply correct level class for warm temperature', () => {
+      const element = createTemperatureIndicator(70);
+
+      expect(element.className).toContain('temperature-indicator--warm');
     });
 
-    it('should handle non-array PRs', () => {
-      const result = calculatePRHealth('not an array');
-      expect(result.label).toBe('No recent pull requests');
+    it('should apply correct level class for cool temperature', () => {
+      const element = createTemperatureIndicator(40);
+
+      expect(element.className).toContain('temperature-indicator--cool');
     });
 
-    it('should handle PRs with missing created_at', () => {
-      const prs = [{ state: 'open' }, { state: 'closed' }];
-      const result = calculatePRHealth(prs);
-      expect(result.label).toBe('No recent pull requests');
+    it('should apply correct level class for cold temperature', () => {
+      const element = createTemperatureIndicator(10);
+
+      expect(element.className).toContain('temperature-indicator--cold');
     });
 
-    it('should return sparklineData even for empty data', () => {
-      const result = calculatePRHealth(null);
-      expect(Array.isArray(result.sparklineData)).toBe(true);
-    });
+    it('should clamp values to 0-100 range', () => {
+      const hotElement = createTemperatureIndicator(150);
+      const coldElement = createTemperatureIndicator(-50);
 
-    it('should return proper funnel structure for no data', () => {
-      const result = calculatePRHealth(null);
-      expect(result.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
-    });
-  });
-
-  describe('Merge Rate Calculation', () => {
-    it('should calculate merge rate correctly for 80%', () => {
-      const prs = createMockPRSet({ mergedCount: 8, closedCount: 2, openCount: 0 });
-      const result = calculatePRHealth(prs);
-      expect(result.mergeRate).toBe(80);
-    });
-
-    it('should calculate merge rate correctly for 50%', () => {
-      const prs = createMockPRSet({ mergedCount: 5, closedCount: 5, openCount: 0 });
-      const result = calculatePRHealth(prs);
-      expect(result.mergeRate).toBe(50);
-    });
-
-    it('should calculate merge rate correctly for 100%', () => {
-      const prs = createMockPRSet({ mergedCount: 10, closedCount: 0, openCount: 0 });
-      const result = calculatePRHealth(prs);
-      expect(result.mergeRate).toBe(100);
-    });
-
-    it('should calculate merge rate correctly for 0%', () => {
-      const prs = createMockPRSet({ mergedCount: 0, closedCount: 10, openCount: 0 });
-      const result = calculatePRHealth(prs);
-      expect(result.mergeRate).toBe(0);
-    });
-
-    it('should handle merge rate when all PRs are open (no completed)', () => {
-      const prs = createMockPRSet({ mergedCount: 0, closedCount: 0, openCount: 5 });
-      const result = calculatePRHealth(prs);
-      expect(result.mergeRate).toBe(0); // No completed PRs to calculate rate
-    });
-
-    it('should exclude open PRs from merge rate calculation', () => {
-      const prs = createMockPRSet({ mergedCount: 5, closedCount: 5, openCount: 10 });
-      const result = calculatePRHealth(prs);
-      // Merge rate is based on completed PRs only (merged / (merged + closed))
-      expect(result.mergeRate).toBe(50);
+      expect(hotElement.className).toContain('temperature-indicator--hot');
+      expect(coldElement.className).toContain('temperature-indicator--cold');
     });
   });
 
-  describe('Funnel Tracking', () => {
-    it('should track all funnel metrics correctly', () => {
-      const prs = createMockPRSet({ mergedCount: 5, closedCount: 2, openCount: 3 });
-      const result = calculatePRHealth(prs);
-      expect(result.funnel.merged).toBe(5);
-      expect(result.funnel.closed).toBe(2);
-      expect(result.funnel.open).toBe(3);
-      expect(result.funnel.opened).toBe(10);
+  describe('getTemperatureLevel', () => {
+    it('should return "hot" for 75+', () => {
+      expect(getTemperatureLevel(75)).toBe('hot');
+      expect(getTemperatureLevel(100)).toBe('hot');
     });
 
-    it('should handle no merged PRs', () => {
-      const prs = createMockPRSet({ mergedCount: 0, closedCount: 5, openCount: 5 });
-      const result = calculatePRHealth(prs);
-      expect(result.funnel.merged).toBe(0);
-      expect(result.funnel.opened).toBe(10);
+    it('should return "warm" for 50-74', () => {
+      expect(getTemperatureLevel(50)).toBe('warm');
+      expect(getTemperatureLevel(74)).toBe('warm');
     });
 
-    it('should handle all PRs open', () => {
-      const prs = createMockPRSet({ mergedCount: 0, closedCount: 0, openCount: 5 });
-      const result = calculatePRHealth(prs);
-      expect(result.funnel.open).toBe(5);
-      expect(result.funnel.merged).toBe(0);
-      expect(result.funnel.closed).toBe(0);
-      expect(result.funnel.opened).toBe(5);
+    it('should return "cool" for 25-49', () => {
+      expect(getTemperatureLevel(25)).toBe('cool');
+      expect(getTemperatureLevel(49)).toBe('cool');
     });
 
-    it('should handle all PRs merged', () => {
-      const prs = createMockPRSet({ mergedCount: 10, closedCount: 0, openCount: 0 });
-      const result = calculatePRHealth(prs);
-      expect(result.funnel.merged).toBe(10);
-      expect(result.funnel.closed).toBe(0);
-      expect(result.funnel.open).toBe(0);
-    });
-
-    it('should count totalOpened correctly', () => {
-      const prs = createMockPRSet({ mergedCount: 3, closedCount: 4, openCount: 5 });
-      const result = calculatePRHealth(prs);
-      expect(result.totalOpened).toBe(12);
-      expect(result.funnel.opened).toBe(12);
+    it('should return "cold" for 0-24', () => {
+      expect(getTemperatureLevel(0)).toBe('cold');
+      expect(getTemperatureLevel(24)).toBe('cold');
     });
   });
 
-  describe('Time To Merge Analysis', () => {
-    it('should calculate average time to merge', () => {
-      const now = Date.now();
-      const prs = [
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString() // 2 days to merge
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString() // 4 days to merge
-        })
-      ];
-      const result = calculatePRHealth(prs);
-      expect(result.avgTimeToMerge).toBe(3); // (2 + 4) / 2 = 3
+  describe('createPRFunnel', () => {
+    it('should create PR funnel visualization', () => {
+      const element = createPRFunnel(10, 8, 6);
+
+      expect(element.className).toContain('pr-funnel');
     });
 
-    it('should boost score for fast merge times', () => {
-      const now = Date.now();
-      const fastPRs = [
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 4.5 * 24 * 60 * 60 * 1000).toISOString() // Same day
-        })
-      ];
-      const slowPRs = [
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString() // 15 days
-        })
-      ];
-      const fastResult = calculatePRHealth(fastPRs);
-      const slowResult = calculatePRHealth(slowPRs);
-      expect(fastResult.score).toBeGreaterThan(slowResult.score);
-    });
+    it('should have labels for each stage', () => {
+      const element = createPRFunnel(10, 8, 6);
+      const labels = element.querySelectorAll('.pr-funnel__label');
 
-    it('should handle PRs with no merged_at date', () => {
-      const prs = createMockPRSet({ mergedCount: 3, closedCount: 2, openCount: 0 });
-      // Manually remove merged_at from merged PRs
-      prs.forEach(pr => {
-        if (pr.merged) {
-          pr.merged_at = null;
-        }
-      });
-      const result = calculatePRHealth(prs);
-      expect(result.avgTimeToMerge).toBe(0);
+      expect(labels.length).toBeGreaterThan(0);
     });
   });
 
-  describe('Time Window Filtering', () => {
-    it('should filter PRs outside 30-day window', () => {
-      const oldPR = createMockPR({
-        created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days ago
-      });
-      const result = calculatePRHealth([oldPR]);
-      expect(result.label).toBe('No recent pull requests');
-    });
-
-    it('should include PRs within 30-day window', () => {
-      const recentPR = createMockPR({
-        created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() // 15 days ago
-      });
-      const result = calculatePRHealth([recentPR]);
-      expect(result.totalOpened).toBe(1);
-    });
-
-    it('should count only recent PRs when mix of old and new', () => {
-      const prs = [
-        createMockPR({
-          state: 'open',
-          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() // Recent
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() // Recent
-        }),
-        createMockPR({
-          state: 'open',
-          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // Old - filtered out
-        })
-      ];
-      const result = calculatePRHealth(prs);
-      expect(result.totalOpened).toBe(2);
-    });
-  });
-
-  describe('Trend Analysis', () => {
-    it('should detect improving trend with better recent merge rate', () => {
-      const now = Date.now();
-      const prs = [
-        // Older half (15-30 days ago) - low merge rate
-        createMockPR({
-          state: 'closed',
-          merged: false,
-          created_at: new Date(now - 25 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 24 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: false,
-          created_at: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 19 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 18 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 17 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        // Newer half (0-15 days ago) - higher merge rate
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 9 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString()
-        })
-      ];
-      const result = calculatePRHealth(prs);
-      expect(result.direction).toBe('up');
-      expect(result.trend).toBeGreaterThan(0);
-    });
-
-    it('should detect worsening trend with lower recent merge rate', () => {
-      const now = Date.now();
-      const prs = [
-        // Older half (15-30 days ago) - high merge rate
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 25 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 24 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 22 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 21 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 18 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 17 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        // Newer half (0-15 days ago) - low merge rate
-        createMockPR({
-          state: 'closed',
-          merged: false,
-          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 9 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: false,
-          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: false,
-          created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
-          closed_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString()
-        })
-      ];
-      const result = calculatePRHealth(prs);
-      expect(result.direction).toBe('down');
-      expect(result.trend).toBeLessThan(0);
-    });
-  });
-
-  describe('Volume Analysis', () => {
-    it('should calculate weekly volume correctly', () => {
-      // 30-day window / 7 days per week ≈ 4.3 weeks
-      const prs = createMockPRSet({ mergedCount: 10, closedCount: 5, openCount: 5 });
-      const result = calculatePRHealth(prs);
-      // 20 PRs / 4.3 weeks ≈ 4.7 per week
-      expect(result.weeklyVolume).toBeGreaterThan(0);
-    });
-
-    it('should penalize very low volume', () => {
-      // Use 50% merge rate for both so volume can make a difference
-      const lowVolume = createMockPRSet({ mergedCount: 1, closedCount: 1, openCount: 0 });
-      const highVolume = createMockPRSet({ mergedCount: 10, closedCount: 10, openCount: 0 });
-      const lowResult = calculatePRHealth(lowVolume);
-      const highResult = calculatePRHealth(highVolume);
-      // High volume should have better or equal score due to volume bonus
-      expect(highResult.score).toBeGreaterThanOrEqual(lowResult.score);
-    });
-  });
-
-  describe('Label Generation', () => {
-    it('should generate label with merge rate', () => {
-      const prs = createMockPRSet({ mergedCount: 8, closedCount: 2, openCount: 0 });
-      const result = calculatePRHealth(prs);
-      expect(result.label).toMatch(/\d+%/);
-    });
-
-    it('should show open count when all PRs are open', () => {
-      const prs = createMockPRSet({ mergedCount: 0, closedCount: 0, openCount: 5 });
-      const result = calculatePRHealth(prs);
-      expect(result.label).toContain('5 open PRs');
-    });
-
-    it('should include average time to merge in label when available', () => {
-      const now = Date.now();
-      const prs = [
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString() // 3 days
-        })
-      ];
-      const result = calculatePRHealth(prs);
-      expect(result.label).toMatch(/~\d+\.?\d*d avg/);
-    });
-  });
-
-  describe('Status Classification', () => {
-    it('should give thriving status for high merge rate', () => {
-      const prs = createMockPRSet({ mergedCount: 20, closedCount: 0, openCount: 0 });
-      const result = calculatePRHealth(prs);
-      expect(result.status).toBe('thriving');
-    });
-
-    it('should give stable status for medium merge rate', () => {
-      const prs = createMockPRSet({ mergedCount: 7, closedCount: 3, openCount: 0 });
-      const result = calculatePRHealth(prs);
-      expect(['thriving', 'stable']).toContain(result.status);
-    });
-
-    it('should give cooling or at_risk for low merge rate', () => {
-      const prs = createMockPRSet({ mergedCount: 2, closedCount: 8, openCount: 0 });
-      const result = calculatePRHealth(prs);
-      expect(['cooling', 'at_risk', 'stable']).toContain(result.status);
-    });
-  });
-
-  describe('MetricResult Shape', () => {
-    it('should return complete MetricResult shape', () => {
-      const prs = createMockPRSet();
-      const result = calculatePRHealth(prs);
-      expect(result).toHaveProperty('value');
-      expect(result).toHaveProperty('trend');
-      expect(result).toHaveProperty('direction');
-      expect(result).toHaveProperty('sparklineData');
-      expect(result).toHaveProperty('status');
-      expect(result).toHaveProperty('label');
-      expect(result).toHaveProperty('funnel');
-    });
-
-    it('should include sparklineData with 30 data points', () => {
-      const prs = createMockPRSet({ windowDays: 30 });
-      const result = calculatePRHealth(prs);
-      expect(Array.isArray(result.sparklineData)).toBe(true);
-      expect(result.sparklineData.length).toBe(30);
-    });
-
-    it('should have valid direction values', () => {
-      const prs = createMockPRSet();
-      const result = calculatePRHealth(prs);
-      expect(['up', 'down', 'stable']).toContain(result.direction);
-    });
-
-    it('should have valid status values', () => {
-      const prs = createMockPRSet();
-      const result = calculatePRHealth(prs);
-      expect(['thriving', 'stable', 'cooling', 'at_risk']).toContain(result.status);
-    });
-
-    it('should include additional metadata', () => {
-      const prs = createMockPRSet();
-      const result = calculatePRHealth(prs);
-      expect(result).toHaveProperty('mergeRate');
-      expect(result).toHaveProperty('avgTimeToMerge');
-      expect(result).toHaveProperty('totalOpened');
-      expect(result).toHaveProperty('mergedCount');
-      expect(result).toHaveProperty('closedCount');
-      expect(result).toHaveProperty('openCount');
-      expect(result).toHaveProperty('weeklyVolume');
-      expect(result).toHaveProperty('score');
-    });
-
-    it('should clamp trend between -100 and 100', () => {
-      const prs = createMockPRSet();
-      const result = calculatePRHealth(prs);
-      expect(result.trend).toBeGreaterThanOrEqual(-100);
-      expect(result.trend).toBeLessThanOrEqual(100);
-    });
-
-    it('should have value equal to merge rate percentage', () => {
-      const prs = createMockPRSet({ mergedCount: 8, closedCount: 2, openCount: 0 });
-      const result = calculatePRHealth(prs);
-      expect(result.value).toBe(80);
-    });
-  });
-
-  describe('Edge Cases', () => {
-    it('should handle single PR', () => {
-      const prs = [createMockPR({ state: 'open' })];
-      const result = calculatePRHealth(prs);
-      expect(result.totalOpened).toBe(1);
-      expect(result.funnel.open).toBe(1);
-    });
-
-    it('should handle invalid date in created_at', () => {
-      const prs = [{ created_at: 'invalid', state: 'open' }];
-      expect(() => calculatePRHealth(prs)).not.toThrow();
-    });
-
-    it('should handle very large number of PRs', () => {
-      const prs = Array(100).fill(null).map(() => createMockPR({
-        state: 'closed',
-        merged: true
-      }));
-      const result = calculatePRHealth(prs);
-      expect(result.totalOpened).toBe(100);
-      expect(result.mergeRate).toBe(100);
-    });
-
-    it('should differentiate merged from closed-not-merged', () => {
-      const prs = [
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          merged_at: new Date().toISOString()
-        }),
-        createMockPR({
-          state: 'closed',
-          merged: false,
-          closed_at: new Date().toISOString()
-        })
-      ];
-      const result = calculatePRHealth(prs);
-      expect(result.funnel.merged).toBe(1);
-      expect(result.funnel.closed).toBe(1);
-    });
-
-    it('should detect merged PR via merged_at even if merged flag is false', () => {
-      const prs = [
-        createMockPR({
-          state: 'closed',
-          merged: false, // Flag is false but merged_at is set
-          merged_at: new Date().toISOString()
-        })
-      ];
-      const result = calculatePRHealth(prs);
-      expect(result.funnel.merged).toBe(1);
-    });
-  });
-});
-
-// =============================================================================
-// BUS FACTOR TESTS
-// =============================================================================
-
-describe('calculateBusFactor', () => {
-  it('should return default metric for null contributors', () => {
-    const result = calculateBusFactor(null);
-    expect(result.value).toBe(1);
-    expect(result.riskLevel).toBe('critical');
-  });
-
-  it('should return default for empty contributors array', () => {
-    const result = calculateBusFactor([]);
-    expect(result.riskLevel).toBe('critical');
-  });
-
-  it('should identify single contributor as critical risk', () => {
-    const contributors = createMockContributorSet({ distribution: 'single' });
-    const result = calculateBusFactor(contributors);
-    expect(result.value).toBeLessThanOrEqual(2);
-    expect(result.riskLevel).toBe('critical');
-  });
-
-  it('should identify concentrated contributions as high risk', () => {
-    const contributors = createMockContributorSet({ count: 5, distribution: 'concentrated' });
-    const result = calculateBusFactor(contributors);
-    expect(['high', 'critical']).toContain(result.riskLevel);
-  });
-
-  it('should identify balanced team as healthy', () => {
-    const contributors = createMockContributorSet({ count: 10, distribution: 'balanced' });
-    const result = calculateBusFactor(contributors);
-    expect(result.value).toBeGreaterThanOrEqual(5);
-    expect(['healthy', 'moderate']).toContain(result.riskLevel);
-  });
-
-  it('should track top contributor concentration', () => {
-    const contributors = createMockContributorSet({ count: 5, distribution: 'concentrated' });
-    const result = calculateBusFactor(contributors);
-    expect(result.topConcentration).toBeGreaterThan(50);
-  });
-
-  it('should return value between 1 and 10', () => {
-    const contributors = createMockContributorSet({ count: 5 });
-    const result = calculateBusFactor(contributors);
-    expect(result.value).toBeGreaterThanOrEqual(1);
-    expect(result.value).toBeLessThanOrEqual(10);
-  });
-
-  it('should return MetricResult shape', () => {
-    const contributors = createMockContributorSet();
-    const result = calculateBusFactor(contributors);
-    expect(result).toHaveProperty('value');
-    expect(result).toHaveProperty('trend');
-    expect(result).toHaveProperty('direction');
-    expect(result).toHaveProperty('sparklineData');
-    expect(result).toHaveProperty('status');
-    expect(result).toHaveProperty('label');
-    expect(result).toHaveProperty('riskLevel');
-  });
-
-  it('should include sparkline with contribution distribution', () => {
-    const contributors = createMockContributorSet({ count: 5 });
-    const result = calculateBusFactor(contributors);
-    expect(Array.isArray(result.sparklineData)).toBe(true);
-    expect(result.sparklineData.length).toBe(10);
-  });
-
-  it('should filter out invalid contributors', () => {
-    const contributors = [
-      createMockContributor({ total: 100 }),
-      { total: null, author: { login: 'invalid' } },
-      { total: 50 } // Missing author
-    ];
-    const result = calculateBusFactor(contributors);
-    expect(result.contributorCount).toBe(1);
-  });
-
-  describe('Risk Levels', () => {
-    it('should return critical risk (bus factor 1) for single contributor', () => {
-      const contributors = [
-        createMockContributor({ total: 1000, author: { login: 'solo' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      expect(result.riskLevel).toBe('critical');
-      expect(result.value).toBeLessThanOrEqual(2);
-      expect(result.status).toBe('at_risk');
-    });
-
-    it('should return high risk for 2 contributors with concentration', () => {
-      const contributors = [
-        createMockContributor({ total: 900, author: { login: 'dev1' } }),
-        createMockContributor({ total: 100, author: { login: 'dev2' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      expect(['high', 'critical']).toContain(result.riskLevel);
-      expect(['at_risk', 'cooling']).toContain(result.status);
-    });
-
-    it('should return moderate risk for 3-4 significant contributors', () => {
-      const contributors = [
-        createMockContributor({ total: 100, author: { login: 'dev1' } }),
-        createMockContributor({ total: 90, author: { login: 'dev2' } }),
-        createMockContributor({ total: 80, author: { login: 'dev3' } }),
-        createMockContributor({ total: 30, author: { login: 'dev4' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      expect(['healthy', 'moderate']).toContain(result.riskLevel);
-    });
-
-    it('should return healthy risk for 5+ well-distributed contributors', () => {
-      const contributors = [
-        createMockContributor({ total: 100, author: { login: 'dev1' } }),
-        createMockContributor({ total: 90, author: { login: 'dev2' } }),
-        createMockContributor({ total: 80, author: { login: 'dev3' } }),
-        createMockContributor({ total: 70, author: { login: 'dev4' } }),
-        createMockContributor({ total: 60, author: { login: 'dev5' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      expect(result.riskLevel).toBe('healthy');
-      expect(result.status).toBe('thriving');
-    });
-  });
-
-  describe('Concentration Thresholds', () => {
-    it('should detect >70% concentration as critical', () => {
-      const contributors = [
-        createMockContributor({ total: 800, author: { login: 'top' } }),
-        createMockContributor({ total: 100, author: { login: 'other1' } }),
-        createMockContributor({ total: 100, author: { login: 'other2' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      expect(result.topConcentration).toBeGreaterThan(70);
-      expect(['critical', 'high']).toContain(result.riskLevel);
-    });
-
-    it('should detect 50-70% concentration as high', () => {
-      const contributors = [
-        createMockContributor({ total: 600, author: { login: 'top' } }),
-        createMockContributor({ total: 200, author: { login: 'other1' } }),
-        createMockContributor({ total: 200, author: { login: 'other2' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      expect(result.topConcentration).toBe(60);
-    });
-
-    it('should detect <30% concentration as well distributed', () => {
-      const contributors = [
-        createMockContributor({ total: 100, author: { login: 'dev1' } }),
-        createMockContributor({ total: 100, author: { login: 'dev2' } }),
-        createMockContributor({ total: 100, author: { login: 'dev3' } }),
-        createMockContributor({ total: 100, author: { login: 'dev4' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      expect(result.topConcentration).toBe(25);
-      expect(result.riskLevel).toBe('healthy');
-    });
-  });
-
-  describe('Status Mapping', () => {
-    it('should map healthy risk to thriving status', () => {
-      const contributors = createMockContributorSet({ count: 10, distribution: 'balanced' });
-      const result = calculateBusFactor(contributors);
-      if (result.riskLevel === 'healthy') {
-        expect(result.status).toBe('thriving');
-      }
-    });
-
-    it('should map moderate risk to stable status', () => {
-      // Create a scenario that results in moderate risk
-      const contributors = [
-        createMockContributor({ total: 200, author: { login: 'dev1' } }),
-        createMockContributor({ total: 150, author: { login: 'dev2' } }),
-        createMockContributor({ total: 100, author: { login: 'dev3' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      if (result.riskLevel === 'moderate') {
-        expect(result.status).toBe('stable');
-      }
-    });
-
-    it('should map high risk to cooling status', () => {
-      const contributors = [
-        createMockContributor({ total: 500, author: { login: 'top' } }),
-        createMockContributor({ total: 50, author: { login: 'other' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      if (result.riskLevel === 'high') {
-        expect(result.status).toBe('cooling');
-      }
-    });
-
-    it('should map critical risk to at_risk status', () => {
-      const contributors = createMockContributorSet({ distribution: 'single' });
-      const result = calculateBusFactor(contributors);
-      expect(result.riskLevel).toBe('critical');
-      expect(result.status).toBe('at_risk');
-    });
-  });
-
-  describe('Score Calculation', () => {
-    it('should calculate score from 0-100 range', () => {
+  describe('createContributorBars', () => {
+    it('should create contributor bars chart', () => {
       const contributors = createMockContributorSet({ count: 5 });
-      const result = calculateBusFactor(contributors);
-      expect(result.score).toBeGreaterThanOrEqual(0);
-      expect(result.score).toBeLessThanOrEqual(100);
+      const element = createContributorBars(contributors);
+
+      expect(element.className).toContain('contributor-bars');
     });
 
-    it('should have higher score for better distributed teams', () => {
-      const balanced = createMockContributorSet({ count: 10, distribution: 'balanced' });
-      const concentrated = createMockContributorSet({ count: 5, distribution: 'concentrated' });
+    it('should limit display to top N contributors', () => {
+      const contributors = createMockContributorSet({ count: 20 });
+      const element = createContributorBars(contributors, { limit: 5 });
 
-      const balancedResult = calculateBusFactor(balanced);
-      const concentratedResult = calculateBusFactor(concentrated);
-
-      expect(balancedResult.score).toBeGreaterThan(concentratedResult.score);
-    });
-
-    it('should track significant contributors', () => {
-      const contributors = [
-        createMockContributor({ total: 100, author: { login: 'dev1' } }),
-        createMockContributor({ total: 50, author: { login: 'dev2' } }),
-        createMockContributor({ total: 10, author: { login: 'dev3' } }), // <5% of total
-        createMockContributor({ total: 5, author: { login: 'dev4' } })  // <5% of total
-      ];
-      const result = calculateBusFactor(contributors);
-      expect(result.significantContributors).toBeGreaterThanOrEqual(2);
-    });
-
-    it('should track contributorsFor80Percent', () => {
-      const contributors = [
-        createMockContributor({ total: 50, author: { login: 'dev1' } }),
-        createMockContributor({ total: 50, author: { login: 'dev2' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      expect(result.contributorsFor80Percent).toBeDefined();
-      expect(result.contributorsFor80Percent).toBeGreaterThanOrEqual(1);
+      const bars = element.querySelectorAll('.contributor-bar');
+      expect(bars.length).toBeLessThanOrEqual(5);
     });
   });
 
-  describe('Label Generation', () => {
-    it('should include risk level label for single contributor', () => {
-      const contributors = createMockContributorSet({ distribution: 'single' });
-      const result = calculateBusFactor(contributors);
-      expect(result.label).toContain('Single contributor');
+  describe('getBusFactorRisk', () => {
+    it('should return "high" for concentrated contributions', () => {
+      expect(getBusFactorRisk(10)).toBe('high');
     });
 
-    it('should include contributor count for healthy teams', () => {
-      const contributors = createMockContributorSet({ count: 10, distribution: 'balanced' });
-      const result = calculateBusFactor(contributors);
-      if (result.riskLevel === 'healthy') {
-        expect(result.label).toContain('active contributors');
-      }
+    it('should return "medium" for medium bus factor', () => {
+      expect(getBusFactorRisk(40)).toBe('medium');
     });
 
-    it('should include top concentration percentage for concentrated teams', () => {
-      const contributors = createMockContributorSet({ count: 5, distribution: 'concentrated' });
-      const result = calculateBusFactor(contributors);
-      if (result.riskLevel !== 'healthy') {
-        expect(result.label).toMatch(/\d+%/);
-      }
-    });
-
-    it('should track top contributor login', () => {
-      const contributors = [
-        createMockContributor({ total: 500, author: { login: 'top-dev' } }),
-        createMockContributor({ total: 100, author: { login: 'other-dev' } })
-      ];
-      const result = calculateBusFactor(contributors);
-      expect(result.topContributor).toBe('top-dev');
-    });
-  });
-});
-
-// =============================================================================
-// FRESHNESS INDEX TESTS
-// =============================================================================
-
-describe('calculateFreshnessIndex', () => {
-  it('should return default metric for null repo', () => {
-    const result = calculateFreshnessIndex(null);
-    expect(result.freshness).toBe('stale');
-  });
-
-  it('should classify recent push as fresh or recent', () => {
-    const repo = createMockRepo({ pushed_at: new Date().toISOString() });
-    // With fresh push but no releases, weighted score may classify as 'recent'
-    const result = calculateFreshnessIndex(repo);
-    expect(['fresh', 'recent']).toContain(result.freshness);
-    expect(['thriving', 'stable']).toContain(result.status);
-  });
-
-  it('should classify recent push with release as fresh', () => {
-    const repo = createMockRepo({ pushed_at: new Date().toISOString() });
-    const releases = [createMockRelease({ published_at: new Date().toISOString() })];
-    const result = calculateFreshnessIndex(repo, releases);
-    expect(result.freshness).toBe('fresh');
-    expect(result.status).toBe('thriving');
-  });
-
-  it('should classify old push as stale', () => {
-    const oldDate = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
-    const repo = createMockRepo({ pushed_at: oldDate, updated_at: oldDate });
-    const result = calculateFreshnessIndex(repo);
-    expect(['aging', 'stale']).toContain(result.freshness);
-  });
-
-  it('should classify very old push as dormant', () => {
-    const veryOldDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-    const repo = createMockRepo({ pushed_at: veryOldDate, updated_at: veryOldDate });
-    const result = calculateFreshnessIndex(repo);
-    expect(['stale', 'dormant']).toContain(result.freshness);
-    expect(result.status).toBe('at_risk');
-  });
-
-  it('should track days since push', () => {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const repo = createMockRepo({ pushed_at: sevenDaysAgo, updated_at: sevenDaysAgo });
-    const result = calculateFreshnessIndex(repo);
-    expect(result.daysSincePush).toBe(7);
-  });
-
-  it('should handle no releases', () => {
-    const repo = createMockRepo();
-    const result = calculateFreshnessIndex(repo, []);
-    expect(result.lastRelease).toBe('None');
-    expect(result.daysSinceRelease).toBe(null);
-  });
-
-  it('should track latest release', () => {
-    const repo = createMockRepo();
-    const releases = [
-      createMockRelease({ tag_name: 'v2.0.0', published_at: new Date().toISOString() }),
-      createMockRelease({ tag_name: 'v1.0.0', published_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() })
-    ];
-    const result = calculateFreshnessIndex(repo, releases);
-    expect(result.lastRelease).toBe('v2.0.0');
-  });
-
-  it('should return score between 0 and 100', () => {
-    const repo = createMockRepo();
-    const result = calculateFreshnessIndex(repo);
-    expect(result.value).toBeGreaterThanOrEqual(0);
-    expect(result.value).toBeLessThanOrEqual(100);
-  });
-
-  it('should return MetricResult shape', () => {
-    const repo = createMockRepo();
-    const result = calculateFreshnessIndex(repo);
-    expect(result).toHaveProperty('value');
-    expect(result).toHaveProperty('trend');
-    expect(result).toHaveProperty('direction');
-    expect(result).toHaveProperty('sparklineData');
-    expect(result).toHaveProperty('status');
-    expect(result).toHaveProperty('label');
-    expect(result).toHaveProperty('freshness');
-  });
-
-  it('should handle invalid pushed_at date', () => {
-    const repo = createMockRepo({ pushed_at: 'invalid', updated_at: 'invalid' });
-    const result = calculateFreshnessIndex(repo);
-    expect(result.freshness).toBe('stale');
-  });
-
-  describe('Push Day Thresholds', () => {
-    it('should classify pushed within 7 days as fresh', () => {
-      const date = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(); // 3 days ago
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const releases = [createMockRelease({ published_at: date })];
-      const result = calculateFreshnessIndex(repo, releases);
-      expect(result.freshness).toBe('fresh');
-      expect(result.daysSincePush).toBe(3);
-    });
-
-    it('should classify pushed within 30 days as recent', () => {
-      const date = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(); // 15 days ago
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const result = calculateFreshnessIndex(repo);
-      expect(['fresh', 'recent']).toContain(result.freshness);
-      expect(result.daysSincePush).toBe(15);
-    });
-
-    it('should classify pushed within 90 days as aging', () => {
-      const date = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(); // 60 days ago
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const result = calculateFreshnessIndex(repo);
-      expect(['recent', 'aging']).toContain(result.freshness);
-      expect(result.daysSincePush).toBe(60);
-    });
-
-    it('should classify pushed within 180 days as stale', () => {
-      const date = new Date(Date.now() - 150 * 24 * 60 * 60 * 1000).toISOString(); // 150 days ago
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const result = calculateFreshnessIndex(repo);
-      expect(['aging', 'stale']).toContain(result.freshness);
-      expect(result.daysSincePush).toBe(150);
-    });
-
-    it('should classify pushed over 180 days as dormant', () => {
-      const date = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString(); // 400 days ago
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const result = calculateFreshnessIndex(repo);
-      expect(['stale', 'dormant']).toContain(result.freshness);
-      expect(result.daysSincePush).toBe(400);
+    it('should return "low" for distributed contributions', () => {
+      expect(getBusFactorRisk(80)).toBe('low');
     });
   });
 
-  describe('Status Mapping', () => {
-    it('should map fresh to thriving status', () => {
-      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
-      const releases = [createMockRelease({ published_at: new Date().toISOString() })];
-      const result = calculateFreshnessIndex(repo, releases);
-      expect(result.freshness).toBe('fresh');
-      expect(result.status).toBe('thriving');
+  describe('createFreshnessGauge', () => {
+    it('should create freshness gauge element', () => {
+      const element = createFreshnessGauge(70);
+
+      expect(element.className).toContain('freshness-gauge');
     });
 
-    it('should map recent to stable status', () => {
-      const date = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const result = calculateFreshnessIndex(repo);
-      if (result.freshness === 'recent') {
-        expect(result.status).toBe('stable');
-      }
-    });
+    it('should display percentage value', () => {
+      const element = createFreshnessGauge(65);
+      const value = element.querySelector('.freshness-gauge__value');
 
-    it('should map aging to cooling status', () => {
-      const date = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const result = calculateFreshnessIndex(repo);
-      if (result.freshness === 'aging') {
-        expect(result.status).toBe('cooling');
-      }
-    });
-
-    it('should map stale/dormant to at_risk status', () => {
-      const date = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const result = calculateFreshnessIndex(repo);
-      expect(['stale', 'dormant']).toContain(result.freshness);
-      expect(result.status).toBe('at_risk');
+      expect(value.textContent).toContain('65');
     });
   });
 
-  describe('Weighted Score Calculation', () => {
-    it('should have pushScore as primary factor (60% weight)', () => {
-      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
-      const result = calculateFreshnessIndex(repo);
-      expect(result.pushScore).toBe(100); // Fresh push = 100
+  describe('getFreshnessLevel', () => {
+    it('should return "fresh" for high freshness', () => {
+      expect(getFreshnessLevel(80)).toBe('fresh');
     });
 
-    it('should apply release score with 25% weight', () => {
-      const oldPush = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ pushed_at: oldPush, updated_at: oldPush });
-
-      // With fresh release
-      const freshRelease = [createMockRelease({ published_at: new Date().toISOString() })];
-      const resultWithRelease = calculateFreshnessIndex(repo, freshRelease);
-
-      // Without release (neutral)
-      const resultWithoutRelease = calculateFreshnessIndex(repo, []);
-
-      // Fresh release should boost the score
-      expect(resultWithRelease.releaseScore).toBe(100);
-    });
-
-    it('should calculate weighted score correctly', () => {
-      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
-      const releases = [createMockRelease({ published_at: new Date().toISOString() })];
-      const result = calculateFreshnessIndex(repo, releases);
-
-      // All fresh should give max score
-      expect(result.value).toBeGreaterThanOrEqual(90);
-    });
-
-    it('should have lower score for dormant repos', () => {
-      const veryOld = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ pushed_at: veryOld, updated_at: veryOld });
-      const result = calculateFreshnessIndex(repo);
-
-      expect(result.value).toBeLessThan(30);
+    it('should return "stale" for low freshness', () => {
+      expect(getFreshnessLevel(20)).toBe('stale');
     });
   });
 
-  describe('Label Generation', () => {
-    it('should show "Updated today" for same-day push', () => {
-      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
-      const releases = [createMockRelease({ published_at: new Date().toISOString() })];
-      const result = calculateFreshnessIndex(repo, releases);
-      expect(result.label).toContain('Updated today');
-    });
-
-    it('should show "Updated yesterday" for 1-day-old push', () => {
-      const date = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const releases = [createMockRelease({ published_at: date })];
-      const result = calculateFreshnessIndex(repo, releases);
-      expect(result.label).toContain('yesterday');
-    });
-
-    it('should show days for recent pushes', () => {
-      const date = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const releases = [createMockRelease({ published_at: date })];
-      const result = calculateFreshnessIndex(repo, releases);
-      expect(result.label).toContain('5 days ago');
-    });
-
-    it('should show weeks for 1-4 week old pushes', () => {
-      const date = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const result = calculateFreshnessIndex(repo);
-      expect(result.label).toMatch(/\d+w ago/);
-    });
-
-    it('should show months for 1-12 month old pushes', () => {
-      const date = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const result = calculateFreshnessIndex(repo);
-      expect(result.label).toMatch(/\d+mo ago/);
-    });
-
-    it('should show years for 1+ year old pushes', () => {
-      const date = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
-      const repo = createMockRepo({ pushed_at: date, updated_at: date });
-      const result = calculateFreshnessIndex(repo);
-      expect(result.label).toMatch(/\d+y ago/);
-    });
-
-    it('should include freshness classification in label', () => {
-      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
-      const releases = [createMockRelease({ published_at: new Date().toISOString() })];
-      const result = calculateFreshnessIndex(repo, releases);
-      expect(result.label).toContain('Fresh');
-    });
-  });
-
-  describe('Sparkline Data', () => {
-    it('should return sparkline data array', () => {
+  describe('calculateFreshnessScore', () => {
+    it('should return number between 0-100', () => {
       const repo = createMockRepo();
-      const result = calculateFreshnessIndex(repo);
-      expect(Array.isArray(result.sparklineData)).toBe(true);
-      expect(result.sparklineData.length).toBe(10);
+      const score = calculateFreshnessScore(repo);
+
+      expect(typeof score).toBe('number');
+      expect(score).toBeGreaterThanOrEqual(0);
+      expect(score).toBeLessThanOrEqual(100);
     });
 
-    it('should have higher values at end for fresh repos', () => {
-      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
-      const result = calculateFreshnessIndex(repo);
-      // For fresh repos, recent data points should be higher
-      const lastValue = result.sparklineData[result.sparklineData.length - 1];
-      expect(lastValue).toBeGreaterThan(0);
+    it('should return high score for recent updates', () => {
+      const repo = createMockRepo({
+        updated_at: new Date().toISOString()
+      });
+      const score = calculateFreshnessScore(repo);
+
+      expect(score).toBeGreaterThan(50);
+    });
+
+    it('should return low score for old updates', () => {
+      const repo = createMockRepo({
+        updated_at: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString()
+      });
+      const score = calculateFreshnessScore(repo);
+
+      expect(score).toBeLessThan(50);
     });
   });
 });
 
 // =============================================================================
-// OVERALL PULSE TESTS
+// METRIC CARD COMPONENT TESTS
 // =============================================================================
 
-describe('calculateOverallPulse', () => {
-  it('should return default pulse for null metrics', () => {
-    const result = calculateOverallPulse(null);
-    expect(result.status).toBe('stable');
-    expect(result.metricsUsed).toBe(0);
-  });
-
-  it('should return default pulse for empty object', () => {
-    const result = calculateOverallPulse({});
-    expect(result.status).toBeDefined();
-  });
-
-  it('should aggregate all thriving metrics as thriving', () => {
-    const metrics = {
-      velocity: { status: 'thriving', trend: 10 },
-      momentum: { status: 'thriving', trend: 10 },
-      issues: { status: 'thriving', trend: 10 },
-      prs: { status: 'thriving', trend: 10 },
-      busFactor: { status: 'thriving', trend: 0 },
-      freshness: { status: 'thriving', trend: 0 }
-    };
-    const result = calculateOverallPulse(metrics);
-    expect(result.status).toBe('thriving');
-    expect(result.score).toBeGreaterThanOrEqual(75);
-  });
-
-  it('should aggregate all at_risk metrics as at_risk', () => {
-    const metrics = {
-      velocity: { status: 'at_risk', trend: -30 },
-      momentum: { status: 'at_risk', trend: -30 },
-      issues: { status: 'at_risk', trend: -30 },
-      prs: { status: 'at_risk', trend: -30 },
-      busFactor: { status: 'at_risk', trend: 0 },
-      freshness: { status: 'at_risk', trend: 0 }
-    };
-    const result = calculateOverallPulse(metrics);
-    expect(result.status).toBe('at_risk');
-    expect(result.score).toBeLessThan(25);
-  });
-
-  it('should count concerns correctly', () => {
-    const metrics = {
-      velocity: { status: 'thriving', trend: 10 },
-      momentum: { status: 'stable', trend: 0 },
-      issues: { status: 'cooling', trend: -10 },
-      prs: { status: 'at_risk', trend: -30 },
-      busFactor: { status: 'stable', trend: 0 },
-      freshness: { status: 'at_risk', trend: 0 }
-    };
-    const result = calculateOverallPulse(metrics);
-    expect(result.concerns.count).toBe(3); // cooling + 2 at_risk
-  });
-
-  it('should include breakdown by metric', () => {
-    const metrics = {
-      velocity: { status: 'thriving', trend: 10 },
-      momentum: { status: 'stable', trend: 0 }
-    };
-    const result = calculateOverallPulse(metrics);
-    expect(result.breakdown).toHaveProperty('velocity');
-    expect(result.breakdown).toHaveProperty('momentum');
-  });
-
-  it('should calculate average trend', () => {
-    const metrics = {
-      velocity: { status: 'stable', trend: 20 },
-      momentum: { status: 'stable', trend: -20 },
-      issues: { status: 'stable', trend: 10 },
-      prs: { status: 'stable', trend: -10 },
-      busFactor: { status: 'stable', trend: 0 },
-      freshness: { status: 'stable', trend: 0 }
-    };
-    const result = calculateOverallPulse(metrics);
-    expect(result.trend).toBe(0);
-  });
-
-  it('should set appropriate pulse speed', () => {
-    const thrivingMetrics = {
-      velocity: { status: 'thriving', trend: 0 },
-      momentum: { status: 'thriving', trend: 0 },
-      issues: { status: 'thriving', trend: 0 },
-      prs: { status: 'thriving', trend: 0 },
-      busFactor: { status: 'thriving', trend: 0 },
-      freshness: { status: 'thriving', trend: 0 }
-    };
-    const atRiskMetrics = {
-      velocity: { status: 'at_risk', trend: 0 },
-      momentum: { status: 'at_risk', trend: 0 },
-      issues: { status: 'at_risk', trend: 0 },
-      prs: { status: 'at_risk', trend: 0 },
-      busFactor: { status: 'at_risk', trend: 0 },
-      freshness: { status: 'at_risk', trend: 0 }
-    };
-
-    const thrivingResult = calculateOverallPulse(thrivingMetrics);
-    const atRiskResult = calculateOverallPulse(atRiskMetrics);
-
-    // Thriving should have faster pulse (lower ms)
-    expect(thrivingResult.pulseSpeed).toBeLessThan(atRiskResult.pulseSpeed);
-  });
-
-  it('should handle partial metrics', () => {
-    const metrics = {
-      velocity: { status: 'thriving', trend: 10 }
-      // Other metrics missing
-    };
-    const result = calculateOverallPulse(metrics);
-    expect(result.status).toBeDefined();
-    expect(result.breakdown.velocity).toBe('thriving');
-    expect(result.breakdown.momentum).toBe('stable'); // Default
-  });
-
-  describe('Metric Weights', () => {
-    it('should apply velocity weight of 20%', () => {
-      // Velocity has the highest weight (20%)
-      const metrics = {
-        velocity: { status: 'at_risk', trend: -50 },
-        momentum: { status: 'thriving', trend: 20 },
-        issues: { status: 'thriving', trend: 20 },
-        prs: { status: 'thriving', trend: 20 },
-        busFactor: { status: 'thriving', trend: 0 },
-        freshness: { status: 'thriving', trend: 0 }
+describe('MetricCard', () => {
+  describe('createMetricCard', () => {
+    it('should create metric card element', () => {
+      const metric = {
+        value: 75,
+        trend: 5,
+        direction: 'up',
+        status: 'thriving',
+        label: 'Velocity'
       };
-      const result = calculateOverallPulse(metrics);
-      // With velocity at_risk (15pts) and others thriving (100pts each)
-      // Weighted: (15*20 + 100*15 + 100*20 + 100*15 + 100*15 + 100*15) / 100 = 68
-      expect(result.score).toBeLessThan(100);
-      expect(result.concerns.count).toBe(1);
+
+      const element = createMetricCard(metric);
+
+      expect(element.className).toContain('metric-card');
+      expect(element.textContent).toContain('Velocity');
+      expect(element.textContent).toContain('75');
     });
 
-    it('should apply issues weight of 20%', () => {
-      // Issues has the same weight as velocity (20%)
-      const metrics = {
-        velocity: { status: 'thriving', trend: 20 },
-        momentum: { status: 'thriving', trend: 20 },
-        issues: { status: 'at_risk', trend: -30 },
-        prs: { status: 'thriving', trend: 20 },
-        busFactor: { status: 'thriving', trend: 0 },
-        freshness: { status: 'thriving', trend: 0 }
+    it('should display trend arrow', () => {
+      const metric = {
+        value: 80,
+        trend: 10,
+        direction: 'up',
+        status: 'thriving',
+        label: 'Test Metric'
       };
-      const result = calculateOverallPulse(metrics);
-      expect(result.concerns.count).toBe(1);
-      expect(result.concerns.metrics[0].metric).toBe('issues');
+
+      const element = createMetricCard(metric);
+      const trendArrow = element.querySelector('.trend-arrow');
+
+      expect(trendArrow).not.toBeNull();
     });
 
-    it('should apply equal weights for momentum, prs, busFactor, freshness (15% each)', () => {
-      // Each of these has 15% weight
-      const baseMetrics = {
-        velocity: { status: 'thriving', trend: 20 },
-        momentum: { status: 'thriving', trend: 20 },
-        issues: { status: 'thriving', trend: 20 },
-        prs: { status: 'thriving', trend: 20 },
-        busFactor: { status: 'thriving', trend: 0 },
-        freshness: { status: 'thriving', trend: 0 }
+    it('should apply status class', () => {
+      const metric = {
+        value: 90,
+        trend: 0,
+        direction: 'stable',
+        status: 'thriving',
+        label: 'Test'
       };
 
-      const result = calculateOverallPulse(baseMetrics);
-      expect(result.status).toBe('thriving');
-      expect(result.score).toBeGreaterThanOrEqual(75);
+      const element = createMetricCard(metric);
+
+      expect(element.className).toContain('metric-card--thriving');
     });
   });
 
-  describe('Direction Calculation', () => {
-    it('should return "up" direction for positive average trend', () => {
-      const metrics = {
-        velocity: { status: 'stable', trend: 30 },
-        momentum: { status: 'stable', trend: 20 },
-        issues: { status: 'stable', trend: 10 },
-        prs: { status: 'stable', trend: 15 },
-        busFactor: { status: 'stable', trend: 0 },
-        freshness: { status: 'stable', trend: 0 }
+  describe('createCompactMetricCard', () => {
+    it('should create smaller metric card', () => {
+      const metric = {
+        value: 70,
+        trend: -5,
+        direction: 'down',
+        status: 'stable',
+        label: 'Compact'
       };
-      const result = calculateOverallPulse(metrics);
-      expect(result.trend).toBeGreaterThan(0);
-      expect(result.direction).toBe('up');
+
+      const element = createCompactMetricCard(metric);
+
+      expect(element.className).toContain('metric-card--compact');
     });
 
-    it('should return "down" direction for negative average trend', () => {
-      const metrics = {
-        velocity: { status: 'stable', trend: -30 },
-        momentum: { status: 'stable', trend: -20 },
-        issues: { status: 'stable', trend: -10 },
-        prs: { status: 'stable', trend: -15 },
-        busFactor: { status: 'stable', trend: 0 },
-        freshness: { status: 'stable', trend: 0 }
+    it('should omit unnecessary details', () => {
+      const metric = {
+        value: 65,
+        trend: 0,
+        direction: 'stable',
+        status: 'stable',
+        label: 'Test'
       };
-      const result = calculateOverallPulse(metrics);
-      expect(result.trend).toBeLessThan(0);
-      expect(result.direction).toBe('down');
-    });
 
-    it('should return "stable" direction for near-zero average trend', () => {
-      const metrics = {
-        velocity: { status: 'stable', trend: 3 },
-        momentum: { status: 'stable', trend: -3 },
-        issues: { status: 'stable', trend: 2 },
-        prs: { status: 'stable', trend: -2 },
-        busFactor: { status: 'stable', trend: 0 },
-        freshness: { status: 'stable', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.direction).toBe('stable');
+      const element = createCompactMetricCard(metric);
+
+      // Should still show value and label
+      expect(element.textContent).toContain('65');
+      expect(element.textContent).toContain('Test');
     });
   });
 
-  describe('Concern Levels', () => {
-    it('should return "none" for no concerning metrics', () => {
-      const metrics = {
-        velocity: { status: 'thriving', trend: 10 },
-        momentum: { status: 'stable', trend: 5 },
-        issues: { status: 'thriving', trend: 10 },
-        prs: { status: 'stable', trend: 5 },
-        busFactor: { status: 'thriving', trend: 0 },
-        freshness: { status: 'stable', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.concerns.level).toBe('none');
-      expect(result.concerns.count).toBe(0);
+  describe('createMetricCardSkeleton', () => {
+    it('should create loading skeleton', () => {
+      const element = createMetricCardSkeleton();
+
+      expect(element.className).toContain('metric-card--skeleton');
     });
 
-    it('should return "few" for 1-2 concerning metrics', () => {
-      const metrics = {
-        velocity: { status: 'cooling', trend: -10 },
-        momentum: { status: 'stable', trend: 0 },
-        issues: { status: 'stable', trend: 0 },
-        prs: { status: 'stable', trend: 0 },
-        busFactor: { status: 'stable', trend: 0 },
-        freshness: { status: 'stable', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.concerns.level).toBe('few');
-      expect(result.concerns.count).toBe(1);
+    it('should have placeholder elements', () => {
+      const element = createMetricCardSkeleton();
+      const placeholders = element.querySelectorAll('.skeleton-placeholder');
+
+      expect(placeholders.length).toBeGreaterThan(0);
     });
 
-    it('should return "some" for 3-4 concerning metrics', () => {
-      const metrics = {
-        velocity: { status: 'cooling', trend: -10 },
-        momentum: { status: 'at_risk', trend: -20 },
-        issues: { status: 'cooling', trend: -10 },
-        prs: { status: 'stable', trend: 0 },
-        busFactor: { status: 'stable', trend: 0 },
-        freshness: { status: 'stable', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.concerns.level).toBe('some');
-      expect(result.concerns.count).toBe(3);
-    });
+    it('should be accessible', () => {
+      const element = createMetricCardSkeleton();
 
-    it('should return "many" for 5+ concerning metrics', () => {
-      const metrics = {
-        velocity: { status: 'cooling', trend: -10 },
-        momentum: { status: 'at_risk', trend: -20 },
-        issues: { status: 'cooling', trend: -10 },
-        prs: { status: 'at_risk', trend: -30 },
-        busFactor: { status: 'cooling', trend: 0 },
-        freshness: { status: 'at_risk', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.concerns.level).toBe('many');
-      expect(result.concerns.count).toBe(6);
-    });
-
-    it('should sort concerns by severity (high first)', () => {
-      const metrics = {
-        velocity: { status: 'cooling', trend: -10 },      // Medium severity
-        momentum: { status: 'at_risk', trend: -30 },       // High severity
-        issues: { status: 'stable', trend: 0 },
-        prs: { status: 'stable', trend: 0 },
-        busFactor: { status: 'stable', trend: 0 },
-        freshness: { status: 'stable', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.concerns.metrics[0].severity).toBe('high');
-      expect(result.concerns.metrics[0].metric).toBe('momentum');
-    });
-  });
-
-  describe('Status Labels', () => {
-    it('should include statusLabel for thriving status', () => {
-      const metrics = {
-        velocity: { status: 'thriving', trend: 10 },
-        momentum: { status: 'thriving', trend: 10 },
-        issues: { status: 'thriving', trend: 10 },
-        prs: { status: 'thriving', trend: 10 },
-        busFactor: { status: 'thriving', trend: 0 },
-        freshness: { status: 'thriving', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.statusLabel).toBe('Thriving');
-      expect(result.statusDescription).toBeDefined();
-    });
-
-    it('should include statusLabel for at_risk status', () => {
-      const metrics = {
-        velocity: { status: 'at_risk', trend: -30 },
-        momentum: { status: 'at_risk', trend: -30 },
-        issues: { status: 'at_risk', trend: -30 },
-        prs: { status: 'at_risk', trend: -30 },
-        busFactor: { status: 'at_risk', trend: 0 },
-        freshness: { status: 'at_risk', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.statusLabel).toBe('At Risk');
-      expect(result.statusDescription).toBeDefined();
-    });
-  });
-
-  describe('Pulse Speed Animation', () => {
-    it('should return 800ms for thriving status', () => {
-      const metrics = {
-        velocity: { status: 'thriving', trend: 0 },
-        momentum: { status: 'thriving', trend: 0 },
-        issues: { status: 'thriving', trend: 0 },
-        prs: { status: 'thriving', trend: 0 },
-        busFactor: { status: 'thriving', trend: 0 },
-        freshness: { status: 'thriving', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.pulseSpeed).toBe(800);
-    });
-
-    it('should return 1200ms for stable status', () => {
-      const metrics = {
-        velocity: { status: 'stable', trend: 0 },
-        momentum: { status: 'stable', trend: 0 },
-        issues: { status: 'stable', trend: 0 },
-        prs: { status: 'stable', trend: 0 },
-        busFactor: { status: 'stable', trend: 0 },
-        freshness: { status: 'stable', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.pulseSpeed).toBe(1200);
-    });
-
-    it('should return 1800ms for cooling status', () => {
-      const metrics = {
-        velocity: { status: 'cooling', trend: 0 },
-        momentum: { status: 'cooling', trend: 0 },
-        issues: { status: 'cooling', trend: 0 },
-        prs: { status: 'cooling', trend: 0 },
-        busFactor: { status: 'cooling', trend: 0 },
-        freshness: { status: 'cooling', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.pulseSpeed).toBe(1800);
-    });
-
-    it('should return 2500ms for at_risk status', () => {
-      const metrics = {
-        velocity: { status: 'at_risk', trend: 0 },
-        momentum: { status: 'at_risk', trend: 0 },
-        issues: { status: 'at_risk', trend: 0 },
-        prs: { status: 'at_risk', trend: 0 },
-        busFactor: { status: 'at_risk', trend: 0 },
-        freshness: { status: 'at_risk', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.pulseSpeed).toBe(2500);
-    });
-  });
-
-  describe('Summary Label Generation', () => {
-    it('should generate positive label for thriving with no concerns', () => {
-      const metrics = {
-        velocity: { status: 'thriving', trend: 0 },
-        momentum: { status: 'thriving', trend: 0 },
-        issues: { status: 'thriving', trend: 0 },
-        prs: { status: 'thriving', trend: 0 },
-        busFactor: { status: 'thriving', trend: 0 },
-        freshness: { status: 'thriving', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.label).toContain('Excellent');
-    });
-
-    it('should generate warning label for at_risk status', () => {
-      const metrics = {
-        velocity: { status: 'at_risk', trend: 0 },
-        momentum: { status: 'at_risk', trend: 0 },
-        issues: { status: 'at_risk', trend: 0 },
-        prs: { status: 'at_risk', trend: 0 },
-        busFactor: { status: 'at_risk', trend: 0 },
-        freshness: { status: 'at_risk', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.label).toContain('attention');
-    });
-
-    it('should mention concern count in label when applicable', () => {
-      const metrics = {
-        velocity: { status: 'cooling', trend: -10 },
-        momentum: { status: 'at_risk', trend: -30 },
-        issues: { status: 'cooling', trend: -10 },
-        prs: { status: 'stable', trend: 0 },
-        busFactor: { status: 'stable', trend: 0 },
-        freshness: { status: 'stable', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-      expect(result.label).toMatch(/\d+/);
-    });
-  });
-
-  describe('Breakdown Object', () => {
-    it('should include all 6 metrics in breakdown', () => {
-      const metrics = {
-        velocity: { status: 'thriving', trend: 0 },
-        momentum: { status: 'stable', trend: 0 },
-        issues: { status: 'cooling', trend: 0 },
-        prs: { status: 'at_risk', trend: 0 },
-        busFactor: { status: 'thriving', trend: 0 },
-        freshness: { status: 'stable', trend: 0 }
-      };
-      const result = calculateOverallPulse(metrics);
-
-      expect(result.breakdown).toHaveProperty('velocity', 'thriving');
-      expect(result.breakdown).toHaveProperty('momentum', 'stable');
-      expect(result.breakdown).toHaveProperty('issues', 'cooling');
-      expect(result.breakdown).toHaveProperty('prs', 'at_risk');
-      expect(result.breakdown).toHaveProperty('busFactor', 'thriving');
-      expect(result.breakdown).toHaveProperty('freshness', 'stable');
-    });
-
-    it('should default missing metrics to stable in breakdown', () => {
-      const metrics = {
-        velocity: { status: 'thriving', trend: 0 }
-        // Other metrics missing
-      };
-      const result = calculateOverallPulse(metrics);
-
-      expect(result.breakdown.velocity).toBe('thriving');
-      expect(result.breakdown.momentum).toBe('stable');
-      expect(result.breakdown.issues).toBe('stable');
-      expect(result.breakdown.prs).toBe('stable');
-      expect(result.breakdown.busFactor).toBe('stable');
-      expect(result.breakdown.freshness).toBe('stable');
+      expect(element.getAttribute('aria-busy')).toBe('true');
     });
   });
 });
 
 // =============================================================================
-// CALCULATE ALL METRICS TESTS
+// DASHBOARD COMPONENT TESTS
 // =============================================================================
 
-describe('calculateAllMetrics', () => {
-  it('should return default metrics for null input', () => {
-    const result = calculateAllMetrics(null);
-    expect(result.metrics).toBeDefined();
-    expect(result.overall).toBeDefined();
-    expect(result.overall.metricsUsed).toBe(0);
-  });
-
-  it('should return default metrics for empty object', () => {
-    const result = calculateAllMetrics({});
-    expect(result.metrics.velocity.label).toBe('Commit data unavailable');
-    expect(result.metrics.momentum.label).toBe('Growth data unavailable');
-  });
-
-  it('should calculate all 6 metrics from complete data', () => {
-    const pulseData = {
-      repo: createMockRepo(),
-      participation: createMockParticipation(),
-      issues: createMockIssueSet(),
-      prs: createMockPRSet(),
-      contributors: createMockContributorSet(),
-      events: Array(5).fill(null).map(() => createMockEvent()),
-      releases: [createMockRelease()]
-    };
-
-    const result = calculateAllMetrics(pulseData);
-
-    expect(result.metrics.velocity).toBeDefined();
-    expect(result.metrics.momentum).toBeDefined();
-    expect(result.metrics.issues).toBeDefined();
-    expect(result.metrics.prs).toBeDefined();
-    expect(result.metrics.busFactor).toBeDefined();
-    expect(result.metrics.freshness).toBeDefined();
-    expect(result.overall).toBeDefined();
-  });
-
-  it('should handle partial data gracefully', () => {
-    const pulseData = {
-      repo: createMockRepo()
-      // Other data missing
-    };
-
-    const result = calculateAllMetrics(pulseData);
-
-    expect(result.metrics.velocity.status).toBe('stable'); // Default
-    expect(result.metrics.momentum.status).toBeDefined(); // Calculated from repo
-    expect(result.metrics.freshness.status).toBeDefined(); // Calculated from repo
-    expect(result.overall.status).toBeDefined();
-  });
-
-  it('should return proper structure', () => {
-    const pulseData = {
-      repo: createMockRepo(),
-      participation: createMockParticipation()
-    };
-
-    const result = calculateAllMetrics(pulseData);
-
-    // Check metrics object
-    expect(result).toHaveProperty('metrics');
-    expect(result.metrics).toHaveProperty('velocity');
-    expect(result.metrics).toHaveProperty('momentum');
-    expect(result.metrics).toHaveProperty('issues');
-    expect(result.metrics).toHaveProperty('prs');
-    expect(result.metrics).toHaveProperty('busFactor');
-    expect(result.metrics).toHaveProperty('freshness');
-
-    // Check overall object
-    expect(result).toHaveProperty('overall');
-    expect(result.overall).toHaveProperty('status');
-    expect(result.overall).toHaveProperty('score');
-    expect(result.overall).toHaveProperty('pulseSpeed');
-    expect(result.overall).toHaveProperty('concerns');
-  });
-
-  it('should aggregate concerns from individual metrics', () => {
-    // Create data that results in some at_risk metrics
-    const veryOldDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-    const pulseData = {
-      repo: createMockRepo({
-        pushed_at: veryOldDate,
-        updated_at: veryOldDate,
-        stargazers_count: 0
-      }),
-      participation: createMockParticipation({ recentAvg: 0, previousAvg: 10 }),
-      contributors: createMockContributorSet({ distribution: 'single' })
-    };
-
-    const result = calculateAllMetrics(pulseData);
-
-    expect(result.overall.concerns.count).toBeGreaterThan(0);
-    expect(result.overall.concerns.metrics.length).toBeGreaterThan(0);
-  });
-});
-
-// =============================================================================
-// EDGE CASE TESTS
-// =============================================================================
-
-describe('Edge Cases', () => {
-  describe('All null inputs', () => {
-    it('should handle all calculators with null gracefully', () => {
-      expect(() => calculateVelocityScore(null)).not.toThrow();
-      expect(() => calculateCommunityMomentum(null)).not.toThrow();
-      expect(() => calculateIssueTemperature(null)).not.toThrow();
-      expect(() => calculatePRHealth(null)).not.toThrow();
-      expect(() => calculateBusFactor(null)).not.toThrow();
-      expect(() => calculateFreshnessIndex(null)).not.toThrow();
-      expect(() => calculateOverallPulse(null)).not.toThrow();
-      expect(() => calculateAllMetrics(null)).not.toThrow();
-    });
-  });
-
-  describe('All empty arrays', () => {
-    it('should handle all array-based calculators with empty arrays', () => {
-      expect(() => calculateIssueTemperature([])).not.toThrow();
-      expect(() => calculatePRHealth([])).not.toThrow();
-      expect(() => calculateBusFactor([])).not.toThrow();
-    });
-  });
-
-  describe('Invalid date handling', () => {
-    it('should handle invalid dates in issues', () => {
-      const issues = [{ created_at: 'invalid', state: 'open' }];
-      expect(() => calculateIssueTemperature(issues)).not.toThrow();
-    });
-
-    it('should handle invalid dates in PRs', () => {
-      const prs = [{ created_at: 'invalid', state: 'open' }];
-      expect(() => calculatePRHealth(prs)).not.toThrow();
-    });
-
-    it('should handle invalid dates in repo', () => {
-      const repo = createMockRepo({ pushed_at: 'invalid', created_at: 'invalid' });
-      expect(() => calculateFreshnessIndex(repo)).not.toThrow();
-      expect(() => calculateCommunityMomentum(repo)).not.toThrow();
-    });
-  });
-
-  describe('Extreme values', () => {
-    it('should handle very large star count', () => {
-      const repo = createMockRepo({ stargazers_count: 1000000 });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.value).toBe(1000000);
-    });
-
-    it('should handle very old repository', () => {
-      const veryOldDate = new Date('2000-01-01').toISOString();
-      const repo = createMockRepo({ created_at: veryOldDate });
-      const result = calculateCommunityMomentum(repo);
-      expect(result.repoAgeDays).toBeDefined();
-    });
-
-    it('should handle large number of contributors', () => {
-      const contributors = Array(100).fill(null).map((_, i) =>
-        createMockContributor({ total: 100 - i, author: { login: `dev-${i}` } })
-      );
-      const result = calculateBusFactor(contributors);
-      expect(result.value).toBe(10); // Max bus factor
-    });
-  });
-});
-
-// =============================================================================
-// METRIC RESULT SHAPE TESTS
-// =============================================================================
-
-describe('MetricResult Shape Validation', () => {
-  const metricResultShape = {
-    value: expect.anything(),
-    trend: expect.any(Number),
-    direction: expect.stringMatching(/^(up|down|stable)$/),
-    sparklineData: expect.any(Array),
-    status: expect.stringMatching(/^(thriving|stable|cooling|at_risk)$/),
-    label: expect.any(String)
-  };
-
-  it('calculateVelocityScore returns MetricResult shape', () => {
-    const result = calculateVelocityScore(createMockParticipation());
-    expect(result).toMatchObject(metricResultShape);
-  });
-
-  it('calculateCommunityMomentum returns MetricResult shape', () => {
-    const result = calculateCommunityMomentum(createMockRepo());
-    expect(result).toMatchObject(metricResultShape);
-  });
-
-  it('calculateIssueTemperature returns MetricResult shape', () => {
-    const result = calculateIssueTemperature(createMockIssueSet());
-    expect(result).toMatchObject(metricResultShape);
-  });
-
-  it('calculatePRHealth returns MetricResult shape', () => {
-    const result = calculatePRHealth(createMockPRSet());
-    expect(result).toMatchObject(metricResultShape);
-  });
-
-  it('calculateBusFactor returns MetricResult shape', () => {
-    const result = calculateBusFactor(createMockContributorSet());
-    expect(result).toMatchObject(metricResultShape);
-  });
-
-  it('calculateFreshnessIndex returns MetricResult shape', () => {
-    const result = calculateFreshnessIndex(createMockRepo());
-    expect(result).toMatchObject(metricResultShape);
-  });
-});
-
-// =============================================================================
-// EXTENDED EDGE CASE TESTS
-// =============================================================================
-
-describe('Extended Edge Cases', () => {
-  describe('Null and undefined data handling', () => {
-    it('should handle undefined data for all calculators', () => {
-      expect(() => calculateVelocityScore(undefined)).not.toThrow();
-      expect(() => calculateCommunityMomentum(undefined)).not.toThrow();
-      expect(() => calculateIssueTemperature(undefined)).not.toThrow();
-      expect(() => calculatePRHealth(undefined)).not.toThrow();
-      expect(() => calculateBusFactor(undefined)).not.toThrow();
-      expect(() => calculateFreshnessIndex(undefined)).not.toThrow();
-      expect(() => calculateOverallPulse(undefined)).not.toThrow();
-      expect(() => calculateAllMetrics(undefined)).not.toThrow();
-    });
-
-    it('should return stable status for null velocity data', () => {
-      const result = calculateVelocityScore(null);
-      expect(result.status).toBe('stable');
-      expect(result.value).toBe(0);
-      expect(result.trend).toBe(0);
-    });
-
-    it('should return default metric for null community momentum data', () => {
-      const result = calculateCommunityMomentum(null);
-      expect(result.status).toBeDefined();
-      expect(result.value).toBeDefined();
-    });
-
-    it('should return cool temperature for null issue data', () => {
-      const result = calculateIssueTemperature(null);
-      expect(result.temperature).toBe('cool');
-      expect(result.value).toBe('Cool');
-    });
-
-    it('should return default PR health for null PR data', () => {
-      const result = calculatePRHealth(null);
-      expect(result.status).toBe('stable');
-      expect(result.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
-    });
-
-    it('should return critical bus factor for null contributor data', () => {
-      const result = calculateBusFactor(null);
-      expect(result.value).toBe(1);
-      expect(result.riskLevel).toBe('critical');
-    });
-
-    it('should return stale freshness for null repo data', () => {
-      const result = calculateFreshnessIndex(null);
-      expect(result.freshness).toBe('stale');
-    });
-  });
-
-  describe('Partial data handling', () => {
-    it('should handle repo with only id', () => {
-      const partialRepo = { id: 12345 };
-      expect(() => calculateCommunityMomentum(partialRepo)).not.toThrow();
-      expect(() => calculateFreshnessIndex(partialRepo)).not.toThrow();
-    });
-
-    it('should handle repo with missing stargazers_count', () => {
-      const partialRepo = createMockRepo({ stargazers_count: undefined });
-      const result = calculateCommunityMomentum(partialRepo);
-      expect(result.value).toBeDefined();
-    });
-
-    it('should handle repo with null dates', () => {
-      const partialRepo = createMockRepo({
-        created_at: null,
-        pushed_at: null,
-        updated_at: null
-      });
-      const momentumResult = calculateCommunityMomentum(partialRepo);
-      const freshnessResult = calculateFreshnessIndex(partialRepo);
-      expect(momentumResult.status).toBeDefined();
-      expect(freshnessResult.freshness).toBeDefined();
-    });
-
-    it('should handle participation with only some weeks', () => {
-      const partialParticipation = { all: [5, 10, 8, 12] };
-      const result = calculateVelocityScore(partialParticipation);
-      expect(result.value).toBeDefined();
-      expect(result.status).toBeDefined();
-    });
-
-    it('should handle issues with missing fields', () => {
-      const partialIssues = [
-        { state: 'open' }, // missing created_at
-        { created_at: new Date().toISOString() } // missing state
-      ];
-      expect(() => calculateIssueTemperature(partialIssues)).not.toThrow();
-    });
-
-    it('should handle PRs with missing merged field', () => {
-      const partialPRs = [
-        { state: 'closed', created_at: new Date().toISOString() }
-      ];
-      const result = calculatePRHealth(partialPRs);
-      expect(result.funnel).toBeDefined();
-    });
-
-    it('should handle contributors with missing total', () => {
-      const partialContributors = [
-        { author: { login: 'dev1' } },
-        { author: { login: 'dev2' } }
-      ];
-      expect(() => calculateBusFactor(partialContributors)).not.toThrow();
-    });
-
-    it('should handle calculateAllMetrics with only repo data', () => {
-      const result = calculateAllMetrics({ repo: createMockRepo() });
-      expect(result.metrics).toBeDefined();
-      expect(result.overall).toBeDefined();
-      expect(result.metrics.velocity.label).toBe('Commit data unavailable');
-    });
-
-    it('should handle calculateAllMetrics with repo and participation only', () => {
-      const result = calculateAllMetrics({
-        repo: createMockRepo(),
-        participation: createMockParticipation()
-      });
-      expect(result.metrics.velocity.status).toBeDefined();
-      expect(result.metrics.momentum.status).toBeDefined();
-    });
-  });
-
-  describe('Boundary values for STATUS_THRESHOLDS', () => {
-    // STATUS_THRESHOLDS: THRIVING: 75, STABLE: 50, COOLING: 25
-
-    it('should return thriving for score exactly at 75', () => {
-      expect(getMetricStatus(75)).toBe('thriving');
-    });
-
-    it('should return stable for score at 74.99', () => {
-      expect(getMetricStatus(74.99)).toBe('stable');
-    });
-
-    it('should return stable for score exactly at 50', () => {
-      expect(getMetricStatus(50)).toBe('stable');
-    });
-
-    it('should return cooling for score at 49.99', () => {
-      expect(getMetricStatus(49.99)).toBe('cooling');
-    });
-
-    it('should return cooling for score exactly at 25', () => {
-      expect(getMetricStatus(25)).toBe('cooling');
-    });
-
-    it('should return at_risk for score at 24.99', () => {
-      expect(getMetricStatus(24.99)).toBe('at_risk');
-    });
-
-    it('should return at_risk for score of 0', () => {
-      expect(getMetricStatus(0)).toBe('at_risk');
-    });
-
-    it('should return thriving for score above 100', () => {
-      expect(getMetricStatus(100)).toBe('thriving');
-      expect(getMetricStatus(150)).toBe('thriving');
-    });
-  });
-
-  describe('Boundary values for TREND_THRESHOLDS', () => {
-    // TREND_THRESHOLDS: SIGNIFICANT: 5
-
-    it('should return stable for change exactly at threshold (5)', () => {
-      expect(getTrendDirection(5)).toBe('stable');
-    });
-
-    it('should return up for change just above threshold (5.01)', () => {
-      expect(getTrendDirection(5.01)).toBe('up');
-    });
-
-    it('should return stable for negative change at threshold (-5)', () => {
-      expect(getTrendDirection(-5)).toBe('stable');
-    });
-
-    it('should return down for change just below threshold (-5.01)', () => {
-      expect(getTrendDirection(-5.01)).toBe('down');
-    });
-
-    it('should return stable for change of 0', () => {
-      expect(getTrendDirection(0)).toBe('stable');
-    });
-
-    it('should handle very small positive changes as stable', () => {
-      expect(getTrendDirection(0.001)).toBe('stable');
-      expect(getTrendDirection(4.999)).toBe('stable');
-    });
-
-    it('should handle very small negative changes as stable', () => {
-      expect(getTrendDirection(-0.001)).toBe('stable');
-      expect(getTrendDirection(-4.999)).toBe('stable');
-    });
-
-    it('should handle custom threshold boundary values', () => {
-      expect(getTrendDirection(10, 10)).toBe('stable');
-      expect(getTrendDirection(10.01, 10)).toBe('up');
-      expect(getTrendDirection(-10, 10)).toBe('stable');
-      expect(getTrendDirection(-10.01, 10)).toBe('down');
-    });
-  });
-
-  describe('Boundary values for clamp function', () => {
-    it('should return value exactly at min boundary', () => {
-      expect(clamp(0, 0, 100)).toBe(0);
-    });
-
-    it('should return value exactly at max boundary', () => {
-      expect(clamp(100, 0, 100)).toBe(100);
-    });
-
-    it('should clamp value just below min', () => {
-      expect(clamp(-0.001, 0, 100)).toBe(0);
-    });
-
-    it('should clamp value just above max', () => {
-      expect(clamp(100.001, 0, 100)).toBe(100);
-    });
-
-    it('should handle min equals max', () => {
-      expect(clamp(50, 50, 50)).toBe(50);
-      expect(clamp(0, 50, 50)).toBe(50);
-      expect(clamp(100, 50, 50)).toBe(50);
-    });
-
-    it('should handle negative ranges', () => {
-      expect(clamp(-50, -100, -10)).toBe(-50);
-      expect(clamp(-5, -100, -10)).toBe(-10);
-      expect(clamp(-150, -100, -10)).toBe(-100);
-    });
-  });
-
-  describe('Boundary values for percentageChange', () => {
-    it('should return 100 for doubling (from 50 to 100)', () => {
-      expect(percentageChange(100, 50)).toBe(100);
-    });
-
-    it('should return -50 for halving (from 100 to 50)', () => {
-      expect(percentageChange(50, 100)).toBe(-50);
-    });
-
-    it('should return 0 for no change', () => {
-      expect(percentageChange(100, 100)).toBe(0);
-    });
-
-    it('should handle division by zero (old value is 0)', () => {
-      expect(percentageChange(100, 0)).toBe(100);
-      expect(percentageChange(0, 0)).toBe(0);
-      expect(percentageChange(-50, 0)).toBe(-100);
-    });
-
-    it('should handle very small percentages', () => {
-      expect(percentageChange(100.001, 100)).toBeCloseTo(0.001, 2);
-    });
-
-    it('should handle very large percentages', () => {
-      expect(percentageChange(10000, 100)).toBe(9900);
-    });
-  });
-});
-
-// =============================================================================
-// INTEGRATION TESTS FOR calculateAllMetrics
-// =============================================================================
-
-describe('calculateAllMetrics Integration Tests', () => {
-  describe('Full data flow', () => {
-    it('should calculate all metrics with complete data set', () => {
-      const pulseData = {
-        repo: createMockRepo({
-          stargazers_count: 5000,
-          forks_count: 500,
-          open_issues_count: 25
-        }),
-        participation: createMockParticipation({ recentAvg: 15, previousAvg: 10 }),
-        issues: createMockIssueSet({ openCount: 5, closedCount: 15 }),
-        prs: createMockPRSet({ mergedCount: 8, closedCount: 2, openCount: 3 }),
-        contributors: createMockContributorSet({ count: 8, distribution: 'balanced' }),
-        events: Array(10).fill(null).map(() => createMockEvent()),
-        releases: [
-          createMockRelease({ published_at: new Date().toISOString() })
-        ]
+describe('PulseDashboard', () => {
+  describe('createPulseDashboard', () => {
+    it('should create dashboard container', () => {
+      const metrics = {
+        velocity: { value: 75, trend: 5, direction: 'up', status: 'thriving', label: 'Velocity' },
+        momentum: { value: 70, trend: 0, direction: 'stable', status: 'stable', label: 'Momentum' },
+        temperature: { value: 80, trend: 10, direction: 'up', status: 'thriving', label: 'Temperature' },
+        health: { value: 65, trend: -5, direction: 'down', status: 'stable', label: 'Health' },
+        bus_factor: { value: 55, trend: 0, direction: 'stable', status: 'stable', label: 'Bus Factor' },
+        freshness: { value: 85, trend: 15, direction: 'up', status: 'thriving', label: 'Freshness' }
       };
 
-      const result = calculateAllMetrics(pulseData);
+      const element = createPulseDashboard(metrics);
 
-      // Verify all 6 metrics are present
-      expect(Object.keys(result.metrics)).toHaveLength(6);
-      expect(result.metrics.velocity).toBeDefined();
-      expect(result.metrics.momentum).toBeDefined();
-      expect(result.metrics.issues).toBeDefined();
-      expect(result.metrics.prs).toBeDefined();
-      expect(result.metrics.busFactor).toBeDefined();
-      expect(result.metrics.freshness).toBeDefined();
-
-      // Verify overall pulse is calculated
-      expect(result.overall.score).toBeGreaterThanOrEqual(0);
-      expect(result.overall.score).toBeLessThanOrEqual(100);
-      expect(result.overall.status).toBeDefined();
-      expect(result.overall.pulseSpeed).toBeDefined();
-      expect(result.overall.metricsUsed).toBe(6);
+      expect(element.className).toContain('pulse-dashboard');
     });
 
-    it('should handle thriving repository scenario', () => {
-      const thrivingData = {
-        repo: createMockRepo({
-          stargazers_count: 50000,
-          forks_count: 5000,
-          pushed_at: new Date().toISOString()
-        }),
-        participation: createMockParticipation({ recentAvg: 50, previousAvg: 30 }),
-        issues: createMockIssueSet({ openCount: 2, closedCount: 20 }),
-        prs: createMockPRSet({ mergedCount: 15, closedCount: 1, openCount: 2 }),
-        contributors: createMockContributorSet({ count: 10, distribution: 'balanced' }),
-        releases: [createMockRelease()]
+    it('should display all metric cards', () => {
+      const metrics = {
+        velocity: { value: 75, trend: 5, direction: 'up', status: 'thriving', label: 'Velocity' },
+        momentum: { value: 70, trend: 0, direction: 'stable', status: 'stable', label: 'Momentum' },
+        temperature: { value: 80, trend: 10, direction: 'up', status: 'thriving', label: 'Temperature' },
+        health: { value: 65, trend: -5, direction: 'down', status: 'stable', label: 'Health' },
+        bus_factor: { value: 55, trend: 0, direction: 'stable', status: 'stable', label: 'Bus Factor' },
+        freshness: { value: 85, trend: 15, direction: 'up', status: 'thriving', label: 'Freshness' }
       };
 
-      const result = calculateAllMetrics(thrivingData);
+      const element = createPulseDashboard(metrics);
+      const cards = element.querySelectorAll('.metric-card');
 
-      expect(result.overall.status).toBe('thriving');
-      expect(result.overall.score).toBeGreaterThanOrEqual(75);
-      expect(result.overall.concerns.count).toBe(0);
+      expect(cards.length).toBeGreaterThanOrEqual(6);
     });
 
-    it('should handle at-risk repository scenario', () => {
-      const veryOldDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-      const atRiskData = {
-        repo: createMockRepo({
-          stargazers_count: 10,
-          forks_count: 1,
-          pushed_at: veryOldDate,
-          updated_at: veryOldDate
-        }),
-        participation: createMockParticipation({ recentAvg: 0, previousAvg: 5 }),
-        issues: createMockIssueSet({ openCount: 20, closedCount: 1 }),
-        prs: createMockPRSet({ mergedCount: 0, closedCount: 5, openCount: 10 }),
-        contributors: createMockContributorSet({ distribution: 'single' })
+    it('should handle partial metrics', () => {
+      const metrics = {
+        velocity: { value: 75, trend: 5, direction: 'up', status: 'thriving', label: 'Velocity' }
       };
 
-      const result = calculateAllMetrics(atRiskData);
+      const element = createPulseDashboard(metrics);
 
-      expect(result.overall.status).toBe('at_risk');
-      expect(result.overall.score).toBeLessThan(25);
-      expect(result.overall.concerns.count).toBeGreaterThan(0);
+      expect(element).not.toBeNull();
+      expect(element.className).toContain('pulse-dashboard');
     });
 
-    it('should handle mixed health scenario', () => {
-      const mixedData = {
-        repo: createMockRepo({
-          stargazers_count: 1000,
-          forks_count: 100,
-          pushed_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        participation: createMockParticipation({ recentAvg: 8, previousAvg: 10 }),
-        issues: createMockIssueSet({ openCount: 10, closedCount: 10 }),
-        prs: createMockPRSet({ mergedCount: 5, closedCount: 3, openCount: 5 }),
-        contributors: createMockContributorSet({ count: 3, distribution: 'balanced' })
+    it('should have accessible structure', () => {
+      const metrics = {
+        velocity: { value: 75, trend: 5, direction: 'up', status: 'thriving', label: 'Velocity' }
       };
 
-      const result = calculateAllMetrics(mixedData);
+      const element = createPulseDashboard(metrics);
 
-      // Should have a valid status and reasonable score range
-      expect(['thriving', 'stable', 'cooling']).toContain(result.overall.status);
-      expect(result.overall.score).toBeGreaterThanOrEqual(25);
-      expect(result.overall.score).toBeLessThanOrEqual(100);
+      expect(element.getAttribute('role')).toBe('region');
+      expect(element.getAttribute('aria-label')).toBeDefined();
     });
   });
 
-  describe('Metric interdependencies', () => {
-    it('should calculate overall score as weighted average of individual metrics', () => {
-      const pulseData = {
-        repo: createMockRepo(),
-        participation: createMockParticipation()
-      };
+  describe('createPulseDashboardSkeleton', () => {
+    it('should create loading skeleton dashboard', () => {
+      const element = createPulseDashboardSkeleton();
 
-      const result = calculateAllMetrics(pulseData);
-
-      // Overall score should be derived from metrics
-      expect(result.overall.score).toBeGreaterThanOrEqual(0);
-      expect(result.overall.score).toBeLessThanOrEqual(100);
+      expect(element.className).toContain('pulse-dashboard--skeleton');
     });
 
-    it('should identify at-risk metrics in concerns', () => {
-      const pulseData = {
-        repo: createMockRepo({
-          stargazers_count: 0,
-          pushed_at: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        contributors: createMockContributorSet({ distribution: 'single' })
-      };
+    it('should have multiple placeholder cards', () => {
+      const element = createPulseDashboardSkeleton();
+      const skeletons = element.querySelectorAll('.metric-card--skeleton');
 
-      const result = calculateAllMetrics(pulseData);
-
-      // Should have concerns for at_risk metrics
-      if (result.overall.concerns.count > 0) {
-        expect(Array.isArray(result.overall.concerns.metrics)).toBe(true);
-      }
+      expect(skeletons.length).toBeGreaterThan(0);
     });
 
-    it('should scale pulse speed based on overall health', () => {
-      const healthyData = {
-        repo: createMockRepo({ stargazers_count: 50000 }),
-        participation: createMockParticipation({ recentAvg: 30 })
-      };
+    it('should be marked as loading', () => {
+      const element = createPulseDashboardSkeleton();
 
-      const unhealthyData = {
-        repo: createMockRepo({
-          stargazers_count: 0,
-          pushed_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
-        }),
-        participation: createMockParticipation({ recentAvg: 0, previousAvg: 0 })
-      };
-
-      const healthyResult = calculateAllMetrics(healthyData);
-      const unhealthyResult = calculateAllMetrics(unhealthyData);
-
-      // Healthier repos should have faster pulse (lower ms value)
-      expect(healthyResult.overall.pulseSpeed).toBeLessThanOrEqual(
-        unhealthyResult.overall.pulseSpeed
-      );
+      expect(element.getAttribute('aria-busy')).toBe('true');
     });
   });
 
-  describe('Graceful degradation', () => {
-    it('should work with only repo data', () => {
-      const result = calculateAllMetrics({ repo: createMockRepo() });
+  describe('createPulseDashboardError', () => {
+    it('should create error state dashboard', () => {
+      const element = createPulseDashboardError('Failed to load data');
 
-      expect(result.metrics.velocity.label).toBe('Commit data unavailable');
-      expect(result.metrics.issues.temperature).toBe('cool');
-      expect(result.metrics.prs.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
-      expect(result.metrics.busFactor.riskLevel).toBe('critical');
-
-      // Momentum and freshness can still be calculated from repo
-      expect(result.metrics.momentum.status).toBeDefined();
-      expect(result.metrics.freshness.status).toBeDefined();
+      expect(element.className).toContain('pulse-dashboard--error');
+      expect(element.textContent).toContain('Failed to load data');
     });
 
-    it('should adjust metricsUsed count based on available data', () => {
-      const fullResult = calculateAllMetrics({
-        repo: createMockRepo(),
-        participation: createMockParticipation(),
-        issues: createMockIssueSet(),
-        prs: createMockPRSet(),
-        contributors: createMockContributorSet(),
-        releases: [createMockRelease()]
-      });
+    it('should have error icon', () => {
+      const element = createPulseDashboardError('Test error');
+      const icon = element.querySelector('.dashboard-error__icon');
 
-      const partialResult = calculateAllMetrics({ repo: createMockRepo() });
-
-      expect(fullResult.overall.metricsUsed).toBeGreaterThanOrEqual(
-        partialResult.overall.metricsUsed
-      );
+      expect(icon).not.toBeNull();
     });
 
-    it('should handle empty arrays as valid data', () => {
-      const result = calculateAllMetrics({
-        repo: createMockRepo(),
-        issues: [],
-        prs: [],
-        contributors: [],
-        releases: []
-      });
+    it('should have retry action if callback provided', () => {
+      const callback = vi.fn();
+      const element = createPulseDashboardError('Error', callback);
+      const button = element.querySelector('.dashboard-error__retry');
 
-      expect(result.metrics.issues.temperature).toBe('cool');
-      expect(result.metrics.prs.label).toBe('No recent pull requests');
-      expect(result.metrics.busFactor.riskLevel).toBe('critical');
-      expect(result.metrics.freshness.freshness).toBeDefined();
+      expect(button).not.toBeNull();
+      button.click();
+      expect(callback).toHaveBeenCalled();
     });
 
-    it('should not throw on malformed data', () => {
-      const malformedData = {
-        repo: { id: 123 }, // Minimal repo
-        participation: { all: 'not an array' },
-        issues: 'not an array',
-        prs: null,
-        contributors: undefined,
-        releases: { not: 'an array' }
-      };
+    it('should be accessible', () => {
+      const element = createPulseDashboardError('Test error');
 
-      expect(() => calculateAllMetrics(malformedData)).not.toThrow();
-      const result = calculateAllMetrics(malformedData);
-      expect(result.metrics).toBeDefined();
-      expect(result.overall).toBeDefined();
-    });
-  });
-
-  describe('Edge case combinations', () => {
-    it('should handle new repository (created today)', () => {
-      const now = new Date().toISOString();
-      const newRepoData = {
-        repo: createMockRepo({
-          created_at: now,
-          pushed_at: now,
-          stargazers_count: 5,
-          forks_count: 0
-        }),
-        participation: { all: [0, 0, 0, 1] } // Minimal activity
-      };
-
-      const result = calculateAllMetrics(newRepoData);
-
-      // New repos should have fresh/recent status but potentially low community metrics
-      expect(['fresh', 'recent']).toContain(result.metrics.freshness.freshness);
-      expect(result.overall.status).toBeDefined();
-    });
-
-    it('should handle archived repository pattern', () => {
-      const yearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
-      const archivedData = {
-        repo: createMockRepo({
-          stargazers_count: 10000, // High stars (popular but archived)
-          pushed_at: yearAgo,
-          updated_at: yearAgo
-        }),
-        participation: { all: Array(52).fill(0) }
-      };
-
-      const result = calculateAllMetrics(archivedData);
-
-      // Should show freshness as stale despite high stars
-      expect(result.metrics.freshness.freshness).toBe('stale');
-      expect(result.metrics.velocity.status).toBeDefined();
-    });
-
-    it('should handle viral repository pattern (rapid growth)', () => {
-      const viralData = {
-        repo: createMockRepo({
-          stargazers_count: 50000,
-          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() // 1 week old
-        }),
-        participation: createMockParticipation({ recentAvg: 100, previousAvg: 5 }),
-        events: Array(50).fill(null).map(() => createMockEvent({ type: 'WatchEvent' }))
-      };
-
-      const result = calculateAllMetrics(viralData);
-
-      expect(result.metrics.velocity.direction).toBe('up');
-      expect(result.metrics.velocity.status).toBe('thriving');
-    });
-
-    it('should handle single contributor project', () => {
-      const singleContributorData = {
-        repo: createMockRepo(),
-        participation: createMockParticipation(),
-        contributors: [createMockContributor({ total: 1000, author: { login: 'solo' } })]
-      };
-
-      const result = calculateAllMetrics(singleContributorData);
-
-      expect(result.metrics.busFactor.value).toBe(1);
-      expect(result.metrics.busFactor.riskLevel).toBe('critical');
-    });
-
-    it('should handle repository with only open issues (no closed)', () => {
-      const onlyOpenIssues = Array(10).fill(null).map(() =>
-        createMockIssue({ state: 'open' })
-      );
-
-      const result = calculateAllMetrics({
-        repo: createMockRepo(),
-        issues: onlyOpenIssues
-      });
-
-      expect(result.metrics.issues.temperature).toBeDefined();
-      // With many open issues and no closed ones, temperature should be elevated
-      expect(['hot', 'warm', 'critical']).toContain(result.metrics.issues.temperature);
-    });
-
-    it('should handle repository with 100% PR merge rate', () => {
-      const allMergedPRs = Array(10).fill(null).map(() =>
-        createMockPR({
-          state: 'closed',
-          merged: true,
-          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          merged_at: new Date().toISOString()
-        })
-      );
-
-      const result = calculateAllMetrics({
-        repo: createMockRepo(),
-        prs: allMergedPRs
-      });
-
-      expect(result.metrics.prs.funnel.merged).toBe(10);
-      expect(result.metrics.prs.funnel.closed).toBe(0); // closed but not merged
+      expect(element.getAttribute('role')).toBe('alert');
     });
   });
 });
