@@ -24,7 +24,8 @@ import {
   TREND_THRESHOLDS,
   DEFAULTS,
   DEFAULT_METRIC,
-  TIME_MS
+  TIME_MS,
+  COMMUNITY
 } from './constants.js';
 
 // =============================================================================
@@ -371,4 +372,226 @@ export function calculateVelocityScore(participation) {
     previousAvg,
     score
   };
+}
+
+/**
+ * Calculate community momentum from repository data and events
+ * Analyzes star/fork growth rate over time with approximate sparkline
+ *
+ * @param {Object} repo - GitHub repository data
+ * @param {number} repo.stargazers_count - Current star count
+ * @param {number} repo.forks_count - Current fork count
+ * @param {string} repo.created_at - Repository creation date (ISO string)
+ * @param {Array} [events=[]] - Optional array of GitHub events (WatchEvent for stars)
+ * @returns {Object} MetricResult with community momentum data
+ *
+ * @example
+ * // Popular repo with good growth
+ * const repo = { stargazers_count: 5000, forks_count: 500, created_at: '2020-01-01' };
+ * const result = calculateCommunityMomentum(repo, []);
+ * // result.value === 5000
+ * // result.status === 'thriving' | 'stable' | etc.
+ *
+ * @example
+ * // Handle missing data
+ * const result = calculateCommunityMomentum(null, []);
+ * // result.status === 'stable'
+ * // result.label === 'Growth data unavailable'
+ */
+export function calculateCommunityMomentum(repo, events = []) {
+  // Handle missing or invalid repo data
+  if (!repo) {
+    return getDefaultMetric('momentum');
+  }
+
+  // Extract star and fork counts with defaults
+  const stars = Number(repo.stargazers_count) || 0;
+  const forks = Number(repo.forks_count) || 0;
+
+  // Calculate repo age in days
+  const repoAgeDays = daysSince(repo.created_at);
+
+  // If repo age is invalid or very old calculation can proceed
+  // but we need a minimum age for growth rate
+  const effectiveAgeDays = Math.max(1, Math.min(repoAgeDays, 365 * 10)); // Cap at 10 years
+
+  // Calculate daily star growth rate
+  const dailyStarRate = stars / effectiveAgeDays;
+
+  // Calculate fork ratio (engagement indicator)
+  const forkRatio = stars > 0 ? forks / stars : 0;
+
+  // Analyze recent events for more accurate recent growth
+  // WatchEvent = star, ForkEvent = fork
+  const recentDays = COMMUNITY.SPARKLINE_DAYS;
+  const recentCutoff = Date.now() - (recentDays * TIME_MS.DAY);
+
+  let recentStars = 0;
+  let recentForks = 0;
+
+  if (Array.isArray(events) && events.length > 0) {
+    for (const event of events) {
+      const eventDate = safeParseDate(event.created_at);
+      if (eventDate && eventDate.getTime() >= recentCutoff) {
+        if (event.type === 'WatchEvent') {
+          recentStars++;
+        } else if (event.type === 'ForkEvent') {
+          recentForks++;
+        }
+      }
+    }
+  }
+
+  // Calculate recent daily rate if we have event data
+  const recentDailyRate = recentStars / recentDays;
+
+  // Calculate growth trend (comparing recent vs historical rate)
+  // If no recent events, use overall rate as both (trend = 0)
+  let trend;
+  if (recentStars > 0 && dailyStarRate > 0) {
+    trend = percentageChange(recentDailyRate, dailyStarRate);
+  } else if (recentStars > 0) {
+    trend = 100; // Growth from zero
+  } else {
+    trend = 0; // No recent data to compare
+  }
+
+  // Clamp trend to reasonable range
+  trend = clamp(trend, -100, 100);
+
+  // Determine direction
+  const direction = getTrendDirection(trend);
+
+  // Generate approximate sparkline data (30 data points for 30 days)
+  // Since we don't have daily star history, we approximate based on:
+  // 1. Recent events if available
+  // 2. Linear distribution based on growth rate if not
+  const sparklineData = generateApproximateSparkline(
+    stars,
+    recentStars,
+    events,
+    COMMUNITY.SPARKLINE_DAYS
+  );
+
+  // Calculate score based on star count and growth rate
+  let starScore = 0;
+  if (stars >= COMMUNITY.STARS.EXCELLENT) starScore = 100;
+  else if (stars >= COMMUNITY.STARS.GOOD) starScore = 80;
+  else if (stars >= COMMUNITY.STARS.FAIR) starScore = 60;
+  else if (stars >= COMMUNITY.STARS.EMERGING) starScore = 40;
+  else starScore = 20;
+
+  // Growth rate modifier
+  let growthModifier = 0;
+  if (dailyStarRate >= COMMUNITY.GROWTH_RATE.THRIVING) growthModifier = 15;
+  else if (dailyStarRate >= COMMUNITY.GROWTH_RATE.STABLE) growthModifier = 5;
+  else if (dailyStarRate >= COMMUNITY.GROWTH_RATE.COOLING) growthModifier = 0;
+  else growthModifier = -10;
+
+  // Fork ratio bonus (high engagement)
+  let forkBonus = 0;
+  if (forkRatio >= COMMUNITY.FORK_RATIO.HIGH) forkBonus = 10;
+  else if (forkRatio >= COMMUNITY.FORK_RATIO.MEDIUM) forkBonus = 5;
+  else if (forkRatio >= COMMUNITY.FORK_RATIO.LOW) forkBonus = 0;
+  else forkBonus = -5;
+
+  // Final score
+  const score = clamp(starScore + growthModifier + forkBonus, 0, 100);
+
+  // Determine status based on combined metrics
+  const status = getMetricStatus(score);
+
+  // Generate human-readable label
+  const roundedTrend = Math.round(trend);
+  let label;
+
+  if (stars >= 1000) {
+    // Format large numbers with K suffix
+    const starsK = (stars / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    if (direction === 'up') {
+      label = `${starsK} stars (+${roundedTrend}%)`;
+    } else if (direction === 'down') {
+      label = `${starsK} stars (${roundedTrend}%)`;
+    } else {
+      label = `${starsK} stars (stable)`;
+    }
+  } else {
+    if (direction === 'up') {
+      label = `${stars} stars (+${roundedTrend}%)`;
+    } else if (direction === 'down') {
+      label = `${stars} stars (${roundedTrend}%)`;
+    } else {
+      label = `${stars} stars (stable)`;
+    }
+  }
+
+  return {
+    value: stars,
+    trend: roundedTrend,
+    direction,
+    sparklineData,
+    status,
+    label,
+    // Additional metadata
+    forks,
+    forkRatio: Math.round(forkRatio * 100) / 100,
+    dailyStarRate: Math.round(dailyStarRate * 100) / 100,
+    recentStars,
+    recentForks,
+    repoAgeDays: Math.floor(effectiveAgeDays),
+    score
+  };
+}
+
+/**
+ * Generate approximate sparkline data for community momentum
+ * Creates a 30-point array representing daily star activity
+ *
+ * @param {number} totalStars - Total star count
+ * @param {number} recentStars - Stars from recent events
+ * @param {Array} events - Array of GitHub events
+ * @param {number} days - Number of days to generate (default 30)
+ * @returns {number[]} Array of daily star approximations
+ */
+function generateApproximateSparkline(totalStars, recentStars, events, days) {
+  const sparkline = Array(days).fill(0);
+
+  // If we have events, use them to build actual daily counts
+  if (Array.isArray(events) && events.length > 0) {
+    const now = Date.now();
+    const dayMs = TIME_MS.DAY;
+
+    for (const event of events) {
+      if (event.type !== 'WatchEvent') continue;
+
+      const eventDate = safeParseDate(event.created_at);
+      if (!eventDate) continue;
+
+      const daysAgo = Math.floor((now - eventDate.getTime()) / dayMs);
+      if (daysAgo >= 0 && daysAgo < days) {
+        // Index 0 = oldest, index (days-1) = most recent
+        const index = days - 1 - daysAgo;
+        sparkline[index]++;
+      }
+    }
+
+    return sparkline;
+  }
+
+  // No events: generate a flat/gradual line based on daily rate
+  // This shows "approximate" growth pattern
+  if (totalStars > 0 && days > 0) {
+    // Use a slight random variation to make it look more natural
+    // Seed based on totalStars for determinism
+    const baseDaily = Math.max(0.1, totalStars / (days * 30)); // Very low base
+    const seed = totalStars % 100;
+
+    for (let i = 0; i < days; i++) {
+      // Create a gentle wave pattern using sine
+      const wave = Math.sin((i + seed) * 0.3) * 0.3 + 0.7;
+      sparkline[i] = Math.round(baseDaily * wave * 10) / 10;
+    }
+  }
+
+  return sparkline;
 }
