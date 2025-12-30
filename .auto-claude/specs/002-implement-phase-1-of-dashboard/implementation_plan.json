@@ -131,8 +131,9 @@
             "command": "node -e \"import('./src/js/api.js').then(m => console.log('getPullRequestTimeline:', typeof m.getPullRequestTimeline))\"",
             "expected": "getPullRequestTimeline: function"
           },
-          "status": "pending",
-          "notes": "Use URLSearchParams with defaults: state='all', per_page=100, sort='created', direction='desc'. Allow params override via spread."
+          "status": "completed",
+          "notes": "Added getPullRequestTimeline function with URLSearchParams support for query params (state, sort, direction, per_page). Follows same pattern as getIssueTimeline. Verification passed.",
+          "updated_at": "2025-12-30T17:13:49.736807+00:00"
         },
         {
           "id": "subtask-3-3",
@@ -452,5 +453,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T17:12:33.410789+00:00"
+  "last_updated": "2025-12-30T17:13:49.736814+00:00"
 }

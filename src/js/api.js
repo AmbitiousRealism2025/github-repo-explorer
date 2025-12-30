@@ -430,3 +430,16 @@ export const getPullRequestTimeline = async (owner, repo, params = {}) => {
   const url = `${API_BASE}/repos/${owner}/${repo}/pulls?${query}`;
   return fetchWithRetry(url);
 };
+
+/**
+ * Fetches release history for a repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {number} [perPage=30] - Number of releases to fetch (max 100)
+ * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}
+ * @throws {Error} When API request fails
+ */
+export const getReleaseHistory = async (owner, repo, perPage = 30) => {
+  const url = `${API_BASE}/repos/${owner}/${repo}/releases?per_page=${perPage}`;
+  return fetchWithRetry(url);
+};
