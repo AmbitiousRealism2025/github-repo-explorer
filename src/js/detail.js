@@ -12,7 +12,8 @@ import {
   sanitizeUrl,
   escapeHtml,
   initMobileNav,
-  getRequiredElement
+  getRequiredElement,
+  renderMarkdown
 } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
 import { createCloneCommands } from './components/CloneCommands.js';
@@ -272,7 +273,7 @@ const loadRepository = async () => {
     }
     
     if (hasReadme) {
-      readmeContent.textContent = readmeResult.value.data.decodedContent;
+      readmeContent.innerHTML = renderMarkdown(readmeResult.value.data.decodedContent);
     } else {
       readmeContent.textContent = 'No README available';
     }
