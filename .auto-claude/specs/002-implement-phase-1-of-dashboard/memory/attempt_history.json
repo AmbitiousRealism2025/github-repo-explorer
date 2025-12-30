@@ -1,0 +1,165 @@
+{
+  "subtasks": {
+    "subtask-1-1": {
+      "attempts": [
+        {
+          "session": 1,
+          "timestamp": "2025-12-30T12:08:52.483102",
+          "approach": "Implemented: Add STATS_CACHE_TTL_MS constant (10 * 60 * 1000) to constants.js",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-1": {
+      "attempts": [
+        {
+          "session": 2,
+          "timestamp": "2025-12-30T12:09:59.888329",
+          "approach": "Implemented: Add getParticipationStats function with 202 retry handling",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-2": {
+      "attempts": [
+        {
+          "session": 3,
+          "timestamp": "2025-12-30T12:11:25.242082",
+          "approach": "Implemented: Add getContributorStats function with 202 retry handling",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-1": {
+      "attempts": [
+        {
+          "session": 4,
+          "timestamp": "2025-12-30T12:12:43.999701",
+          "approach": "Implemented: Add getIssueTimeline function with query params support",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-2": {
+      "attempts": [
+        {
+          "session": 5,
+          "timestamp": "2025-12-30T12:13:55.084879",
+          "approach": "Implemented: Add getPullRequestTimeline function with query params support",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-3": {
+      "attempts": [
+        {
+          "session": 6,
+          "timestamp": "2025-12-30T12:15:00.163148",
+          "approach": "Implemented: Add getReleaseHistory function",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-4-1": {
+      "attempts": [
+        {
+          "session": 7,
+          "timestamp": "2025-12-30T12:16:07.757587",
+          "approach": "Implemented: Add fetchPulseData aggregator function with Promise.allSettled for error resilience",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-5-1": {
+      "attempts": [
+        {
+          "session": 8,
+          "timestamp": "2025-12-30T12:17:55.335236",
+          "approach": "Implemented: Add tests for getParticipationStats (success, 202 handling, error)",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-5-2": {
+      "attempts": [
+        {
+          "session": 9,
+          "timestamp": "2025-12-30T12:19:20.523147",
+          "approach": "Implemented: Add tests for getContributorStats (success, 202 handling, error)",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-5-3": {
+      "attempts": [
+        {
+          "session": 10,
+          "timestamp": "2025-12-30T12:21:02.107346",
+          "approach": "Implemented: Add tests for getIssueTimeline (success, params override)",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-5-4": {
+      "attempts": [
+        {
+          "session": 11,
+          "timestamp": "2025-12-30T12:22:45.215134",
+          "approach": "Implemented: Add tests for getPullRequestTimeline (success, params override)",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-5-5": {
+      "attempts": [
+        {
+          "session": 12,
+          "timestamp": "2025-12-30T12:24:41.544378",
+          "approach": "Implemented: Add tests for getReleaseHistory (success)",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-5-6": {
+      "attempts": [
+        {
+          "session": 13,
+          "timestamp": "2025-12-30T12:28:07.970416",
+          "approach": "Implemented: Add tests for fetchPulseData (success, partial failures)",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    }
+  },
+  "stuck_subtasks": [],
+  "metadata": {
+    "created_at": "2025-12-30T12:07:56.553358",
+    "last_updated": "2025-12-30T12:28:07.970419"
+  }
+}

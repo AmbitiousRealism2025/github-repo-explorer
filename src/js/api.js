@@ -273,10 +273,10 @@ export const checkRateLimit = async () => {
  */
 export const getCommitActivity = async (owner, repo, retryOnce = true) => {
   const url = `${API_BASE}/repos/${owner}/${repo}/stats/commit_activity`;
-  
+
   try {
     const response = await fetch(url, { headers: getHeaders() });
-    
+
     if (response.status === 202) {
       if (retryOnce) {
         await sleep(2000);
@@ -284,11 +284,11 @@ export const getCommitActivity = async (owner, repo, retryOnce = true) => {
       }
       return { data: null, processing: true, rateLimit: null };
     }
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     return {
       data: await response.json(),
       processing: false,
@@ -301,4 +301,179 @@ export const getCommitActivity = async (owner, repo, retryOnce = true) => {
   } catch (error) {
     throw error;
   }
+};
+
+/**
+ * Fetches weekly participation stats (commit counts) for the last year
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {boolean} [retryOnce=true] - Whether to retry once if GitHub returns 202 (processing)
+ * @returns {Promise<{data: {all: number[], owner: number[]} | null, processing: boolean, rateLimit: Object | null}>}
+ * @throws {Error} When API request fails
+ */
+export const getParticipationStats = async (owner, repo, retryOnce = true) => {
+  const url = `${API_BASE}/repos/${owner}/${repo}/stats/participation`;
+
+  try {
+    const response = await fetch(url, { headers: getHeaders() });
+
+    if (response.status === 202) {
+      if (retryOnce) {
+        await sleep(2000);
+        return getParticipationStats(owner, repo, false);
+      }
+      return { data: null, processing: true, rateLimit: null };
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return {
+      data: await response.json(),
+      processing: false,
+      rateLimit: {
+        remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
+        limit: parseInt(response.headers.get('x-ratelimit-limit') || '0'),
+        reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
+      }
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Fetches contributor commit activity for a repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {boolean} [retryOnce=true] - Whether to retry once if GitHub returns 202 (processing)
+ * @returns {Promise<{data: Array<{author: Object, total: number, weeks: Array}> | null, processing: boolean, rateLimit: Object | null}>}
+ * @throws {Error} When API request fails
+ */
+export const getContributorStats = async (owner, repo, retryOnce = true) => {
+  const url = `${API_BASE}/repos/${owner}/${repo}/stats/contributors`;
+
+  try {
+    const response = await fetch(url, { headers: getHeaders() });
+
+    if (response.status === 202) {
+      if (retryOnce) {
+        await sleep(2000);
+        return getContributorStats(owner, repo, false);
+      }
+      return { data: null, processing: true, rateLimit: null };
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return {
+      data: await response.json(),
+      processing: false,
+      rateLimit: {
+        remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
+        limit: parseInt(response.headers.get('x-ratelimit-limit') || '0'),
+        reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
+      }
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Fetches issues with created/closed timestamps for a repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {Object} [params={}] - Optional query parameters to override defaults
+ * @param {string} [params.state='all'] - Issue state filter (open, closed, all)
+ * @param {string} [params.sort='created'] - Sort field (created, updated, comments)
+ * @param {string} [params.direction='desc'] - Sort direction (asc, desc)
+ * @param {number} [params.per_page=100] - Results per page (max 100)
+ * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}
+ * @throws {Error} When API request fails
+ */
+export const getIssueTimeline = async (owner, repo, params = {}) => {
+  const query = new URLSearchParams({
+    state: 'all',
+    per_page: '100',
+    sort: 'created',
+    direction: 'desc',
+    ...params
+  });
+  const url = `${API_BASE}/repos/${owner}/${repo}/issues?${query}`;
+  return fetchWithRetry(url);
+};
+
+/**
+ * Fetches pull requests with merge timestamps for a repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {Object} [params={}] - Optional query parameters to override defaults
+ * @param {string} [params.state='all'] - PR state filter (open, closed, all)
+ * @param {string} [params.sort='created'] - Sort field (created, updated, popularity, long-running)
+ * @param {string} [params.direction='desc'] - Sort direction (asc, desc)
+ * @param {number} [params.per_page=100] - Results per page (max 100)
+ * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}
+ * @throws {Error} When API request fails
+ */
+export const getPullRequestTimeline = async (owner, repo, params = {}) => {
+  const query = new URLSearchParams({
+    state: 'all',
+    per_page: '100',
+    sort: 'created',
+    direction: 'desc',
+    ...params
+  });
+  const url = `${API_BASE}/repos/${owner}/${repo}/pulls?${query}`;
+  return fetchWithRetry(url);
+};
+
+/**
+ * Fetches release history for a repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {number} [perPage=30] - Number of releases to fetch (max 100)
+ * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}
+ * @throws {Error} When API request fails
+ */
+export const getReleaseHistory = async (owner, repo, perPage = 30) => {
+  const url = `${API_BASE}/repos/${owner}/${repo}/releases?per_page=${perPage}`;
+  return fetchWithRetry(url);
+};
+
+/**
+ * Fetches all pulse-related data for a repository in parallel
+ * Uses Promise.allSettled for error resilience - failed endpoints return null
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @returns {Promise<{participation: Object|null, contributors: Array|null, issues: Array|null, pullRequests: Array|null, releases: Array|null, commits: Array|null}>}
+ */
+export const fetchPulseData = async (owner, repo) => {
+  const results = await Promise.allSettled([
+    getParticipationStats(owner, repo),
+    getContributorStats(owner, repo),
+    getIssueTimeline(owner, repo),
+    getPullRequestTimeline(owner, repo),
+    getReleaseHistory(owner, repo),
+    getCommitActivity(owner, repo)
+  ]);
+
+  const extractData = (result) => {
+    if (result.status === 'fulfilled' && result.value) {
+      return result.value.data;
+    }
+    return null;
+  };
+
+  return {
+    participation: extractData(results[0]),
+    contributors: extractData(results[1]),
+    issues: extractData(results[2]),
+    pullRequests: extractData(results[3]),
+    releases: extractData(results[4]),
+    commits: extractData(results[5])
+  };
 };

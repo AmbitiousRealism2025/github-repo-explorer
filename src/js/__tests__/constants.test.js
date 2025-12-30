@@ -4,6 +4,7 @@ import {
   API_VERSION,
   CACHE_TTL_MS,
   CACHE_MAX_ENTRIES,
+  STATS_CACHE_TTL_MS,
   DEFAULT_PER_PAGE,
   MAX_SEARCH_PAGES,
   MAX_SEARCH_RESULTS,
@@ -35,6 +36,10 @@ describe('Constants', () => {
 
     it('should have CACHE_MAX_ENTRIES as 50', () => {
       expect(CACHE_MAX_ENTRIES).toBe(50);
+    });
+
+    it('should have STATS_CACHE_TTL_MS as 10 minutes', () => {
+      expect(STATS_CACHE_TTL_MS).toBe(10 * 60 * 1000);
     });
   });
 

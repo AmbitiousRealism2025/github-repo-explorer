@@ -1,0 +1,473 @@
+{
+  "feature": "Repository Pulse Dashboard - Phase 1: Data Collection & API Layer",
+  "workflow_type": "feature",
+  "workflow_rationale": "This is a pure feature addition extending the existing API layer with new capabilities. No existing functionality is being modified or refactored - we are adding 6 new exported functions to support the upcoming Pulse Dashboard feature.",
+  "phases": [
+    {
+      "id": "phase-1-constants",
+      "name": "Add Stats Cache TTL Constant",
+      "type": "implementation",
+      "description": "Add the STATS_CACHE_TTL_MS constant (10 minutes) to constants.js for expensive stats endpoints",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Add STATS_CACHE_TTL_MS constant (10 * 60 * 1000) to constants.js",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/constants.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/constants.js"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/constants.js').then(m => console.log('STATS_CACHE_TTL_MS:', m.STATS_CACHE_TTL_MS))\"",
+            "expected": "STATS_CACHE_TTL_MS: 600000"
+          },
+          "status": "completed",
+          "notes": "Added STATS_CACHE_TTL_MS constant (10 * 60 * 1000 = 600000ms) to src/js/constants.js. Verification passed - constant exports correctly as 600000.",
+          "updated_at": "2025-12-30T17:08:44.725731+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-2-stats-endpoints",
+      "name": "Add Stats API Functions (202 Handling)",
+      "type": "implementation",
+      "description": "Add getParticipationStats and getContributorStats functions that require 202 response handling",
+      "depends_on": [
+        "phase-1-constants"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-2-1",
+          "description": "Add getParticipationStats function with 202 retry handling",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/api.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/api.js:274-304"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/api.js').then(m => console.log('getParticipationStats:', typeof m.getParticipationStats))\"",
+            "expected": "getParticipationStats: function"
+          },
+          "status": "completed",
+          "notes": "Added getParticipationStats function with 202 retry handling. Follows exact pattern from getCommitActivity. Verification passed - function exports correctly.",
+          "updated_at": "2025-12-30T17:09:52.641057+00:00"
+        },
+        {
+          "id": "subtask-2-2",
+          "description": "Add getContributorStats function with 202 retry handling",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/api.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/api.js:274-304"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/api.js').then(m => console.log('getContributorStats:', typeof m.getContributorStats))\"",
+            "expected": "getContributorStats: function"
+          },
+          "status": "completed",
+          "notes": "Added getContributorStats function with 202 retry handling. Follows exact same pattern as getCommitActivity and getParticipationStats. Verification passed.",
+          "updated_at": "2025-12-30T17:11:17.785708+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-3-simple-endpoints",
+      "name": "Add Simple API Functions",
+      "type": "implementation",
+      "description": "Add getIssueTimeline, getPullRequestTimeline, and getReleaseHistory functions using fetchWithRetry",
+      "depends_on": [
+        "phase-1-constants"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Add getIssueTimeline function with query params support",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/api.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/api.js:251-254"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/api.js').then(m => console.log('getIssueTimeline:', typeof m.getIssueTimeline))\"",
+            "expected": "getIssueTimeline: function"
+          },
+          "status": "completed",
+          "notes": "Added getIssueTimeline function with URLSearchParams for query building. Defaults: state='all', per_page=100, sort='created', direction='desc'. Supports optional params override. Verified with node import check.",
+          "updated_at": "2025-12-30T17:12:33.410782+00:00"
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Add getPullRequestTimeline function with query params support",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/api.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/api.js:251-254"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/api.js').then(m => console.log('getPullRequestTimeline:', typeof m.getPullRequestTimeline))\"",
+            "expected": "getPullRequestTimeline: function"
+          },
+          "status": "completed",
+          "notes": "Added getPullRequestTimeline function with URLSearchParams support for query params (state, sort, direction, per_page). Follows same pattern as getIssueTimeline. Verification passed.",
+          "updated_at": "2025-12-30T17:13:49.736807+00:00"
+        },
+        {
+          "id": "subtask-3-3",
+          "description": "Add getReleaseHistory function",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/api.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/api.js:251-254"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/api.js').then(m => console.log('getReleaseHistory:', typeof m.getReleaseHistory))\"",
+            "expected": "getReleaseHistory: function"
+          },
+          "status": "completed",
+          "notes": "Added getReleaseHistory function to api.js. Function fetches release history from /repos/{owner}/{repo}/releases endpoint with default of 30 releases per page. Verification passed: function is properly exported.",
+          "updated_at": "2025-12-30T17:14:50.374520+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-4-aggregator",
+      "name": "Add Pulse Data Aggregator",
+      "type": "implementation",
+      "description": "Add fetchPulseData aggregator function that fetches all pulse data in parallel using Promise.allSettled",
+      "depends_on": [
+        "phase-2-stats-endpoints",
+        "phase-3-simple-endpoints"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Add fetchPulseData aggregator function with Promise.allSettled for error resilience",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/api.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/api.js').then(m => console.log('fetchPulseData:', typeof m.fetchPulseData))\"",
+            "expected": "fetchPulseData: function"
+          },
+          "status": "completed",
+          "notes": "Added fetchPulseData aggregator function with Promise.allSettled for error resilience. Returns object with 6 keys (participation, contributors, issues, pullRequests, releases, commits). Failed endpoints return null. Verification passed: function is properly exported.",
+          "updated_at": "2025-12-30T17:15:59.053234+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-tests",
+      "name": "Add Unit Tests",
+      "type": "implementation",
+      "description": "Add comprehensive unit tests for all 6 new API functions",
+      "depends_on": [
+        "phase-4-aggregator"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Add tests for getParticipationStats (success, 202 handling, error)",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/api.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/api.test.js:326-365"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --grep 'getParticipationStats' 2>&1 | tail -10",
+            "expected": "pass"
+          },
+          "status": "completed",
+          "notes": "Added 3 tests for getParticipationStats: success case, 202 retry handling, and HTTP error handling. All tests pass.",
+          "updated_at": "2025-12-30T17:17:46.246094+00:00"
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Add tests for getContributorStats (success, 202 handling, error)",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/api.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/api.test.js:326-365"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --grep 'getContributorStats' 2>&1 | tail -10",
+            "expected": "pass"
+          },
+          "status": "completed",
+          "notes": "Added 3 tests for getContributorStats: success case, 202 retry handling, and HTTP error handling. All tests pass. Follows exact same pattern as getParticipationStats tests.",
+          "updated_at": "2025-12-30T17:19:12.589493+00:00"
+        },
+        {
+          "id": "subtask-5-3",
+          "description": "Add tests for getIssueTimeline (success, params override)",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/api.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/api.test.js:41-102"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --grep 'getIssueTimeline' 2>&1 | tail -10",
+            "expected": "pass"
+          },
+          "status": "completed",
+          "notes": "Added 2 tests for getIssueTimeline: success case with default params verification, and params override functionality. All 291 tests passing.",
+          "updated_at": "2025-12-30T17:20:54.026496+00:00"
+        },
+        {
+          "id": "subtask-5-4",
+          "description": "Add tests for getPullRequestTimeline (success, params override)",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/api.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/api.test.js:41-102"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --grep 'getPullRequestTimeline' 2>&1 | tail -10",
+            "expected": "pass"
+          },
+          "status": "completed",
+          "notes": "Added two tests for getPullRequestTimeline: 1) success with default params, 2) params override. All 293 tests passing.",
+          "updated_at": "2025-12-30T17:22:38.583516+00:00"
+        },
+        {
+          "id": "subtask-5-5",
+          "description": "Add tests for getReleaseHistory (success)",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/api.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/api.test.js:309-324"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --grep 'getReleaseHistory' 2>&1 | tail -10",
+            "expected": "pass"
+          },
+          "status": "completed",
+          "notes": "Added test for getReleaseHistory success case. Test mocks GitHub releases API and verifies correct data is returned. All 294 tests pass.",
+          "updated_at": "2025-12-30T17:24:35.040081+00:00"
+        },
+        {
+          "id": "subtask-5-6",
+          "description": "Add tests for fetchPulseData (success, partial failures)",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/api.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/api.test.js"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --grep 'fetchPulseData' 2>&1 | tail -10",
+            "expected": "pass"
+          },
+          "status": "completed",
+          "notes": "Added 5 comprehensive tests for fetchPulseData: success case, partial failures, all failures, 202 processing status handling, and mixed errors. Uses URL-based mocking for parallel execution. All 299 tests passing.",
+          "updated_at": "2025-12-30T17:27:57.402091+00:00"
+        },
+        {
+          "id": "subtask-5-7",
+          "description": "Add test for STATS_CACHE_TTL_MS constant",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/constants.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/constants.test.js"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --grep 'STATS_CACHE_TTL_MS' 2>&1 | tail -10",
+            "expected": "pass"
+          },
+          "status": "completed",
+          "notes": "Added test for STATS_CACHE_TTL_MS constant (10 minutes) in Cache Constants section. Test passes successfully.",
+          "updated_at": "2025-12-30T17:29:24.309206+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-6-verification",
+      "name": "Final Verification",
+      "type": "integration",
+      "description": "Run full test suite and verify no regressions",
+      "depends_on": [
+        "phase-5-tests"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "Run full test suite to verify all tests pass (283+ existing + new tests)",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "npm test 2>&1 | tail -20",
+            "expected": "All tests pass"
+          },
+          "status": "completed",
+          "notes": "Full test suite passed with 300 tests (exceeds expected 283+). All 8 test files pass: collections (2), constants (19), common (77), HealthScore (40), components (34), RepositoryDNA (42), RepoGrid (45), api (41).",
+          "updated_at": "2025-12-30T17:30:05.494968+00:00"
+        },
+        {
+          "id": "subtask-6-2",
+          "description": "Verify all 6 new functions are exported from api.js",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/api.js').then(m => { const fns = ['getParticipationStats', 'getContributorStats', 'getIssueTimeline', 'getPullRequestTimeline', 'getReleaseHistory', 'fetchPulseData']; const ok = fns.every(f => typeof m[f] === 'function'); console.log('All exports:', ok ? 'OK' : 'MISSING'); })\"",
+            "expected": "All exports: OK"
+          },
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 6,
+    "total_subtasks": 14,
+    "services_involved": [
+      "main"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 2,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-2-stats-endpoints",
+            "phase-3-simple-endpoints"
+          ],
+          "reason": "Both depend only on phase-1, modify same file but different sections"
+        }
+      ],
+      "recommended_workers": 1,
+      "speedup_estimate": "Sequential execution recommended - phases modify same files"
+    },
+    "startup_command": "npm run dev"
+  },
+  "verification_strategy": {
+    "risk_level": "low",
+    "skip_validation": false,
+    "test_creation_phase": "phase-5-tests",
+    "test_types_required": [
+      "unit"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All 283+ existing tests pass",
+      "All new API functions have test coverage",
+      "New functions follow existing JSDoc patterns",
+      "202 handling works correctly for stats endpoints",
+      "fetchPulseData handles partial failures gracefully"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "npm test",
+        "expected_outcome": "All tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Function Exports",
+        "command": "node -e \"import('./src/js/api.js').then(m => console.log(Object.keys(m).filter(k => k.includes('Pulse') || k.includes('Stats') || k.includes('Timeline') || k.includes('Release'))))\"",
+        "expected_outcome": "All 6 new functions exported",
+        "type": "command",
+        "required": true,
+        "blocking": true
+      }
+    ],
+    "reasoning": "Low risk additive feature following established patterns. Unit tests are sufficient to verify correctness."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "npm test"
+      ],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": false,
+      "commands": [],
+      "services_to_test": []
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    }
+  },
+  "qa_signoff": null,
+  "last_updated": "2025-12-30T17:30:05.494975+00:00"
+}
