@@ -54,8 +54,47 @@ const repoNotesContainer = getRequiredElement('repo-notes-container');
 const commitHeatmapContainer = getRequiredElement('commit-heatmap-container');
 const healthScoreContainer = getRequiredElement('health-score-container');
 const repoDnaContainer = getRequiredElement('repo-dna-container');
+const pulseDashboardContainer = getRequiredElement('pulse-dashboard-container');
 
 let currentRepo = null;
+
+/**
+ * Load and render the Pulse Dashboard for the current repository
+ * Fetches pulse data, calculates metrics, and renders the dashboard
+ * with skeleton loading state and error handling with retry
+ */
+const loadPulseDashboard = async () => {
+  if (!currentRepo) return;
+
+  const owner = currentRepo.owner.login;
+  const repo = currentRepo.name;
+
+  // Show skeleton loading state
+  pulseDashboardContainer.innerHTML = '';
+  pulseDashboardContainer.appendChild(createPulseDashboardSkeleton());
+
+  try {
+    // Fetch pulse data from the API
+    const pulseResult = await fetchPulseData(owner, repo);
+    const rawPulseData = pulseResult.data;
+
+    // Calculate all metrics from the raw data
+    const pulseMetrics = calculateAllMetrics(rawPulseData, currentRepo);
+
+    // Add repo name for display in dashboard header
+    pulseMetrics.repoName = currentRepo.full_name;
+
+    // Render the dashboard with calculated metrics
+    pulseDashboardContainer.innerHTML = '';
+    pulseDashboardContainer.appendChild(createPulseDashboard(pulseMetrics));
+  } catch (error) {
+    // Render error state with retry functionality
+    pulseDashboardContainer.innerHTML = '';
+    pulseDashboardContainer.appendChild(
+      createPulseDashboardError(() => loadPulseDashboard())
+    );
+  }
+};
 
 const showState = (state) => {
   loadingState.classList.add('hidden');
@@ -290,8 +329,11 @@ const loadRepository = async () => {
     if (repoResult.value.rateLimit) {
       updateRateLimitDisplay(repoResult.value.rateLimit);
     }
-    
+
     showState('content');
+
+    // Load pulse dashboard asynchronously after main content is visible
+    loadPulseDashboard();
   } catch (error) {
     errorMessage.textContent = error.message;
     showState('error');
