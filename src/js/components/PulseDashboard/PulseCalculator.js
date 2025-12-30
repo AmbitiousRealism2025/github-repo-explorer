@@ -29,7 +29,9 @@ import {
   ISSUES,
   PR_HEALTH,
   BUS_FACTOR,
-  FRESHNESS
+  FRESHNESS,
+  PULSE,
+  STATUS_LABELS
 } from './constants.js';
 
 // =============================================================================
@@ -1466,4 +1468,255 @@ function generateFreshnessSparkline(daysSincePush, daysSinceRelease, daysSinceUp
   }
 
   return sparkline;
+}
+
+// =============================================================================
+// OVERALL PULSE AGGREGATOR
+// =============================================================================
+
+/**
+ * Calculate overall repository pulse by aggregating all 6 metrics
+ * Determines single status, pulse speed, and concerns count for dashboard display
+ *
+ * @param {Object} metrics - Object containing all 6 metric results
+ * @param {Object} metrics.velocity - Velocity score metric result
+ * @param {Object} metrics.momentum - Community momentum metric result
+ * @param {Object} metrics.issues - Issue temperature metric result
+ * @param {Object} metrics.prs - PR health metric result
+ * @param {Object} metrics.busFactor - Bus factor metric result
+ * @param {Object} metrics.freshness - Freshness index metric result
+ * @returns {Object} Overall pulse result with status, score, pulseSpeed, concerns
+ *
+ * @example
+ * // Calculate overall pulse from individual metrics
+ * const metrics = {
+ *   velocity: calculateVelocityScore(participation),
+ *   momentum: calculateCommunityMomentum(repo, events),
+ *   issues: calculateIssueTemperature(issues),
+ *   prs: calculatePRHealth(pullRequests),
+ *   busFactor: calculateBusFactor(contributors),
+ *   freshness: calculateFreshnessIndex(repo, releases)
+ * };
+ * const pulse = calculateOverallPulse(metrics);
+ * // pulse.status === 'thriving' | 'stable' | 'cooling' | 'at_risk'
+ * // pulse.score === 0-100
+ * // pulse.pulseSpeed === 800-2500 (milliseconds)
+ * // pulse.concerns === { count: 0, metrics: [] }
+ *
+ * @example
+ * // Handle partial or missing data
+ * const pulse = calculateOverallPulse({ velocity: null, momentum: { status: 'stable' } });
+ * // Uses defaults for missing metrics, calculates from available data
+ */
+export function calculateOverallPulse(metrics) {
+  // Handle missing or invalid metrics object
+  if (!metrics || typeof metrics !== 'object') {
+    return getDefaultOverallPulse();
+  }
+
+  // Define metric keys and their weights
+  const metricKeys = ['velocity', 'momentum', 'issues', 'prs', 'busFactor', 'freshness'];
+
+  // Collect valid metrics and identify concerns
+  const validMetrics = [];
+  const concerns = [];
+  let weightedScoreSum = 0;
+  let totalWeight = 0;
+
+  for (const key of metricKeys) {
+    const metric = metrics[key];
+    const weight = PULSE.WEIGHTS[key] || 0;
+
+    // Skip metrics with no weight
+    if (weight === 0) continue;
+
+    // Handle missing or invalid metric
+    if (!metric || typeof metric !== 'object') {
+      // Use default status 'stable' for missing metrics
+      const defaultScore = PULSE.STATUS_SCORES.stable;
+      weightedScoreSum += defaultScore * weight;
+      totalWeight += weight;
+      continue;
+    }
+
+    // Get the metric's status
+    const status = metric.status || 'stable';
+
+    // Map status to score
+    const statusScore = PULSE.STATUS_SCORES[status] ?? PULSE.STATUS_SCORES.stable;
+
+    // Accumulate weighted score
+    weightedScoreSum += statusScore * weight;
+    totalWeight += weight;
+
+    // Track valid metrics
+    validMetrics.push({ key, status, score: statusScore });
+
+    // Identify concerns (cooling or at_risk metrics)
+    if (status === 'cooling' || status === 'at_risk') {
+      const labelInfo = STATUS_LABELS[status] || { label: status };
+      concerns.push({
+        metric: key,
+        status,
+        label: formatMetricKey(key),
+        statusLabel: labelInfo.label,
+        severity: status === 'at_risk' ? 'high' : 'medium'
+      });
+    }
+  }
+
+  // Calculate weighted average score
+  const score = totalWeight > 0 ? Math.round(weightedScoreSum / totalWeight) : 50;
+
+  // Determine overall status from weighted score
+  const status = getMetricStatus(score);
+
+  // Get pulse animation speed based on status
+  const pulseSpeed = PULSE.ANIMATION_SPEED[status] || PULSE.ANIMATION_SPEED.stable;
+
+  // Get status label info
+  const statusInfo = STATUS_LABELS[status] || STATUS_LABELS.stable;
+
+  // Calculate trend (average of all metric trends)
+  let trendSum = 0;
+  let trendCount = 0;
+
+  for (const key of metricKeys) {
+    const metric = metrics[key];
+    if (metric && typeof metric.trend === 'number' && !isNaN(metric.trend)) {
+      trendSum += metric.trend;
+      trendCount++;
+    }
+  }
+
+  const averageTrend = trendCount > 0 ? Math.round(trendSum / trendCount) : 0;
+  const direction = getTrendDirection(averageTrend);
+
+  // Determine concern level based on count
+  let concernLevel;
+  if (concerns.length === 0) {
+    concernLevel = 'none';
+  } else if (concerns.length <= PULSE.CONCERNS.FEW) {
+    concernLevel = 'few';
+  } else if (concerns.length <= PULSE.CONCERNS.SOME) {
+    concernLevel = 'some';
+  } else {
+    concernLevel = 'many';
+  }
+
+  // Generate summary label
+  const label = generatePulseSummary(status, concerns.length, validMetrics.length);
+
+  // Sort concerns by severity (high first)
+  concerns.sort((a, b) => {
+    if (a.severity === 'high' && b.severity !== 'high') return -1;
+    if (a.severity !== 'high' && b.severity === 'high') return 1;
+    return 0;
+  });
+
+  return {
+    status,
+    score,
+    pulseSpeed,
+    trend: averageTrend,
+    direction,
+    label,
+    statusLabel: statusInfo.label,
+    statusDescription: statusInfo.description,
+    concerns: {
+      count: concerns.length,
+      level: concernLevel,
+      metrics: concerns
+    },
+    // Breakdown of individual metric statuses
+    breakdown: Object.fromEntries(
+      metricKeys.map(key => [
+        key,
+        metrics[key]?.status || 'stable'
+      ])
+    ),
+    // Count of valid metrics used in calculation
+    metricsUsed: validMetrics.length
+  };
+}
+
+/**
+ * Generate a human-readable summary for the pulse status
+ *
+ * @param {string} status - Overall status (thriving, stable, cooling, at_risk)
+ * @param {number} concernCount - Number of concerning metrics
+ * @param {number} validCount - Number of valid metrics used
+ * @returns {string} Human-readable summary
+ */
+function generatePulseSummary(status, concernCount, validCount) {
+  if (validCount === 0) {
+    return 'Insufficient data for analysis';
+  }
+
+  switch (status) {
+    case 'thriving':
+      return concernCount === 0
+        ? 'Excellent health across all metrics'
+        : 'Strong overall health with minor concerns';
+    case 'stable':
+      return concernCount === 0
+        ? 'Healthy and well-maintained'
+        : `Stable with ${concernCount} area${concernCount > 1 ? 's' : ''} to watch`;
+    case 'cooling':
+      return `Declining activity in ${concernCount} area${concernCount > 1 ? 's' : ''}`;
+    case 'at_risk':
+      return `Needs attention: ${concernCount} critical concern${concernCount > 1 ? 's' : ''}`;
+    default:
+      return 'Repository pulse status unknown';
+  }
+}
+
+/**
+ * Format a metric key to a human-readable label
+ *
+ * @param {string} key - Metric key (e.g., 'velocity', 'busFactor')
+ * @returns {string} Formatted label (e.g., 'Velocity', 'Bus Factor')
+ */
+function formatMetricKey(key) {
+  const labels = {
+    velocity: 'Velocity',
+    momentum: 'Momentum',
+    issues: 'Issues',
+    prs: 'Pull Requests',
+    busFactor: 'Bus Factor',
+    freshness: 'Freshness'
+  };
+  return labels[key] || key;
+}
+
+/**
+ * Get default overall pulse for missing or invalid data
+ *
+ * @returns {Object} Default pulse object with stable status
+ */
+function getDefaultOverallPulse() {
+  return {
+    status: 'stable',
+    score: 50,
+    pulseSpeed: PULSE.ANIMATION_SPEED.stable,
+    trend: 0,
+    direction: 'stable',
+    label: 'Insufficient data for analysis',
+    statusLabel: STATUS_LABELS.stable.label,
+    statusDescription: STATUS_LABELS.stable.description,
+    concerns: {
+      count: 0,
+      level: 'none',
+      metrics: []
+    },
+    breakdown: {
+      velocity: 'stable',
+      momentum: 'stable',
+      issues: 'stable',
+      prs: 'stable',
+      busFactor: 'stable',
+      freshness: 'stable'
+    },
+    metricsUsed: 0
+  };
 }
