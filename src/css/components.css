@@ -2511,3 +2511,98 @@
   border-color: var(--color-danger);
   color: var(--color-danger);
 }
+
+/* ============================================
+   Pulse Card Entrance Animations
+   ============================================ */
+
+/* Card entrance keyframes - fade + slide up */
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Attention pulse for at-risk cards - pulsing glow effect */
+@keyframes attention-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.6);
+  }
+}
+
+/* Base pulse card with entrance animation */
+.pulse-card {
+  animation: card-enter 0.4s ease-out both;
+}
+
+/* Staggered entrance delays - 50ms increments */
+.pulse-card:nth-child(1) { animation-delay: 0.05s; }
+.pulse-card:nth-child(2) { animation-delay: 0.1s; }
+.pulse-card:nth-child(3) { animation-delay: 0.15s; }
+.pulse-card:nth-child(4) { animation-delay: 0.2s; }
+.pulse-card:nth-child(5) { animation-delay: 0.25s; }
+.pulse-card:nth-child(6) { animation-delay: 0.3s; }
+
+/* ============================================
+   Pulse Card Status Glow Effects
+   ============================================ */
+
+/* Thriving - subtle green glow */
+.pulse-card--thriving {
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 8px 0 rgba(16, 185, 129, 0.15);
+}
+
+.pulse-card--thriving:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 12px 2px rgba(16, 185, 129, 0.25);
+}
+
+/* Stable - subtle yellow glow */
+.pulse-card--stable {
+  border-color: rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 8px 0 rgba(245, 158, 11, 0.15);
+}
+
+.pulse-card--stable:hover {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 12px 2px rgba(245, 158, 11, 0.25);
+}
+
+/* Cooling - subtle orange glow */
+.pulse-card--cooling {
+  border-color: rgba(249, 115, 22, 0.3);
+  box-shadow: 0 0 8px 0 rgba(249, 115, 22, 0.15);
+}
+
+.pulse-card--cooling:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow: 0 0 12px 2px rgba(249, 115, 22, 0.25);
+}
+
+/* At Risk - animated attention pulse glow */
+.pulse-card--at_risk {
+  border-color: rgba(239, 68, 68, 0.4);
+  animation: card-enter 0.4s ease-out both, attention-pulse 2s ease-in-out infinite;
+  animation-delay: var(--card-enter-delay, 0s), 0.5s;
+}
+
+/* Override nth-child delays for at_risk cards (they have dual animations) */
+.pulse-card--at_risk:nth-child(1) { --card-enter-delay: 0.05s; }
+.pulse-card--at_risk:nth-child(2) { --card-enter-delay: 0.1s; }
+.pulse-card--at_risk:nth-child(3) { --card-enter-delay: 0.15s; }
+.pulse-card--at_risk:nth-child(4) { --card-enter-delay: 0.2s; }
+.pulse-card--at_risk:nth-child(5) { --card-enter-delay: 0.25s; }
+.pulse-card--at_risk:nth-child(6) { --card-enter-delay: 0.3s; }
+
+.pulse-card--at_risk:hover {
+  border-color: rgba(239, 68, 68, 0.6);
+}
