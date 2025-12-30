@@ -5,11 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ```bash
-npm run dev      # Start dev server on http://localhost:5173
+npm run dev      # Start dev server on http://localhost:3000
 npm run build    # Production build to dist/
 npm run preview  # Preview production build locally
-npm test         # Run tests in watch mode
-npm test -- --run  # Run tests once (CI mode)
+npm test         # Run tests once (CI mode)
+npm run test:watch  # Run tests in watch mode
 ```
 
 ## Architecture
@@ -55,6 +55,7 @@ This is a multi-page vanilla JavaScript app with six entry points configured in 
 - `CloneCommands.js` - Clone command tabs (HTTPS, SSH, CLI, Degit) with clipboard fallback
 - `RepoNotes.js` - Personal notes system per repository
 - `DiscoveryStats.js` - Personal exploration tracking stats
+- `RepositoryDNA/` - Bio-Circuit DNA visualization system (see below)
 
 ### Page Scripts
 
@@ -101,6 +102,84 @@ All pages include a hamburger menu for mobile devices (<640px):
 - Token stored in localStorage under `gh-token` key
 - Stats endpoints (commit activity) may return 202 while computing - api.js handles retry
 
+## Repository DNA (Bio-Circuit Visualization)
+
+A unique visual fingerprint for each repository, combining organic DNA aesthetics with circuit board patterns.
+
+### Architecture (`src/js/components/RepositoryDNA/`)
+
+| File | Purpose |
+|------|---------|
+| `index.js` | Main component exports, `createRepositoryDNA()`, `createDNABadge()` |
+| `DNAGenerator.js` | Generates deterministic DNA data from repo attributes |
+| `DNARenderer.js` | Canvas rendering with layered Bio-Circuit patterns |
+| `colors.js` | Color system with theme-aware adjustments, harmonious palettes |
+| `shapes.js` | Language-to-shape mapping, shape drawing functions |
+| `patterns.js` | Legacy pattern functions (radial rays, rings, spirals) |
+| `bioCircuitPatterns.js` | Bio-Circuit patterns (helix, nodes, bridges, rails) |
+| `DNAExporter.js` | Download/clipboard export, caching |
+
+### Language → Shape Mapping
+
+Each programming language family has a distinctive shape:
+
+| Language Family | Shape | Examples |
+|-----------------|-------|----------|
+| Web | Hexagon | JavaScript, TypeScript, HTML, CSS, Vue |
+| Systems | Octagon | Rust, Go, C, C++, Zig |
+| Python | Circle | Python |
+| Ruby | Diamond | Ruby |
+| JVM | Square | Java, Kotlin, Scala |
+| Mobile | Rounded Rect | Swift, Dart |
+| Functional | Star | Haskell, Elixir, F#, Clojure |
+| Data/ML | Pentagon | R, Julia, C# |
+| Shell/DevOps | Triangle | Shell, PowerShell, Dockerfile |
+| Markup | Heptagon | JSON, YAML, Markdown |
+
+### Color System
+
+- **Multi-color palettes**: Each repo gets primary + 2 harmonious accent colors
+- **Color schemes**: Analogous (simple repos), split-complementary (medium), triadic (popular)
+- **Theme-aware**: Colors auto-adjust for visibility in light/dark modes
+  - Light mode: Yellows/lights darkened, saturation boosted
+  - Dark mode: Dark colors lightened, saturation boosted
+
+### Star-Based Glow Effect
+
+Perimeter glow intensity and pulse speed based on star count:
+
+| Stars | Glow Intensity | Pulse Speed | Glow Size |
+|-------|---------------|-------------|-----------|
+| < 100 | 20% | 4.0s | 8px |
+| 100-1K | 40% | 3.5s | 12px |
+| 1K-10K | 60% | 3.0s | 16px |
+| 10K-100K | 80% | 2.5s | 22px |
+| 100K+ | 100% | 2.0s | 30px |
+
+### Visual Layers (in render order)
+
+1. **Helix Trace** - Subtle double helix in background (2 colors)
+2. **Signal Dots** - Unique constellation from repo name hash
+3. **Power Rails** - Top/bottom frame lines (style by license)
+4. **Data Bridges** - Horizontal connectors (style by star tier)
+5. **Main Shape** - Language-based shape with star glow
+6. **Branch Traces** - Extending lines (topic/name driven)
+7. **Circuit Nodes** - Terminal points with ripple animation
+8. **Center Element** - Circle (user) or square (org)
+
+### Uniqueness Factors
+
+| Factor | Drives |
+|--------|--------|
+| Language | Shape type, primary color |
+| Repo name hash | Signal dot constellation, branch angles |
+| Star count | Glow intensity, bridge style, color brightness |
+| Fork count | Pattern density, color saturation |
+| Age | Rotation, color warmth |
+| Activity | Node ripple speed, hue shift |
+| Owner type | Center element shape |
+| License | Power rail style |
+
 ## Testing
 
 Tests use Vitest with jsdom environment. Test files are in `src/js/__tests__/`:
@@ -114,8 +193,9 @@ Tests use Vitest with jsdom environment. Test files are in `src/js/__tests__/`:
 | `HealthScore.test.js` | Health score calculation |
 | `RepoGrid.test.js` | Card rendering, pagination |
 | `collections.test.js` | Collection import/export |
+| `RepositoryDNA.test.js` | DNA generation, colors, rendering, caching |
 
-Current: **241 tests passing**
+Current: **283 tests passing**
 
 ## Completed Improvements
 
@@ -142,4 +222,4 @@ All priority items from AltCoder follow-up review (`AltCoder-follow-up.md`) have
 
 ---
 
-*Updated by Claude: December 29, 2025*
+*Updated by Claude: December 30, 2025 - Added Bio-Circuit DNA visualization system*

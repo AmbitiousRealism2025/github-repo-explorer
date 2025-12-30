@@ -19,6 +19,7 @@ import { createCloneCommands } from './components/CloneCommands.js';
 import { createRepoNotes } from './components/RepoNotes.js';
 import { createCommitHeatmap } from './components/CommitHeatmap.js';
 import { createHealthScore } from './components/HealthScore.js';
+import { createRepositoryDNA } from './components/RepositoryDNA/index.js';
 
 initTheme();
 initMobileNav();
@@ -50,6 +51,7 @@ const cloneCommandsContainer = getRequiredElement('clone-commands-container');
 const repoNotesContainer = getRequiredElement('repo-notes-container');
 const commitHeatmapContainer = getRequiredElement('commit-heatmap-container');
 const healthScoreContainer = getRequiredElement('health-score-container');
+const repoDnaContainer = getRequiredElement('repo-dna-container');
 
 let currentRepo = null;
 
@@ -256,7 +258,15 @@ const loadRepository = async () => {
       hasReadme,
       commitActivity: commitActivityData
     }));
-    
+
+    // Render Repository DNA visualization
+    const languagesData = languagesResult.status === 'fulfilled' ? languagesResult.value.data : {};
+    repoDnaContainer.appendChild(createRepositoryDNA(currentRepo, {
+      animate: true,
+      showActions: true,
+      languages: languagesData
+    }));
+
     if (commitActivityResult.status === 'fulfilled' && commitActivityResult.value.data) {
       commitHeatmapContainer.appendChild(createCommitHeatmap(commitActivityResult.value.data));
     }
