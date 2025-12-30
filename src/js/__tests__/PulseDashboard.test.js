@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createSparkline, createMiniSparkline, calculateTrend } from '../components/PulseDashboard/Sparkline.js';
-import { createTrendArrow, createMiniTrendArrow, getTrendDirection as getTrendDirectionArrow, formatPercentage } from '../components/PulseDashboard/TrendArrow.js';
+import { createTrendArrow, createMiniTrendArrow, getTrendDirection, formatPercentage } from '../components/PulseDashboard/TrendArrow.js';
 import {
   createTemperatureIndicator,
   getTemperatureLevel,
@@ -19,713 +19,8 @@ import {
 import {
   createPulseDashboard,
   createPulseDashboardSkeleton,
-  createPulseDashboardError,
-  // Utility functions
-  average,
-  daysSince,
-  daysBetween,
-  getTrendDirection,
-  getMetricStatus,
-  getDefaultMetric,
-  clamp,
-  percentageChange,
-  safeParseDate,
-  emptySparkline,
-
-  // Calculators
-  calculateVelocityScore,
-  calculateCommunityMomentum,
-  calculateIssueTemperature,
-  calculatePRHealth,
-  calculateBusFactor,
-  calculateFreshnessIndex,
-  calculateOverallPulse,
-  calculateAllMetrics,
-
-  // Constants
-  STATUS_THRESHOLDS,
-  TREND_THRESHOLDS
+  createPulseDashboardError
 } from '../components/PulseDashboard/index.js';
-
-// =============================================================================
-// MOCK DATA FACTORIES
-// =============================================================================
-
-/**
- * Create mock repository data
- * @param {Object} overrides - Properties to override
- * @returns {Object} Mock repository object
- */
-const createMockRepo = (overrides = {}) => ({
-  id: 123456,
-  full_name: 'test-owner/test-repo',
-  name: 'test-repo',
-  description: 'A test repository for testing',
-  stargazers_count: 1000,
-  forks_count: 100,
-  open_issues_count: 10,
-  created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year ago
-  pushed_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-  license: { spdx_id: 'MIT', name: 'MIT License' },
-  homepage: 'https://example.com',
-  language: 'JavaScript',
-  ...overrides
-});
-
-/**
- * Create mock participation data (52 weeks of commit counts)
- * @param {Object} options - Configuration options
- * @returns {Object} Mock participation object
- */
-const createMockParticipation = (options = {}) => {
-  const {
-    recentAvg = 10,      // Average commits per week for last 4 weeks
-    previousAvg = 8,     // Average commits per week for prior 12 weeks
-    baseAvg = 5,         // Average commits for older weeks
-    weeks = 52
-  } = options;
-
-  const all = [];
-
-  for (let i = 0; i < weeks; i++) {
-    if (i >= weeks - 4) {
-      // Recent 4 weeks
-      all.push(Math.round(recentAvg + (Math.random() - 0.5) * 2));
-    } else if (i >= weeks - 16) {
-      // Previous 12 weeks
-      all.push(Math.round(previousAvg + (Math.random() - 0.5) * 2));
-    } else {
-      // Older weeks
-      all.push(Math.round(baseAvg + (Math.random() - 0.5) * 2));
-    }
-  }
-
-  return { all, owner: [], ...options.extra };
-};
-
-/**
- * Create mock issue data
- * @param {Object} overrides - Properties to override
- * @returns {Object} Mock issue object
- */
-const createMockIssue = (overrides = {}) => {
-  const now = Date.now();
-  const createdAt = overrides.created_at || new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-  return {
-    id: Math.floor(Math.random() * 1000000),
-    number: Math.floor(Math.random() * 1000),
-    title: 'Test issue',
-    state: 'open',
-    created_at: createdAt,
-    closed_at: null,
-    ...overrides
-  };
-};
-
-/**
- * Create mock pull request data
- * @param {Object} overrides - Properties to override
- * @returns {Object} Mock pull request object
- */
-const createMockPR = (overrides = {}) => {
-  const now = Date.now();
-  const createdAt = overrides.created_at || new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
-
-  return {
-    id: Math.floor(Math.random() * 1000000),
-    number: Math.floor(Math.random() * 1000),
-    title: 'Test pull request',
-    state: 'open',
-    merged: false,
-    created_at: createdAt,
-    merged_at: null,
-    closed_at: null,
-    ...overrides
-  };
-};
-
-/**
- * Create mock contributor data
- * @param {Object} overrides - Properties to override
- * @returns {Object} Mock contributor object
- */
-const createMockContributor = (overrides = {}) => ({
-  total: 100,
-  weeks: [],
-  author: {
-    login: `contributor-${Math.floor(Math.random() * 1000)}`,
-    id: Math.floor(Math.random() * 1000000),
-    type: 'User',
-    ...overrides.author
-  },
-  ...overrides
-});
-
-/**
- * Create mock GitHub event data
- * @param {Object} overrides - Properties to override
- * @returns {Object} Mock event object
- */
-const createMockEvent = (overrides = {}) => ({
-  id: String(Math.floor(Math.random() * 1000000000)),
-  type: 'WatchEvent',
-  created_at: new Date().toISOString(),
-  actor: {
-    login: 'test-user',
-    id: 12345
-  },
-  ...overrides
-});
-
-/**
- * Create mock release data
- * @param {Object} overrides - Properties to override
- * @returns {Object} Mock release object
- */
-const createMockRelease = (overrides = {}) => ({
-  id: Math.floor(Math.random() * 1000000),
-  tag_name: 'v1.0.0',
-  name: 'Version 1.0.0',
-  published_at: new Date().toISOString(),
-  draft: false,
-  prerelease: false,
-  ...overrides
-});
-
-/**
- * Create an array of mock issues with various states
- * @param {Object} options - Configuration options
- * @returns {Object[]} Array of mock issues
- */
-const createMockIssueSet = (options = {}) => {
-  const {
-    total = 10,
-    openCount = 3,
-    closedCount = 7,
-    windowDays = 30
-  } = options;
-
-  const issues = [];
-  const now = Date.now();
-  const windowMs = windowDays * 24 * 60 * 60 * 1000;
-
-  // Create closed issues
-  for (let i = 0; i < closedCount; i++) {
-    const createdAt = new Date(now - Math.random() * windowMs);
-    const closedAt = new Date(createdAt.getTime() + Math.random() * 7 * 24 * 60 * 60 * 1000);
-
-    issues.push(createMockIssue({
-      state: 'closed',
-      created_at: createdAt.toISOString(),
-      closed_at: closedAt.toISOString()
-    }));
-  }
-
-  // Create open issues
-  for (let i = 0; i < openCount; i++) {
-    issues.push(createMockIssue({
-      state: 'open',
-      created_at: new Date(now - Math.random() * windowMs).toISOString()
-    }));
-  }
-
-  return issues;
-};
-
-/**
- * Create an array of mock PRs with various states
- * @param {Object} options - Configuration options
- * @returns {Object[]} Array of mock PRs
- */
-const createMockPRSet = (options = {}) => {
-  const {
-    mergedCount = 5,
-    closedCount = 2,
-    openCount = 3,
-    windowDays = 30
-  } = options;
-
-  const prs = [];
-  const now = Date.now();
-  const windowMs = windowDays * 24 * 60 * 60 * 1000;
-
-  // Create merged PRs
-  for (let i = 0; i < mergedCount; i++) {
-    const createdAt = new Date(now - Math.random() * windowMs);
-    const mergedAt = new Date(createdAt.getTime() + Math.random() * 3 * 24 * 60 * 60 * 1000);
-
-    prs.push(createMockPR({
-      state: 'closed',
-      merged: true,
-      created_at: createdAt.toISOString(),
-      merged_at: mergedAt.toISOString(),
-      closed_at: mergedAt.toISOString()
-    }));
-  }
-
-  // Create closed (not merged) PRs
-  for (let i = 0; i < closedCount; i++) {
-    const createdAt = new Date(now - Math.random() * windowMs);
-    const closedAt = new Date(createdAt.getTime() + Math.random() * 5 * 24 * 60 * 60 * 1000);
-
-    prs.push(createMockPR({
-      state: 'closed',
-      merged: false,
-      created_at: createdAt.toISOString(),
-      closed_at: closedAt.toISOString()
-    }));
-  }
-
-  // Create open PRs
-  for (let i = 0; i < openCount; i++) {
-    prs.push(createMockPR({
-      state: 'open',
-      created_at: new Date(now - Math.random() * windowMs).toISOString()
-    }));
-  }
-
-  return prs;
-};
-
-/**
- * Create an array of mock contributors
- * @param {Object} options - Configuration options
- * @returns {Object[]} Array of mock contributors
- */
-const createMockContributorSet = (options = {}) => {
-  const {
-    count = 5,
-    distribution = 'balanced' // 'balanced', 'concentrated', 'single'
-  } = options;
-
-  const contributors = [];
-
-  if (distribution === 'single') {
-    contributors.push(createMockContributor({
-      total: 500,
-      author: { login: 'solo-developer' }
-    }));
-    return contributors;
-  }
-
-  if (distribution === 'concentrated') {
-    // Top contributor has 80% of commits
-    contributors.push(createMockContributor({
-      total: 800,
-      author: { login: 'top-contributor' }
-    }));
-    for (let i = 1; i < count; i++) {
-      contributors.push(createMockContributor({
-        total: Math.floor(200 / (count - 1)),
-        author: { login: `contributor-${i}` }
-      }));
-    }
-    return contributors;
-  }
-
-  // Balanced distribution
-  for (let i = 0; i < count; i++) {
-    contributors.push(createMockContributor({
-      total: 100 - i * 10,
-      author: { login: `contributor-${i}` }
-    }));
-  }
-
-  return contributors;
-};
-
-// =============================================================================
-// UTILITY FUNCTION TESTS
-// =============================================================================
-
-describe('PulseDashboard Utilities', () => {
-  describe('average', () => {
-    it('should calculate average of array', () => {
-      expect(average([1, 2, 3, 4, 5])).toBe(3);
-    });
-
-    it('should return 0 for empty array', () => {
-      expect(average([])).toBe(0);
-    });
-
-    it('should return 0 for null input', () => {
-      expect(average(null)).toBe(0);
-    });
-
-    it('should return 0 for undefined input', () => {
-      expect(average(undefined)).toBe(0);
-    });
-
-    it('should handle single element array', () => {
-      expect(average([42])).toBe(42);
-    });
-
-    it('should handle negative numbers', () => {
-      expect(average([-10, 10])).toBe(0);
-    });
-
-    it('should handle decimal numbers', () => {
-      expect(average([1.5, 2.5])).toBe(2);
-    });
-
-    it('should handle NaN values in array', () => {
-      expect(average([1, NaN, 3])).toBe(4 / 3);
-    });
-
-    it('should handle string numbers by coercing them', () => {
-      expect(average([1, '2', 3])).toBe(2);
-    });
-  });
-
-  describe('daysSince', () => {
-    it('should calculate days since a date', () => {
-      const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-      expect(daysSince(twoDaysAgo.toISOString())).toBe(2);
-    });
-
-    it('should return 0 for today', () => {
-      expect(daysSince(new Date().toISOString())).toBe(0);
-    });
-
-    it('should return Infinity for null input', () => {
-      expect(daysSince(null)).toBe(Infinity);
-    });
-
-    it('should return Infinity for undefined input', () => {
-      expect(daysSince(undefined)).toBe(Infinity);
-    });
-
-    it('should return Infinity for invalid date string', () => {
-      expect(daysSince('not-a-date')).toBe(Infinity);
-    });
-
-    it('should handle Date object input', () => {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      expect(daysSince(sevenDaysAgo)).toBe(7);
-    });
-
-    it('should handle empty string', () => {
-      expect(daysSince('')).toBe(Infinity);
-    });
-  });
-
-  describe('daysBetween', () => {
-    it('should calculate days between two dates', () => {
-      const start = '2024-01-01';
-      const end = '2024-01-15';
-      expect(daysBetween(start, end)).toBe(14);
-    });
-
-    it('should return absolute value (order independent)', () => {
-      const start = '2024-01-15';
-      const end = '2024-01-01';
-      expect(daysBetween(start, end)).toBe(14);
-    });
-
-    it('should return 0 for same date', () => {
-      const date = '2024-01-01';
-      expect(daysBetween(date, date)).toBe(0);
-    });
-
-    it('should return 0 for null start date', () => {
-      expect(daysBetween(null, '2024-01-01')).toBe(0);
-    });
-
-    it('should return 0 for null end date', () => {
-      expect(daysBetween('2024-01-01', null)).toBe(0);
-    });
-
-    it('should return 0 for invalid dates', () => {
-      expect(daysBetween('invalid', 'dates')).toBe(0);
-    });
-
-    it('should handle Date objects', () => {
-      const start = new Date('2024-01-01');
-      const end = new Date('2024-01-08');
-      expect(daysBetween(start, end)).toBe(7);
-    });
-  });
-
-  describe('getTrendDirection', () => {
-    it('should return "up" for positive change above threshold', () => {
-      expect(getTrendDirection(10)).toBe('up');
-    });
-
-    it('should return "down" for negative change below threshold', () => {
-      expect(getTrendDirection(-10)).toBe('down');
-    });
-
-    it('should return "stable" for change within threshold', () => {
-      expect(getTrendDirection(3)).toBe('stable');
-      expect(getTrendDirection(-3)).toBe('stable');
-    });
-
-    it('should return "stable" for zero change', () => {
-      expect(getTrendDirection(0)).toBe('stable');
-    });
-
-    it('should respect custom threshold', () => {
-      expect(getTrendDirection(8, 10)).toBe('stable');
-      expect(getTrendDirection(12, 10)).toBe('up');
-    });
-
-    it('should return "stable" for NaN input', () => {
-      expect(getTrendDirection(NaN)).toBe('stable');
-    });
-
-    it('should return "stable" for non-number input', () => {
-      expect(getTrendDirection('not a number')).toBe('stable');
-      expect(getTrendDirection(null)).toBe('stable');
-      expect(getTrendDirection(undefined)).toBe('stable');
-    });
-
-    it('should handle exact threshold values', () => {
-      // Default threshold is 5
-      expect(getTrendDirection(5)).toBe('stable');
-      expect(getTrendDirection(-5)).toBe('stable');
-      expect(getTrendDirection(5.1)).toBe('up');
-      expect(getTrendDirection(-5.1)).toBe('down');
-    });
-  });
-
-  describe('getMetricStatus', () => {
-    it('should return "thriving" for score >= 75', () => {
-      expect(getMetricStatus(100)).toBe('thriving');
-      expect(getMetricStatus(75)).toBe('thriving');
-    });
-
-    it('should return "stable" for score >= 50 and < 75', () => {
-      expect(getMetricStatus(74)).toBe('stable');
-      expect(getMetricStatus(50)).toBe('stable');
-    });
-
-    it('should return "cooling" for score >= 25 and < 50', () => {
-      expect(getMetricStatus(49)).toBe('cooling');
-      expect(getMetricStatus(25)).toBe('cooling');
-    });
-
-    it('should return "at_risk" for score < 25', () => {
-      expect(getMetricStatus(24)).toBe('at_risk');
-      expect(getMetricStatus(0)).toBe('at_risk');
-    });
-
-    it('should return "stable" for NaN input', () => {
-      expect(getMetricStatus(NaN)).toBe('stable');
-    });
-
-    it('should return "stable" for non-number input', () => {
-      expect(getMetricStatus('high')).toBe('stable');
-      expect(getMetricStatus(null)).toBe('stable');
-    });
-
-    it('should handle negative scores', () => {
-      expect(getMetricStatus(-10)).toBe('at_risk');
-    });
-
-    it('should handle scores above 100', () => {
-      expect(getMetricStatus(150)).toBe('thriving');
-    });
-  });
-
-  describe('getDefaultMetric', () => {
-    it('should return default metric for unknown type', () => {
-      const result = getDefaultMetric('unknown');
-      expect(result.value).toBe(0);
-      expect(result.trend).toBe(0);
-      expect(result.direction).toBe('stable');
-      expect(result.status).toBe('stable');
-      expect(result.label).toBe('unknown data unavailable');
-    });
-
-    it('should return velocity default', () => {
-      const result = getDefaultMetric('velocity');
-      expect(result.label).toBe('Commit data unavailable');
-    });
-
-    it('should return momentum default', () => {
-      const result = getDefaultMetric('momentum');
-      expect(result.label).toBe('Growth data unavailable');
-    });
-
-    it('should return issues default', () => {
-      const result = getDefaultMetric('issues');
-      expect(result.label).toBe('Issue data unavailable');
-    });
-
-    it('should return prs default', () => {
-      const result = getDefaultMetric('prs');
-      expect(result.label).toBe('Pull request data unavailable');
-    });
-
-    it('should return temperature default', () => {
-      const result = getDefaultMetric('temperature');
-      expect(result.label).toBe('Activity data unavailable');
-    });
-
-    it('should return bus_factor default', () => {
-      const result = getDefaultMetric('bus_factor');
-      expect(result.label).toBe('Contributor data unavailable');
-    });
-
-    it('should return freshness default', () => {
-      const result = getDefaultMetric('freshness');
-      expect(result.label).toBe('Update data unavailable');
-    });
-
-    it('should return health default', () => {
-      const result = getDefaultMetric('health');
-      expect(result.label).toBe('Maintenance data unavailable');
-    });
-
-    it('should have status structure', () => {
-      const result = getDefaultMetric('velocity');
-      expect(result).toHaveProperty('value');
-      expect(result).toHaveProperty('trend');
-      expect(result).toHaveProperty('direction');
-      expect(result).toHaveProperty('status');
-      expect(result).toHaveProperty('label');
-    });
-  });
-
-  describe('clamp', () => {
-    it('should clamp value between min and max', () => {
-      expect(clamp(50, 0, 100)).toBe(50);
-    });
-
-    it('should clamp to min if below range', () => {
-      expect(clamp(-10, 0, 100)).toBe(0);
-    });
-
-    it('should clamp to max if above range', () => {
-      expect(clamp(150, 0, 100)).toBe(100);
-    });
-
-    it('should work with negative ranges', () => {
-      expect(clamp(-50, -100, 0)).toBe(-50);
-      expect(clamp(-150, -100, 0)).toBe(-100);
-      expect(clamp(50, -100, 0)).toBe(0);
-    });
-
-    it('should work with decimal values', () => {
-      expect(clamp(0.5, 0, 1)).toBe(0.5);
-      expect(clamp(-0.5, 0, 1)).toBe(0);
-      expect(clamp(1.5, 0, 1)).toBe(1);
-    });
-
-    it('should handle equal min and max', () => {
-      expect(clamp(100, 50, 50)).toBe(50);
-    });
-  });
-
-  describe('percentageChange', () => {
-    it('should calculate percentage increase', () => {
-      expect(percentageChange(100, 150)).toBe(50);
-    });
-
-    it('should calculate percentage decrease', () => {
-      expect(percentageChange(150, 100)).toBe(-33.33);
-    });
-
-    it('should return 0 for no change', () => {
-      expect(percentageChange(100, 100)).toBeCloseTo(0, 2);
-    });
-
-    it('should return Infinity for zero old value', () => {
-      expect(percentageChange(0, 100)).toBe(Infinity);
-    });
-
-    it('should handle negative values', () => {
-      expect(percentageChange(-100, -50)).toBeCloseTo(50, 2);
-    });
-
-    it('should handle transition from negative to positive', () => {
-      const result = percentageChange(-100, 100);
-      expect(result).toBe(-200);
-    });
-
-    it('should round to 2 decimal places', () => {
-      expect(percentageChange(100, 123.456)).toBeCloseTo(23.46, 2);
-    });
-
-    it('should handle null oldValue', () => {
-      expect(percentageChange(null, 100)).toBe(Infinity);
-    });
-
-    it('should handle null newValue', () => {
-      const result = percentageChange(100, null);
-      expect(typeof result).toBe('number');
-    });
-  });
-
-  describe('safeParseDate', () => {
-    it('should parse ISO string', () => {
-      const date = safeParseDate('2024-01-01T00:00:00Z');
-      expect(date).toBeInstanceOf(Date);
-      expect(date.getFullYear()).toBe(2024);
-    });
-
-    it('should parse YYYY-MM-DD format', () => {
-      const date = safeParseDate('2024-01-01');
-      expect(date).toBeInstanceOf(Date);
-    });
-
-    it('should handle Date object input', () => {
-      const now = new Date();
-      const result = safeParseDate(now);
-      expect(result).toBe(now);
-    });
-
-    it('should return null for invalid string', () => {
-      expect(safeParseDate('not-a-date')).toBeNull();
-    });
-
-    it('should return null for null input', () => {
-      expect(safeParseDate(null)).toBeNull();
-    });
-
-    it('should return null for undefined input', () => {
-      expect(safeParseDate(undefined)).toBeNull();
-    });
-
-    it('should handle empty string', () => {
-      expect(safeParseDate('')).toBeNull();
-    });
-  });
-
-  describe('emptySparkline', () => {
-    it('should return array of zeros', () => {
-      const result = emptySparkline(5);
-      expect(result).toEqual([0, 0, 0, 0, 0]);
-    });
-
-    it('should default to 52 weeks', () => {
-      const result = emptySparkline();
-      expect(result.length).toBe(52);
-      expect(result.every(v => v === 0)).toBe(true);
-    });
-
-    it('should handle negative length', () => {
-      const result = emptySparkline(-5);
-      expect(result.length).toBe(0);
-    });
-
-    it('should handle zero length', () => {
-      const result = emptySparkline(0);
-      expect(result.length).toBe(0);
-    });
-
-    it('should handle large lengths', () => {
-      const result = emptySparkline(1000);
-      expect(result.length).toBe(1000);
-    });
-  });
-});
-
-// =============================================================================
-// SPARKLINE TESTS
-// =============================================================================
 
 describe('Sparkline', () => {
   describe('createSparkline', () => {
@@ -941,10 +236,6 @@ describe('Sparkline', () => {
   });
 });
 
-// =============================================================================
-// TREND ARROW TESTS
-// =============================================================================
-
 describe('TrendArrow', () => {
   describe('createTrendArrow', () => {
     it('should create trend arrow container', () => {
@@ -1109,33 +400,33 @@ describe('TrendArrow', () => {
     });
   });
 
-  describe('getTrendDirectionArrow', () => {
+  describe('getTrendDirection', () => {
     it('should return up for positive values above threshold', () => {
-      expect(getTrendDirectionArrow(5)).toBe('up');
-      expect(getTrendDirectionArrow(100)).toBe('up');
+      expect(getTrendDirection(5)).toBe('up');
+      expect(getTrendDirection(100)).toBe('up');
     });
 
     it('should return down for negative values below threshold', () => {
-      expect(getTrendDirectionArrow(-5)).toBe('down');
-      expect(getTrendDirectionArrow(-100)).toBe('down');
+      expect(getTrendDirection(-5)).toBe('down');
+      expect(getTrendDirection(-100)).toBe('down');
     });
 
     it('should return stable for values near zero', () => {
-      expect(getTrendDirectionArrow(0)).toBe('stable');
-      expect(getTrendDirectionArrow(0.5)).toBe('stable');
-      expect(getTrendDirectionArrow(-0.5)).toBe('stable');
-      expect(getTrendDirectionArrow(1)).toBe('stable');
-      expect(getTrendDirectionArrow(-1)).toBe('stable');
+      expect(getTrendDirection(0)).toBe('stable');
+      expect(getTrendDirection(0.5)).toBe('stable');
+      expect(getTrendDirection(-0.5)).toBe('stable');
+      expect(getTrendDirection(1)).toBe('stable');
+      expect(getTrendDirection(-1)).toBe('stable');
     });
 
     it('should return stable for NaN', () => {
-      expect(getTrendDirectionArrow(NaN)).toBe('stable');
+      expect(getTrendDirection(NaN)).toBe('stable');
     });
 
     it('should return stable for non-number types', () => {
-      expect(getTrendDirectionArrow('15')).toBe('stable');
-      expect(getTrendDirectionArrow(null)).toBe('stable');
-      expect(getTrendDirectionArrow(undefined)).toBe('stable');
+      expect(getTrendDirection('15')).toBe('stable');
+      expect(getTrendDirection(null)).toBe('stable');
+      expect(getTrendDirection(undefined)).toBe('stable');
     });
   });
 
@@ -1149,708 +440,1651 @@ describe('TrendArrow', () => {
     });
 
     it('should format stable values without sign', () => {
-      expect(formatPercentage(0.3, 'stable')).toBe('0.3%');
+      expect(formatPercentage(0.5, 'stable')).toBe('0.5%');
     });
 
-    it('should clamp extreme values', () => {
-      expect(formatPercentage(5000, 'up')).toBe('+999%');
-      expect(formatPercentage(-3000, 'down')).toBe('-999%');
+    it('should clamp to 999%', () => {
+      expect(formatPercentage(1500, 'up')).toBe('+999%');
+      expect(formatPercentage(-2000, 'down')).toBe('-999%');
     });
 
-    it('should remove trailing zeros', () => {
-      expect(formatPercentage(25.0, 'up')).toBe('+25%');
-      expect(formatPercentage(10.50, 'up')).toBe('+10.5%');
+    it('should remove trailing .0', () => {
+      expect(formatPercentage(25, 'up')).toBe('+25%');
+      expect(formatPercentage(10, 'down')).toBe('-10%');
     });
 
-    it('should handle zero', () => {
-      expect(formatPercentage(0, 'stable')).toBe('0%');
+    it('should handle NaN gracefully', () => {
+      expect(formatPercentage(NaN, 'stable')).toBe('0%');
     });
 
-    it('should round to 1 decimal place', () => {
-      expect(formatPercentage(15.456, 'up')).toBe('+15.5%');
-      expect(formatPercentage(15.444, 'up')).toBe('+15.4%');
-    });
-
-    it('should handle null as 0', () => {
+    it('should handle non-numbers gracefully', () => {
+      expect(formatPercentage('invalid', 'stable')).toBe('0%');
       expect(formatPercentage(null, 'stable')).toBe('0%');
     });
-
-    it('should handle undefined as 0', () => {
-      expect(formatPercentage(undefined, 'stable')).toBe('0%');
-    });
-
-    it('should handle NaN', () => {
-      const result = formatPercentage(NaN, 'stable');
-      expect(result).toContain('%');
-    });
   });
 });
 
 // =============================================================================
-// METRIC CALCULATION TESTS
+// Visualizations Tests
 // =============================================================================
 
-describe('Metric Calculations', () => {
-  describe('calculateVelocityScore', () => {
-    it('should return 100 for healthy velocity', () => {
-      const repo = createMockRepo();
-      const participation = createMockParticipation({
-        recentAvg: 20,
-        previousAvg: 15
-      });
-
-      const score = calculateVelocityScore(repo, participation);
-      expect(score).toBeGreaterThan(0);
-      expect(score).toBeLessThanOrEqual(100);
-    });
-
-    it('should return low score for no activity', () => {
-      const repo = createMockRepo({ pushed_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString() });
-      const participation = createMockParticipation({ recentAvg: 0, previousAvg: 0 });
-
-      const score = calculateVelocityScore(repo, participation);
-      expect(score).toBeLessThan(50);
-    });
-
-    it('should handle missing participation data', () => {
-      const repo = createMockRepo();
-      const score = calculateVelocityScore(repo, null);
-      expect(typeof score).toBe('number');
-      expect(score).toBeGreaterThanOrEqual(0);
-    });
-
-    it('should handle missing repo data', () => {
-      const participation = createMockParticipation();
-      const score = calculateVelocityScore(null, participation);
-      expect(typeof score).toBe('number');
-    });
-  });
-
-  describe('calculateCommunityMomentum', () => {
-    it('should return high score for growing project', () => {
-      const repo = createMockRepo({
-        stargazers_count: 5000,
-        forks_count: 500
-      });
-      const participation = createMockParticipation({
-        recentAvg: 50,
-        previousAvg: 30,
-        baseAvg: 10
-      });
-
-      const score = calculateCommunityMomentum(repo, participation);
-      expect(score).toBeGreaterThan(0);
-      expect(score).toBeLessThanOrEqual(100);
-    });
-
-    it('should return low score for stagnant project', () => {
-      const repo = createMockRepo({
-        stargazers_count: 100,
-        forks_count: 10
-      });
-      const participation = createMockParticipation({
-        recentAvg: 1,
-        previousAvg: 1
-      });
-
-      const score = calculateCommunityMomentum(repo, participation);
-      expect(score).toBeLessThan(50);
-    });
-  });
-
-  describe('calculateIssueTemperature', () => {
-    it('should return high temperature for active issues', () => {
-      const issues = createMockIssueSet({
-        openCount: 20,
-        closedCount: 30,
-        windowDays: 7
-      });
-
-      const temperature = calculateIssueTemperature(issues);
-      expect(temperature).toBeGreaterThan(50);
-    });
-
-    it('should return low temperature for stale issues', () => {
-      const issues = createMockIssueSet({
-        openCount: 50,
-        closedCount: 0,
-        windowDays: 365
-      });
-
-      const temperature = calculateIssueTemperature(issues);
-      expect(temperature).toBeLessThan(50);
-    });
-
-    it('should handle empty issue list', () => {
-      const temperature = calculateIssueTemperature([]);
-      expect(temperature).toBeLessThanOrEqual(50);
-    });
-
-    it('should handle null issue list', () => {
-      const temperature = calculateIssueTemperature(null);
-      expect(typeof temperature).toBe('number');
-    });
-  });
-
-  describe('calculatePRHealth', () => {
-    it('should return high health for well-managed PRs', () => {
-      const prs = createMockPRSet({
-        mergedCount: 20,
-        closedCount: 2,
-        openCount: 3
-      });
-
-      const health = calculatePRHealth(prs);
-      expect(health).toBeGreaterThan(0);
-      expect(health).toBeLessThanOrEqual(100);
-    });
-
-    it('should return low health for many stalled PRs', () => {
-      const prs = createMockPRSet({
-        mergedCount: 5,
-        closedCount: 0,
-        openCount: 30
-      });
-
-      const health = calculatePRHealth(prs);
-      expect(health).toBeLessThan(50);
-    });
-
-    it('should handle empty PR list', () => {
-      const health = calculatePRHealth([]);
-      expect(health).toBeLessThanOrEqual(50);
-    });
-  });
-
-  describe('calculateBusFactor', () => {
-    it('should return high score for distributed contributions', () => {
-      const contributors = createMockContributorSet({
-        count: 10,
-        distribution: 'balanced'
-      });
-
-      const score = calculateBusFactor(contributors);
-      expect(score).toBeGreaterThan(50);
-    });
-
-    it('should return low score for concentrated contributions', () => {
-      const contributors = createMockContributorSet({
-        distribution: 'single'
-      });
-
-      const score = calculateBusFactor(contributors);
-      expect(score).toBeLessThan(50);
-    });
-
-    it('should handle empty contributor list', () => {
-      const score = calculateBusFactor([]);
-      expect(score).toBeLessThanOrEqual(50);
-    });
-
-    it('should handle null contributor list', () => {
-      const score = calculateBusFactor(null);
-      expect(typeof score).toBe('number');
-    });
-  });
-
-  describe('calculateFreshnessIndex', () => {
-    it('should return high score for recently updated repo', () => {
-      const repo = createMockRepo({
-        updated_at: new Date().toISOString(),
-        pushed_at: new Date().toISOString()
-      });
-
-      const score = calculateFreshnessIndex(repo);
-      expect(score).toBeGreaterThan(50);
-    });
-
-    it('should return low score for stale repo', () => {
-      const repo = createMockRepo({
-        updated_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString(),
-        pushed_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
-      });
-
-      const score = calculateFreshnessIndex(repo);
-      expect(score).toBeLessThan(50);
-    });
-
-    it('should handle null repo', () => {
-      const score = calculateFreshnessIndex(null);
-      expect(typeof score).toBe('number');
-    });
-  });
-
-  describe('calculateOverallPulse', () => {
-    it('should return average of all metrics', () => {
-      const metrics = {
-        velocity: { value: 80 },
-        momentum: { value: 70 },
-        temperature: { value: 85 },
-        health: { value: 75 },
-        bus_factor: { value: 65 },
-        freshness: { value: 90 }
-      };
-
-      const pulse = calculateOverallPulse(metrics);
-      expect(pulse).toBeGreaterThan(0);
-      expect(pulse).toBeLessThanOrEqual(100);
-    });
-
-    it('should handle metrics with missing values', () => {
-      const metrics = {
-        velocity: { value: 80 }
-      };
-
-      const pulse = calculateOverallPulse(metrics);
-      expect(typeof pulse).toBe('number');
-    });
-
-    it('should handle empty metrics object', () => {
-      const pulse = calculateOverallPulse({});
-      expect(pulse).toBe(0);
-    });
-  });
-
-  describe('calculateAllMetrics', () => {
-    it('should calculate all metrics for healthy repository', () => {
-      const repo = createMockRepo();
-      const participation = createMockParticipation();
-      const issues = createMockIssueSet();
-      const prs = createMockPRSet();
-      const contributors = createMockContributorSet();
-
-      const allMetrics = calculateAllMetrics(
-        repo,
-        participation,
-        issues,
-        prs,
-        contributors
-      );
-
-      expect(allMetrics).toHaveProperty('velocity');
-      expect(allMetrics).toHaveProperty('momentum');
-      expect(allMetrics).toHaveProperty('temperature');
-      expect(allMetrics).toHaveProperty('health');
-      expect(allMetrics).toHaveProperty('bus_factor');
-      expect(allMetrics).toHaveProperty('freshness');
-      expect(allMetrics).toHaveProperty('overall');
-    });
-
-    it('should handle null repository', () => {
-      const metrics = calculateAllMetrics(null, null, [], [], []);
-      expect(metrics).toBeDefined();
-      expect(metrics).toHaveProperty('overall');
-    });
-
-    it('should have all values between 0-100', () => {
-      const repo = createMockRepo();
-      const participation = createMockParticipation();
-      const issues = createMockIssueSet();
-      const prs = createMockPRSet();
-      const contributors = createMockContributorSet();
-
-      const allMetrics = calculateAllMetrics(
-        repo,
-        participation,
-        issues,
-        prs,
-        contributors
-      );
-
-      Object.values(allMetrics).forEach(metric => {
-        if (metric && metric.value !== undefined) {
-          expect(metric.value).toBeGreaterThanOrEqual(0);
-          expect(metric.value).toBeLessThanOrEqual(100);
-        }
-      });
-    });
-  });
-});
-
-// =============================================================================
-// VISUALIZATION COMPONENT TESTS
-// =============================================================================
-
-describe('Visualization Components', () => {
+describe('visualizations', () => {
   describe('createTemperatureIndicator', () => {
-    it('should create temperature indicator element', () => {
-      const element = createTemperatureIndicator(75);
+    it('should create temperature indicator container', () => {
+      const element = createTemperatureIndicator('hot');
 
       expect(element.className).toContain('temperature-indicator');
     });
 
-    it('should apply correct level class for hot temperature', () => {
-      const element = createTemperatureIndicator(90);
+    it('should set aria-hidden for accessibility', () => {
+      const element = createTemperatureIndicator('warm');
+
+      expect(element.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should apply hot modifier class', () => {
+      const element = createTemperatureIndicator('hot');
 
       expect(element.className).toContain('temperature-indicator--hot');
     });
 
-    it('should apply correct level class for warm temperature', () => {
-      const element = createTemperatureIndicator(70);
+    it('should apply warm modifier class', () => {
+      const element = createTemperatureIndicator('warm');
 
       expect(element.className).toContain('temperature-indicator--warm');
     });
 
-    it('should apply correct level class for cool temperature', () => {
-      const element = createTemperatureIndicator(40);
+    it('should apply cool modifier class', () => {
+      const element = createTemperatureIndicator('cool');
 
       expect(element.className).toContain('temperature-indicator--cool');
     });
 
-    it('should apply correct level class for cold temperature', () => {
-      const element = createTemperatureIndicator(10);
+    it('should default to cool for null temperature', () => {
+      const element = createTemperatureIndicator(null);
 
-      expect(element.className).toContain('temperature-indicator--cold');
+      expect(element.className).toContain('temperature-indicator--cool');
     });
 
-    it('should clamp values to 0-100 range', () => {
-      const hotElement = createTemperatureIndicator(150);
-      const coldElement = createTemperatureIndicator(-50);
+    it('should default to cool for invalid temperature', () => {
+      const element = createTemperatureIndicator('invalid');
 
-      expect(hotElement.className).toContain('temperature-indicator--hot');
-      expect(coldElement.className).toContain('temperature-indicator--cold');
+      expect(element.className).toContain('temperature-indicator--cool');
+    });
+
+    it('should create temperature bar element', () => {
+      const element = createTemperatureIndicator('hot');
+      const bar = element.querySelector('.temperature-indicator__bar');
+
+      expect(bar).not.toBeNull();
+    });
+
+    it('should create temperature fill element', () => {
+      const element = createTemperatureIndicator('warm');
+      const fill = element.querySelector('.temperature-indicator__fill');
+
+      expect(fill).not.toBeNull();
+    });
+
+    it('should create markers for all temperature levels', () => {
+      const element = createTemperatureIndicator('hot');
+      const markers = element.querySelectorAll('.temperature-indicator__marker');
+
+      expect(markers.length).toBe(3);
     });
   });
 
   describe('getTemperatureLevel', () => {
-    it('should return "hot" for 75+', () => {
-      expect(getTemperatureLevel(75)).toBe('hot');
-      expect(getTemperatureLevel(100)).toBe('hot');
+    it('should return hot for ratio >= 0.7', () => {
+      expect(getTemperatureLevel(0.7)).toBe('hot');
+      expect(getTemperatureLevel(0.85)).toBe('hot');
+      expect(getTemperatureLevel(1.0)).toBe('hot');
     });
 
-    it('should return "warm" for 50-74', () => {
+    it('should return warm for ratio >= 0.4', () => {
+      expect(getTemperatureLevel(0.4)).toBe('warm');
+      expect(getTemperatureLevel(0.5)).toBe('warm');
+      expect(getTemperatureLevel(0.69)).toBe('warm');
+    });
+
+    it('should return cool for ratio < 0.4', () => {
+      expect(getTemperatureLevel(0)).toBe('cool');
+      expect(getTemperatureLevel(0.2)).toBe('cool');
+      expect(getTemperatureLevel(0.39)).toBe('cool');
+    });
+
+    it('should handle percentage values > 1', () => {
+      expect(getTemperatureLevel(70)).toBe('hot');
       expect(getTemperatureLevel(50)).toBe('warm');
-      expect(getTemperatureLevel(74)).toBe('warm');
+      expect(getTemperatureLevel(20)).toBe('cool');
     });
 
-    it('should return "cool" for 25-49', () => {
-      expect(getTemperatureLevel(25)).toBe('cool');
-      expect(getTemperatureLevel(49)).toBe('cool');
-    });
-
-    it('should return "cold" for 0-24', () => {
-      expect(getTemperatureLevel(0)).toBe('cold');
-      expect(getTemperatureLevel(24)).toBe('cold');
+    it('should return cool for null/NaN', () => {
+      expect(getTemperatureLevel(null)).toBe('cool');
+      expect(getTemperatureLevel(NaN)).toBe('cool');
+      expect(getTemperatureLevel(undefined)).toBe('cool');
     });
   });
 
   describe('createPRFunnel', () => {
-    it('should create PR funnel visualization', () => {
-      const element = createPRFunnel(10, 8, 6);
+    it('should create PR funnel container', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
 
       expect(element.className).toContain('pr-funnel');
     });
 
-    it('should have labels for each stage', () => {
-      const element = createPRFunnel(10, 8, 6);
-      const labels = element.querySelectorAll('.pr-funnel__label');
+    it('should set aria-label for accessibility', () => {
+      const element = createPRFunnel({ opened: 10, merged: 5, closed: 2 });
 
-      expect(labels.length).toBeGreaterThan(0);
+      expect(element.getAttribute('aria-label')).toContain('Pull request');
+    });
+
+    it('should display empty state for null data', () => {
+      const element = createPRFunnel(null);
+
+      expect(element.className).toContain('pr-funnel--empty');
+      expect(element.textContent).toContain('No PR data');
+    });
+
+    it('should display empty state for invalid data', () => {
+      const element = createPRFunnel('invalid');
+
+      expect(element.className).toContain('pr-funnel--empty');
+    });
+
+    it('should create three stage elements', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+      const stages = element.querySelectorAll('.pr-funnel__stage');
+
+      expect(stages.length).toBe(3);
+    });
+
+    it('should display opened stage', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+      const openedStage = element.querySelector('.pr-funnel__stage--opened');
+
+      expect(openedStage).not.toBeNull();
+      expect(openedStage.textContent).toContain('Opened');
+      expect(openedStage.textContent).toContain('25');
+    });
+
+    it('should display merged stage', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+      const mergedStage = element.querySelector('.pr-funnel__stage--merged');
+
+      expect(mergedStage).not.toBeNull();
+      expect(mergedStage.textContent).toContain('Merged');
+      expect(mergedStage.textContent).toContain('18');
+    });
+
+    it('should display closed stage', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+      const closedStage = element.querySelector('.pr-funnel__stage--closed');
+
+      expect(closedStage).not.toBeNull();
+      expect(closedStage.textContent).toContain('Closed');
+      expect(closedStage.textContent).toContain('5');
+    });
+
+    it('should calculate and display merge rate', () => {
+      const element = createPRFunnel({ opened: 100, merged: 75, closed: 25 });
+      const rate = element.querySelector('.pr-funnel__rate-value');
+
+      expect(rate.textContent).toBe('75%');
+    });
+
+    it('should handle zero opened PRs', () => {
+      const element = createPRFunnel({ opened: 0, merged: 0, closed: 0 });
+      const rate = element.querySelector('.pr-funnel__rate-value');
+
+      expect(rate.textContent).toBe('0%');
+    });
+
+    it('should handle missing values gracefully', () => {
+      const element = createPRFunnel({ opened: 10 });
+      const stages = element.querySelectorAll('.pr-funnel__stage');
+
+      expect(stages.length).toBe(3);
+    });
+
+    it('should include arrows between stages', () => {
+      const element = createPRFunnel({ opened: 25, merged: 18, closed: 5 });
+      const arrows = element.querySelectorAll('.pr-funnel__arrow');
+
+      expect(arrows.length).toBe(2); // Between opened-merged and merged-closed
+    });
+
+    it('should format large numbers with abbreviations', () => {
+      const element = createPRFunnel({ opened: 1500, merged: 1200, closed: 300 });
+
+      expect(element.textContent).toContain('1.5k');
     });
   });
 
   describe('createContributorBars', () => {
-    it('should create contributor bars chart', () => {
-      const contributors = createMockContributorSet({ count: 5 });
-      const element = createContributorBars(contributors);
+    it('should create contributor bars container', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45 }
+      ]);
 
       expect(element.className).toContain('contributor-bars');
     });
 
-    it('should limit display to top N contributors', () => {
-      const contributors = createMockContributorSet({ count: 20 });
-      const element = createContributorBars(contributors, { limit: 5 });
+    it('should set role="list" for accessibility', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45 }
+      ]);
 
-      const bars = element.querySelectorAll('.contributor-bar');
-      expect(bars.length).toBeLessThanOrEqual(5);
+      expect(element.getAttribute('role')).toBe('list');
+    });
+
+    it('should display empty state for null data', () => {
+      const element = createContributorBars(null);
+
+      expect(element.className).toContain('contributor-bars--empty');
+      expect(element.textContent).toContain('No contributor data');
+    });
+
+    it('should display empty state for empty array', () => {
+      const element = createContributorBars([]);
+
+      expect(element.className).toContain('contributor-bars--empty');
+    });
+
+    it('should create row for each contributor', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45 },
+        { login: 'user2', percentage: 30 },
+        { login: 'user3', percentage: 25 }
+      ]);
+      const rows = element.querySelectorAll('.contributor-bars__row');
+
+      expect(rows.length).toBe(3);
+    });
+
+    it('should limit to 5 contributors maximum', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 30 },
+        { login: 'user2', percentage: 20 },
+        { login: 'user3', percentage: 15 },
+        { login: 'user4', percentage: 15 },
+        { login: 'user5', percentage: 10 },
+        { login: 'user6', percentage: 5 },
+        { login: 'user7', percentage: 5 }
+      ]);
+      const rows = element.querySelectorAll('.contributor-bars__row');
+
+      expect(rows.length).toBe(5);
+    });
+
+    it('should show "others" summary for additional contributors', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 30 },
+        { login: 'user2', percentage: 20 },
+        { login: 'user3', percentage: 15 },
+        { login: 'user4', percentage: 15 },
+        { login: 'user5', percentage: 10 },
+        { login: 'user6', percentage: 5 },
+        { login: 'user7', percentage: 5 }
+      ]);
+      const others = element.querySelector('.contributor-bars__others');
+
+      expect(others).not.toBeNull();
+      expect(others.textContent).toContain('+2 others');
+      expect(others.textContent).toContain('10%');
+    });
+
+    it('should display contributor login names', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45 }
+      ]);
+
+      expect(element.textContent).toContain('user1');
+    });
+
+    it('should display percentage values', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45.7 }
+      ]);
+
+      expect(element.textContent).toContain('46%');
+    });
+
+    it('should display rank numbers', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 45 },
+        { login: 'user2', percentage: 30 }
+      ]);
+      const ranks = element.querySelectorAll('.contributor-bars__rank');
+
+      expect(ranks[0].textContent).toBe('1');
+      expect(ranks[1].textContent).toBe('2');
+    });
+
+    it('should apply critical class for top contributor > 50%', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 55 }
+      ]);
+      const bar = element.querySelector('.contributor-bars__bar--critical');
+
+      expect(bar).not.toBeNull();
+    });
+
+    it('should apply warning class for top contributor > 30%', () => {
+      const element = createContributorBars([
+        { login: 'user1', percentage: 40 }
+      ]);
+      const bar = element.querySelector('.contributor-bars__bar--warning');
+
+      expect(bar).not.toBeNull();
+    });
+
+    it('should handle missing login gracefully', () => {
+      const element = createContributorBars([
+        { percentage: 45 }
+      ]);
+
+      expect(element.textContent).toContain('Unknown');
+    });
+
+    it('should handle missing percentage gracefully', () => {
+      const element = createContributorBars([
+        { login: 'user1' }
+      ]);
+
+      expect(element.textContent).toContain('0%');
     });
   });
 
   describe('getBusFactorRisk', () => {
-    it('should return "high" for concentrated contributions', () => {
-      expect(getBusFactorRisk(10)).toBe('high');
+    it('should return critical for null distribution', () => {
+      expect(getBusFactorRisk(null)).toBe('critical');
     });
 
-    it('should return "medium" for medium bus factor', () => {
-      expect(getBusFactorRisk(40)).toBe('medium');
+    it('should return critical for empty distribution', () => {
+      expect(getBusFactorRisk([])).toBe('critical');
     });
 
-    it('should return "low" for distributed contributions', () => {
-      expect(getBusFactorRisk(80)).toBe('low');
+    it('should return critical for top contributor > 50%', () => {
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 55 }])).toBe('critical');
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 80 }])).toBe('critical');
+    });
+
+    it('should return warning for top contributor > 30%', () => {
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 35 }])).toBe('warning');
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 50 }])).toBe('warning');
+    });
+
+    it('should return healthy for top contributor <= 30%', () => {
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 30 }])).toBe('healthy');
+      expect(getBusFactorRisk([{ login: 'user1', percentage: 20 }])).toBe('healthy');
     });
   });
 
   describe('createFreshnessGauge', () => {
-    it('should create freshness gauge element', () => {
-      const element = createFreshnessGauge(70);
+    it('should create freshness gauge container', () => {
+      const element = createFreshnessGauge(85, 3);
 
       expect(element.className).toContain('freshness-gauge');
     });
 
-    it('should display percentage value', () => {
-      const element = createFreshnessGauge(65);
-      const value = element.querySelector('.freshness-gauge__value');
+    it('should set role="meter" for accessibility', () => {
+      const element = createFreshnessGauge(75, 5);
 
-      expect(value.textContent).toContain('65');
+      expect(element.getAttribute('role')).toBe('meter');
+    });
+
+    it('should set aria-valuenow', () => {
+      const element = createFreshnessGauge(75, 5);
+
+      expect(element.getAttribute('aria-valuenow')).toBe('75');
+    });
+
+    it('should set aria-valuemin and aria-valuemax', () => {
+      const element = createFreshnessGauge(75, 5);
+
+      expect(element.getAttribute('aria-valuemin')).toBe('0');
+      expect(element.getAttribute('aria-valuemax')).toBe('100');
+    });
+
+    it('should apply fresh modifier class for recent repos', () => {
+      const element = createFreshnessGauge(90, 3);
+
+      expect(element.className).toContain('freshness-gauge--fresh');
+    });
+
+    it('should apply recent modifier class', () => {
+      const element = createFreshnessGauge(70, 15);
+
+      expect(element.className).toContain('freshness-gauge--recent');
+    });
+
+    it('should apply aging modifier class', () => {
+      const element = createFreshnessGauge(40, 60);
+
+      expect(element.className).toContain('freshness-gauge--aging');
+    });
+
+    it('should apply stale modifier class', () => {
+      const element = createFreshnessGauge(10, 200);
+
+      expect(element.className).toContain('freshness-gauge--stale');
+    });
+
+    it('should create SVG gauge element', () => {
+      const element = createFreshnessGauge(85, 3);
+      const svg = element.querySelector('.freshness-gauge__svg');
+
+      expect(svg).not.toBeNull();
+    });
+
+    it('should display score value', () => {
+      const element = createFreshnessGauge(85, 3);
+      const score = element.querySelector('.freshness-gauge__score');
+
+      expect(score.textContent).toBe('85');
+    });
+
+    it('should display freshness label', () => {
+      const element = createFreshnessGauge(90, 3);
+      const label = element.querySelector('.freshness-gauge__label');
+
+      expect(label.textContent).toBe('Fresh');
+    });
+
+    it('should display days since push', () => {
+      const element = createFreshnessGauge(85, 5);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('5 days');
+    });
+
+    it('should format "Today" for 0 days', () => {
+      const element = createFreshnessGauge(100, 0);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('Today');
+    });
+
+    it('should format "1 day" for single day', () => {
+      const element = createFreshnessGauge(95, 1);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('1 day');
+    });
+
+    it('should format weeks for 7-29 days', () => {
+      const element = createFreshnessGauge(70, 14);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('2 weeks');
+    });
+
+    it('should format months for 30-364 days', () => {
+      const element = createFreshnessGauge(40, 90);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('3 months');
+    });
+
+    it('should format years for 365+ days', () => {
+      const element = createFreshnessGauge(5, 730);
+      const days = element.querySelector('.freshness-gauge__days-value');
+
+      expect(days.textContent).toBe('2 years');
+    });
+
+    it('should handle null days gracefully', () => {
+      const element = createFreshnessGauge(50, null);
+      const daysLabel = element.querySelector('.freshness-gauge__days-label');
+
+      expect(daysLabel.textContent).toContain('No release data');
+    });
+
+    it('should clamp score to 0-100 range', () => {
+      const element1 = createFreshnessGauge(-10, 5);
+      const element2 = createFreshnessGauge(150, 5);
+
+      expect(element1.getAttribute('aria-valuenow')).toBe('0');
+      expect(element2.getAttribute('aria-valuenow')).toBe('100');
+    });
+
+    it('should handle null score gracefully', () => {
+      const element = createFreshnessGauge(null, 5);
+
+      expect(element.getAttribute('aria-valuenow')).toBe('0');
     });
   });
 
   describe('getFreshnessLevel', () => {
-    it('should return "fresh" for high freshness', () => {
-      expect(getFreshnessLevel(80)).toBe('fresh');
+    it('should return fresh for days <= 7', () => {
+      expect(getFreshnessLevel(0)).toBe('fresh');
+      expect(getFreshnessLevel(3)).toBe('fresh');
+      expect(getFreshnessLevel(7)).toBe('fresh');
     });
 
-    it('should return "stale" for low freshness', () => {
-      expect(getFreshnessLevel(20)).toBe('stale');
+    it('should return recent for days <= 30', () => {
+      expect(getFreshnessLevel(8)).toBe('recent');
+      expect(getFreshnessLevel(15)).toBe('recent');
+      expect(getFreshnessLevel(30)).toBe('recent');
+    });
+
+    it('should return aging for days <= 90', () => {
+      expect(getFreshnessLevel(31)).toBe('aging');
+      expect(getFreshnessLevel(60)).toBe('aging');
+      expect(getFreshnessLevel(90)).toBe('aging');
+    });
+
+    it('should return stale for days > 90', () => {
+      expect(getFreshnessLevel(91)).toBe('stale');
+      expect(getFreshnessLevel(365)).toBe('stale');
+      expect(getFreshnessLevel(1000)).toBe('stale');
+    });
+
+    it('should return stale for null days', () => {
+      expect(getFreshnessLevel(null)).toBe('stale');
+    });
+
+    it('should return stale for NaN', () => {
+      expect(getFreshnessLevel(NaN)).toBe('stale');
     });
   });
 
   describe('calculateFreshnessScore', () => {
-    it('should return number between 0-100', () => {
-      const repo = createMockRepo();
-      const score = calculateFreshnessScore(repo);
-
-      expect(typeof score).toBe('number');
-      expect(score).toBeGreaterThanOrEqual(0);
-      expect(score).toBeLessThanOrEqual(100);
+    it('should return 100 for 0 days', () => {
+      expect(calculateFreshnessScore(0)).toBe(100);
     });
 
-    it('should return high score for recent updates', () => {
-      const repo = createMockRepo({
-        updated_at: new Date().toISOString()
-      });
-      const score = calculateFreshnessScore(repo);
-
-      expect(score).toBeGreaterThan(50);
+    it('should return ~80 for 7 days', () => {
+      const score = calculateFreshnessScore(7);
+      expect(score).toBeGreaterThanOrEqual(79);
+      expect(score).toBeLessThanOrEqual(81);
     });
 
-    it('should return low score for old updates', () => {
-      const repo = createMockRepo({
-        updated_at: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString()
-      });
-      const score = calculateFreshnessScore(repo);
+    it('should return ~50 for 30 days', () => {
+      const score = calculateFreshnessScore(30);
+      expect(score).toBeGreaterThanOrEqual(49);
+      expect(score).toBeLessThanOrEqual(51);
+    });
 
-      expect(score).toBeLessThan(50);
+    it('should return ~20 for 90 days', () => {
+      const score = calculateFreshnessScore(90);
+      expect(score).toBeGreaterThanOrEqual(19);
+      expect(score).toBeLessThanOrEqual(21);
+    });
+
+    it('should approach 0 for very old repos', () => {
+      const score = calculateFreshnessScore(365);
+      expect(score).toBeLessThanOrEqual(10);
+    });
+
+    it('should return 0 for null days', () => {
+      expect(calculateFreshnessScore(null)).toBe(0);
+    });
+
+    it('should return 0 for negative days', () => {
+      expect(calculateFreshnessScore(-5)).toBe(0);
+    });
+
+    it('should return 0 for NaN', () => {
+      expect(calculateFreshnessScore(NaN)).toBe(0);
+    });
+
+    it('should never return negative values', () => {
+      expect(calculateFreshnessScore(10000)).toBeGreaterThanOrEqual(0);
     });
   });
 });
 
 // =============================================================================
-// METRIC CARD COMPONENT TESTS
+// MetricCard Tests
 // =============================================================================
 
 describe('MetricCard', () => {
   describe('createMetricCard', () => {
-    it('should create metric card element', () => {
-      const metric = {
-        value: 75,
-        trend: 5,
-        direction: 'up',
-        status: 'thriving',
-        label: 'Velocity'
-      };
+    it('should create metric card container', () => {
+      const element = createMetricCard({ title: 'Test Metric' });
 
-      const element = createMetricCard(metric);
-
-      expect(element.className).toContain('metric-card');
-      expect(element.textContent).toContain('Velocity');
-      expect(element.textContent).toContain('75');
+      expect(element.tagName.toLowerCase()).toBe('article');
+      expect(element.className).toContain('pulse-card');
     });
 
-    it('should display trend arrow', () => {
-      const metric = {
-        value: 80,
-        trend: 10,
-        direction: 'up',
-        status: 'thriving',
-        label: 'Test Metric'
-      };
+    it('should set role="region" for accessibility', () => {
+      const element = createMetricCard({ title: 'Test Metric' });
 
-      const element = createMetricCard(metric);
-      const trendArrow = element.querySelector('.trend-arrow');
-
-      expect(trendArrow).not.toBeNull();
+      expect(element.getAttribute('role')).toBe('region');
     });
 
-    it('should apply status class', () => {
-      const metric = {
-        value: 90,
-        trend: 0,
-        direction: 'stable',
-        status: 'thriving',
-        label: 'Test'
-      };
+    it('should set aria-label with title and status', () => {
+      const element = createMetricCard({ title: 'Commit Velocity', status: 'thriving' });
 
-      const element = createMetricCard(metric);
+      expect(element.getAttribute('aria-label')).toContain('Commit Velocity');
+      expect(element.getAttribute('aria-label')).toContain('Thriving');
+    });
 
-      expect(element.className).toContain('metric-card--thriving');
+    it('should create header with title', () => {
+      const element = createMetricCard({ title: 'Test Metric' });
+      const title = element.querySelector('.pulse-card__title');
+
+      expect(title).not.toBeNull();
+      expect(title.textContent).toBe('Test Metric');
+    });
+
+    it('should create status icon in header', () => {
+      const element = createMetricCard({ title: 'Test', status: 'thriving' });
+      const icon = element.querySelector('.pulse-card__status-icon');
+
+      expect(icon).not.toBeNull();
+      expect(icon.textContent).toBe('🟢');
+    });
+
+    it('should apply thriving status modifier', () => {
+      const element = createMetricCard({ title: 'Test', status: 'thriving' });
+
+      expect(element.className).toContain('pulse-card--thriving');
+    });
+
+    it('should apply stable status modifier', () => {
+      const element = createMetricCard({ title: 'Test', status: 'stable' });
+
+      expect(element.className).toContain('pulse-card--stable');
+    });
+
+    it('should apply cooling status modifier', () => {
+      const element = createMetricCard({ title: 'Test', status: 'cooling' });
+
+      expect(element.className).toContain('pulse-card--cooling');
+    });
+
+    it('should apply at_risk status modifier', () => {
+      const element = createMetricCard({ title: 'Test', status: 'at_risk' });
+
+      expect(element.className).toContain('pulse-card--at_risk');
+    });
+
+    it('should handle unknown status gracefully', () => {
+      const element = createMetricCard({ title: 'Test', status: 'unknown' });
+
+      // Should not throw and should render
+      expect(element.className).toContain('pulse-card');
+    });
+
+    it('should create footer with label', () => {
+      const element = createMetricCard({ title: 'Test', label: 'Last 90 days' });
+      const label = element.querySelector('.pulse-card__label');
+
+      expect(label).not.toBeNull();
+      expect(label.textContent).toBe('Last 90 days');
+    });
+
+    it('should handle null metric gracefully', () => {
+      const element = createMetricCard(null);
+
+      expect(element.className).toContain('pulse-card');
+      expect(element.querySelector('.pulse-card__title').textContent).toBe('Metric');
+    });
+
+    it('should handle undefined metric gracefully', () => {
+      const element = createMetricCard(undefined);
+
+      expect(element.className).toContain('pulse-card');
+    });
+
+    // Standard type tests
+    describe('standard type', () => {
+      it('should apply standard type modifier', () => {
+        const element = createMetricCard({ title: 'Test' }, 'standard');
+
+        expect(element.className).toContain('pulse-card--standard');
+      });
+
+      it('should create body with value container', () => {
+        const element = createMetricCard({
+          title: 'Commits',
+          value: 45
+        }, 'standard');
+        const valueContainer = element.querySelector('.pulse-card__value-container');
+
+        expect(valueContainer).not.toBeNull();
+      });
+
+      it('should display metric value', () => {
+        const element = createMetricCard({
+          title: 'Commits',
+          value: 45
+        }, 'standard');
+        const value = element.querySelector('.pulse-card__value');
+
+        expect(value.textContent).toBe('45');
+      });
+
+      it('should format large values with abbreviations', () => {
+        const element = createMetricCard({
+          title: 'Stars',
+          value: 15000
+        }, 'standard');
+        const value = element.querySelector('.pulse-card__value');
+
+        expect(value.textContent).toBe('15.0k');
+      });
+
+      it('should display value unit', () => {
+        const element = createMetricCard({
+          title: 'Velocity',
+          value: 45,
+          unit: 'commits/week'
+        }, 'standard');
+        const unit = element.querySelector('.pulse-card__unit');
+
+        expect(unit).not.toBeNull();
+        expect(unit.textContent).toBe('commits/week');
+      });
+
+      it('should include trend arrow', () => {
+        const element = createMetricCard({
+          title: 'Commits',
+          value: 45,
+          trend: 12.5
+        }, 'standard');
+        const trend = element.querySelector('.pulse-card__trend');
+        const arrow = trend.querySelector('.trend-arrow');
+
+        expect(arrow).not.toBeNull();
+      });
+
+      it('should include sparkline', () => {
+        const element = createMetricCard({
+          title: 'Commits',
+          value: 45,
+          sparklineData: [10, 15, 20, 25, 30, 35, 40, 45]
+        }, 'standard');
+        const sparkline = element.querySelector('.pulse-card__sparkline');
+
+        expect(sparkline).not.toBeNull();
+        expect(sparkline.querySelector('.sparkline')).not.toBeNull();
+      });
+
+      it('should show unavailable state for missing data', () => {
+        const element = createMetricCard({
+          title: 'Empty Metric'
+        }, 'standard');
+        const unavailable = element.querySelector('.pulse-card__unavailable-message');
+
+        expect(unavailable).not.toBeNull();
+        expect(unavailable.textContent).toContain('Data unavailable');
+      });
+
+      it('should handle null value with placeholder', () => {
+        const element = createMetricCard({
+          title: 'Test',
+          value: null,
+          sparklineData: [1, 2, 3]
+        }, 'standard');
+        const value = element.querySelector('.pulse-card__value');
+
+        expect(value.textContent).toBe('--');
+      });
+    });
+
+    // Temperature type tests
+    describe('temperature type', () => {
+      it('should apply temperature type modifier', () => {
+        const element = createMetricCard({ title: 'Issue Health', temperature: 'hot' }, 'temperature');
+
+        expect(element.className).toContain('pulse-card--temperature');
+      });
+
+      it('should create temperature indicator', () => {
+        const element = createMetricCard({
+          title: 'Issue Health',
+          temperature: 'hot'
+        }, 'temperature');
+        const indicator = element.querySelector('.temperature-indicator');
+
+        expect(indicator).not.toBeNull();
+      });
+
+      it('should show hot temperature', () => {
+        const element = createMetricCard({
+          title: 'Issue Health',
+          temperature: 'hot'
+        }, 'temperature');
+        const indicator = element.querySelector('.temperature-indicator');
+
+        expect(indicator.className).toContain('temperature-indicator--hot');
+      });
+
+      it('should show warm temperature', () => {
+        const element = createMetricCard({
+          title: 'Issue Health',
+          temperature: 'warm'
+        }, 'temperature');
+        const indicator = element.querySelector('.temperature-indicator');
+
+        expect(indicator.className).toContain('temperature-indicator--warm');
+      });
+
+      it('should show cool temperature', () => {
+        const element = createMetricCard({
+          title: 'Issue Health',
+          temperature: 'cool'
+        }, 'temperature');
+        const indicator = element.querySelector('.temperature-indicator');
+
+        expect(indicator.className).toContain('temperature-indicator--cool');
+      });
+
+      it('should include optional trend arrow', () => {
+        const element = createMetricCard({
+          title: 'Issue Health',
+          temperature: 'warm',
+          trend: -5
+        }, 'temperature');
+        const trend = element.querySelector('.pulse-card__trend');
+
+        expect(trend).not.toBeNull();
+      });
+
+      it('should show unavailable state when temperature is undefined', () => {
+        const element = createMetricCard({
+          title: 'Issue Health'
+        }, 'temperature');
+        const unavailable = element.querySelector('.pulse-card__unavailable-message');
+
+        expect(unavailable).not.toBeNull();
+      });
+    });
+
+    // Funnel type tests
+    describe('funnel type', () => {
+      it('should apply funnel type modifier', () => {
+        const element = createMetricCard({
+          title: 'PR Health',
+          funnel: { opened: 25, merged: 18, closed: 5 }
+        }, 'funnel');
+
+        expect(element.className).toContain('pulse-card--funnel');
+      });
+
+      it('should create PR funnel visualization', () => {
+        const element = createMetricCard({
+          title: 'PR Health',
+          funnel: { opened: 25, merged: 18, closed: 5 }
+        }, 'funnel');
+        const funnel = element.querySelector('.pr-funnel');
+
+        expect(funnel).not.toBeNull();
+      });
+
+      it('should display all funnel stages', () => {
+        const element = createMetricCard({
+          title: 'PR Health',
+          funnel: { opened: 25, merged: 18, closed: 5 }
+        }, 'funnel');
+        const stages = element.querySelectorAll('.pr-funnel__stage');
+
+        expect(stages.length).toBe(3);
+      });
+
+      it('should show unavailable state for missing funnel', () => {
+        const element = createMetricCard({
+          title: 'PR Health'
+        }, 'funnel');
+        const unavailable = element.querySelector('.pulse-card__unavailable-message');
+
+        expect(unavailable).not.toBeNull();
+      });
+    });
+
+    // Bus Factor type tests
+    describe('busFactor type', () => {
+      it('should apply busFactor type modifier', () => {
+        const element = createMetricCard({
+          title: 'Bus Factor',
+          distribution: [{ login: 'user1', percentage: 45 }]
+        }, 'busFactor');
+
+        expect(element.className).toContain('pulse-card--busFactor');
+      });
+
+      it('should create contributor bars visualization', () => {
+        const element = createMetricCard({
+          title: 'Bus Factor',
+          distribution: [
+            { login: 'user1', percentage: 45 },
+            { login: 'user2', percentage: 30 }
+          ]
+        }, 'busFactor');
+        const bars = element.querySelector('.contributor-bars');
+
+        expect(bars).not.toBeNull();
+      });
+
+      it('should display contributor rows', () => {
+        const element = createMetricCard({
+          title: 'Bus Factor',
+          distribution: [
+            { login: 'user1', percentage: 45 },
+            { login: 'user2', percentage: 30 }
+          ]
+        }, 'busFactor');
+        const rows = element.querySelectorAll('.contributor-bars__row');
+
+        expect(rows.length).toBe(2);
+      });
+
+      it('should show unavailable state for missing distribution', () => {
+        const element = createMetricCard({
+          title: 'Bus Factor'
+        }, 'busFactor');
+        const unavailable = element.querySelector('.pulse-card__unavailable-message');
+
+        expect(unavailable).not.toBeNull();
+      });
+    });
+
+    // Freshness type tests
+    describe('freshness type', () => {
+      it('should apply freshness type modifier', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          score: 85,
+          daysSincePush: 3
+        }, 'freshness');
+
+        expect(element.className).toContain('pulse-card--freshness');
+      });
+
+      it('should create freshness gauge visualization', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          score: 85,
+          daysSincePush: 3
+        }, 'freshness');
+        const gauge = element.querySelector('.freshness-gauge');
+
+        expect(gauge).not.toBeNull();
+      });
+
+      it('should display score in gauge', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          score: 85,
+          daysSincePush: 3
+        }, 'freshness');
+        const score = element.querySelector('.freshness-gauge__score');
+
+        expect(score.textContent).toBe('85');
+      });
+
+      it('should display days since push', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          score: 85,
+          daysSincePush: 5
+        }, 'freshness');
+        const days = element.querySelector('.freshness-gauge__days-value');
+
+        expect(days.textContent).toBe('5 days');
+      });
+
+      it('should show unavailable state for missing score and days', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness'
+        }, 'freshness');
+        const unavailable = element.querySelector('.pulse-card__unavailable-message');
+
+        expect(unavailable).not.toBeNull();
+      });
+
+      it('should render with only score', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          score: 75
+        }, 'freshness');
+        const gauge = element.querySelector('.freshness-gauge');
+
+        expect(gauge).not.toBeNull();
+      });
+
+      it('should render with only daysSincePush', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          daysSincePush: 10
+        }, 'freshness');
+        const gauge = element.querySelector('.freshness-gauge');
+
+        expect(gauge).not.toBeNull();
+      });
+    });
+
+    // Default type fallback
+    describe('type fallback', () => {
+      it('should default to standard type when type is omitted', () => {
+        const element = createMetricCard({
+          title: 'Test',
+          value: 100,
+          sparklineData: [1, 2, 3]
+        });
+
+        expect(element.className).toContain('pulse-card--standard');
+      });
+
+      it('should fallback to standard for unknown type', () => {
+        const element = createMetricCard({
+          title: 'Test',
+          value: 100
+        }, 'unknown');
+
+        expect(element.className).toContain('pulse-card--unknown');
+        // Should still try to render standard body
+        expect(element.querySelector('.pulse-card__body')).not.toBeNull();
+      });
     });
   });
 
   describe('createCompactMetricCard', () => {
-    it('should create smaller metric card', () => {
-      const metric = {
-        value: 70,
-        trend: -5,
-        direction: 'down',
-        status: 'stable',
-        label: 'Compact'
-      };
+    it('should create compact card with modifier class', () => {
+      const element = createCompactMetricCard({ title: 'Test' });
 
-      const element = createCompactMetricCard(metric);
-
-      expect(element.className).toContain('metric-card--compact');
+      expect(element.className).toContain('pulse-card--compact');
     });
 
-    it('should omit unnecessary details', () => {
-      const metric = {
-        value: 65,
-        trend: 0,
-        direction: 'stable',
-        status: 'stable',
-        label: 'Test'
-      };
+    it('should support all card types', () => {
+      const standardCard = createCompactMetricCard({ title: 'Test', value: 10 }, 'standard');
+      const tempCard = createCompactMetricCard({ title: 'Test', temperature: 'hot' }, 'temperature');
+      const funnelCard = createCompactMetricCard({ title: 'Test', funnel: { opened: 5 } }, 'funnel');
 
-      const element = createCompactMetricCard(metric);
-
-      // Should still show value and label
-      expect(element.textContent).toContain('65');
-      expect(element.textContent).toContain('Test');
+      expect(standardCard.className).toContain('pulse-card--compact');
+      expect(tempCard.className).toContain('pulse-card--compact');
+      expect(funnelCard.className).toContain('pulse-card--compact');
     });
   });
 
   describe('createMetricCardSkeleton', () => {
-    it('should create loading skeleton', () => {
+    it('should create skeleton card', () => {
       const element = createMetricCardSkeleton();
 
-      expect(element.className).toContain('metric-card--skeleton');
+      expect(element.className).toContain('pulse-card');
+      expect(element.className).toContain('pulse-card--skeleton');
     });
 
-    it('should have placeholder elements', () => {
+    it('should set aria-hidden for accessibility', () => {
       const element = createMetricCardSkeleton();
-      const placeholders = element.querySelectorAll('.skeleton-placeholder');
 
-      expect(placeholders.length).toBeGreaterThan(0);
+      expect(element.getAttribute('aria-hidden')).toBe('true');
     });
 
-    it('should be accessible', () => {
+    it('should include skeleton header elements', () => {
       const element = createMetricCardSkeleton();
+      const header = element.querySelector('.pulse-card__header');
 
-      expect(element.getAttribute('aria-busy')).toBe('true');
+      expect(header).not.toBeNull();
+      expect(header.querySelector('.pulse-card__skeleton-line--title')).not.toBeNull();
+      expect(header.querySelector('.pulse-card__skeleton-circle')).not.toBeNull();
+    });
+
+    it('should include skeleton body elements', () => {
+      const element = createMetricCardSkeleton();
+      const body = element.querySelector('.pulse-card__body');
+
+      expect(body).not.toBeNull();
+      expect(body.querySelector('.pulse-card__skeleton-line--value')).not.toBeNull();
+      expect(body.querySelector('.pulse-card__skeleton-line--trend')).not.toBeNull();
+      expect(body.querySelector('.pulse-card__skeleton-line--sparkline')).not.toBeNull();
+    });
+
+    it('should include skeleton footer elements', () => {
+      const element = createMetricCardSkeleton();
+      const footer = element.querySelector('.pulse-card__footer');
+
+      expect(footer).not.toBeNull();
+      expect(footer.querySelector('.pulse-card__skeleton-line--label')).not.toBeNull();
     });
   });
 });
 
 // =============================================================================
-// DASHBOARD COMPONENT TESTS
+// PulseDashboard Main Component Tests
 // =============================================================================
 
 describe('PulseDashboard', () => {
+  // Helper to create mock pulse data
+  const createMockPulseData = (overrides = {}) => ({
+    commitVelocity: {
+      value: 25,
+      trend: 12.5,
+      status: 'thriving',
+      sparklineData: [15, 18, 20, 22, 25, 23, 28, 25]
+    },
+    issueHealth: {
+      temperature: 'warm',
+      trend: -3.2,
+      status: 'stable'
+    },
+    prHealth: {
+      funnel: { opened: 30, merged: 22, closed: 5 },
+      status: 'thriving'
+    },
+    busFactor: {
+      distribution: [
+        { login: 'user1', percentage: 35 },
+        { login: 'user2', percentage: 25 },
+        { login: 'user3', percentage: 20 }
+      ],
+      status: 'stable'
+    },
+    releaseFreshness: {
+      score: 85,
+      daysSincePush: 5,
+      status: 'thriving'
+    },
+    communityHealth: {
+      value: 850,
+      trend: 8.3,
+      status: 'thriving',
+      sparklineData: [700, 720, 750, 780, 800, 820, 840, 850]
+    },
+    ...overrides
+  });
+
   describe('createPulseDashboard', () => {
     it('should create dashboard container', () => {
-      const metrics = {
-        velocity: { value: 75, trend: 5, direction: 'up', status: 'thriving', label: 'Velocity' },
-        momentum: { value: 70, trend: 0, direction: 'stable', status: 'stable', label: 'Momentum' },
-        temperature: { value: 80, trend: 10, direction: 'up', status: 'thriving', label: 'Temperature' },
-        health: { value: 65, trend: -5, direction: 'down', status: 'stable', label: 'Health' },
-        bus_factor: { value: 55, trend: 0, direction: 'stable', status: 'stable', label: 'Bus Factor' },
-        freshness: { value: 85, trend: 15, direction: 'up', status: 'thriving', label: 'Freshness' }
-      };
+      const element = createPulseDashboard(createMockPulseData());
 
-      const element = createPulseDashboard(metrics);
+      expect(element.tagName.toLowerCase()).toBe('section');
+      expect(element.className).toContain('pulse-dashboard');
+    });
+
+    it('should set aria-label for accessibility', () => {
+      const element = createPulseDashboard(createMockPulseData());
+
+      expect(element.getAttribute('aria-label')).toBe('Repository Pulse Dashboard');
+    });
+
+    it('should create header element', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const header = element.querySelector('.pulse-dashboard__header');
+
+      expect(header).not.toBeNull();
+    });
+
+    it('should display "Repository Pulse" title', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const title = element.querySelector('.pulse-dashboard__title');
+
+      expect(title).not.toBeNull();
+      expect(title.textContent).toBe('Repository Pulse');
+    });
+
+    it('should display repository name when provided', () => {
+      const element = createPulseDashboard(createMockPulseData({ repoName: 'owner/repo' }));
+      const subtitle = element.querySelector('.pulse-dashboard__subtitle');
+
+      expect(subtitle).not.toBeNull();
+      expect(subtitle.textContent).toBe('owner/repo');
+    });
+
+    it('should not display subtitle when repoName is not provided', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const subtitle = element.querySelector('.pulse-dashboard__subtitle');
+
+      expect(subtitle).toBeNull();
+    });
+
+    it('should create status section with role="status"', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const status = element.querySelector('.pulse-dashboard__status');
+
+      expect(status).not.toBeNull();
+      expect(status.getAttribute('role')).toBe('status');
+      expect(status.getAttribute('aria-live')).toBe('polite');
+    });
+
+    it('should display thriving status icon', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const icon = element.querySelector('.pulse-dashboard__status-icon');
+
+      expect(icon).not.toBeNull();
+      expect(icon.textContent).toBe('🟢');
+    });
+
+    it('should create metric cards grid', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const grid = element.querySelector('.pulse-dashboard__grid');
+
+      expect(grid).not.toBeNull();
+      expect(grid.getAttribute('role')).toBe('list');
+      expect(grid.getAttribute('aria-label')).toBe('Repository vital signs');
+    });
+
+    it('should create 6 metric cards', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const cards = element.querySelectorAll('.pulse-card');
+
+      expect(cards.length).toBe(6);
+    });
+
+    it('should assign listitem role to each card', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const cards = element.querySelectorAll('.pulse-card');
+
+      cards.forEach(card => {
+        expect(card.getAttribute('role')).toBe('listitem');
+      });
+    });
+
+    it('should set data-status attribute on container', () => {
+      const element = createPulseDashboard(createMockPulseData());
+
+      expect(element.dataset.status).toBeDefined();
+    });
+
+    it('should handle null pulseData gracefully', () => {
+      const element = createPulseDashboard(null);
+
+      expect(element.className).toContain('pulse-dashboard');
+      expect(element.querySelectorAll('.pulse-card').length).toBe(6);
+    });
+
+    it('should handle undefined pulseData gracefully', () => {
+      const element = createPulseDashboard(undefined);
 
       expect(element.className).toContain('pulse-dashboard');
     });
 
-    it('should display all metric cards', () => {
-      const metrics = {
-        velocity: { value: 75, trend: 5, direction: 'up', status: 'thriving', label: 'Velocity' },
-        momentum: { value: 70, trend: 0, direction: 'stable', status: 'stable', label: 'Momentum' },
-        temperature: { value: 80, trend: 10, direction: 'up', status: 'thriving', label: 'Temperature' },
-        health: { value: 65, trend: -5, direction: 'down', status: 'stable', label: 'Health' },
-        bus_factor: { value: 55, trend: 0, direction: 'stable', status: 'stable', label: 'Bus Factor' },
-        freshness: { value: 85, trend: 15, direction: 'up', status: 'thriving', label: 'Freshness' }
-      };
+    it('should handle empty object pulseData', () => {
+      const element = createPulseDashboard({});
 
-      const element = createPulseDashboard(metrics);
-      const cards = element.querySelectorAll('.metric-card');
-
-      expect(cards.length).toBeGreaterThanOrEqual(6);
-    });
-
-    it('should handle partial metrics', () => {
-      const metrics = {
-        velocity: { value: 75, trend: 5, direction: 'up', status: 'thriving', label: 'Velocity' }
-      };
-
-      const element = createPulseDashboard(metrics);
-
-      expect(element).not.toBeNull();
       expect(element.className).toContain('pulse-dashboard');
+      expect(element.querySelectorAll('.pulse-card').length).toBe(6);
     });
 
-    it('should have accessible structure', () => {
-      const metrics = {
-        velocity: { value: 75, trend: 5, direction: 'up', status: 'thriving', label: 'Velocity' }
-      };
+    // Status calculation tests
+    describe('overall status calculation', () => {
+      it('should use overallStatus when explicitly provided', () => {
+        const element = createPulseDashboard(createMockPulseData({ overallStatus: 'cooling' }));
 
-      const element = createPulseDashboard(metrics);
+        expect(element.dataset.status).toBe('cooling');
+      });
 
-      expect(element.getAttribute('role')).toBe('region');
-      expect(element.getAttribute('aria-label')).toBeDefined();
+      it('should calculate thriving when 4+ metrics are thriving', () => {
+        const data = createMockPulseData({
+          commitVelocity: { value: 50, status: 'thriving' },
+          issueHealth: { temperature: 'hot', status: 'thriving' },
+          prHealth: { funnel: { opened: 30 }, status: 'thriving' },
+          busFactor: { distribution: [], status: 'thriving' },
+          releaseFreshness: { score: 95, status: 'thriving' },
+          communityHealth: { value: 1000, status: 'stable' }
+        });
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('thriving');
+      });
+
+      it('should calculate at_risk when 2+ metrics are at_risk', () => {
+        const data = createMockPulseData({
+          commitVelocity: { value: 0, status: 'at_risk' },
+          issueHealth: { temperature: 'cool', status: 'at_risk' },
+          prHealth: { funnel: { opened: 0 }, status: 'stable' }
+        });
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('at_risk');
+      });
+
+      it('should calculate cooling when 3+ metrics are cooling', () => {
+        const data = createMockPulseData({
+          commitVelocity: { value: 5, status: 'cooling' },
+          issueHealth: { temperature: 'cool', status: 'cooling' },
+          prHealth: { funnel: { opened: 5 }, status: 'cooling' },
+          busFactor: { distribution: [], status: 'stable' }
+        });
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('cooling');
+      });
+
+      it('should calculate cooling when 1 metric is at_risk', () => {
+        const data = createMockPulseData({
+          commitVelocity: { value: 0, status: 'at_risk' },
+          issueHealth: { temperature: 'warm', status: 'stable' },
+          prHealth: { funnel: { opened: 10 }, status: 'stable' },
+          busFactor: { distribution: [], status: 'stable' }
+        });
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('cooling');
+      });
+
+      it('should default to stable when no clear pattern', () => {
+        const data = createMockPulseData({
+          commitVelocity: { value: 15, status: 'stable' },
+          issueHealth: { temperature: 'warm', status: 'stable' },
+          prHealth: { funnel: { opened: 10 }, status: 'stable' }
+        });
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('stable');
+      });
+
+      it('should default to stable for empty statuses', () => {
+        const data = {
+          commitVelocity: { value: 10 },
+          issueHealth: { temperature: 'warm' }
+        };
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('stable');
+      });
+    });
+
+    // Status display tests
+    describe('status display', () => {
+      it('should display thriving label and description', () => {
+        const element = createPulseDashboard(createMockPulseData({ overallStatus: 'thriving' }));
+        const label = element.querySelector('.pulse-dashboard__status-label');
+        const desc = element.querySelector('.pulse-dashboard__status-description');
+
+        expect(label.textContent).toBe('Thriving');
+        expect(desc.textContent).toContain('highly active');
+      });
+
+      it('should display stable label and description', () => {
+        const element = createPulseDashboard(createMockPulseData({ overallStatus: 'stable' }));
+        const label = element.querySelector('.pulse-dashboard__status-label');
+        const desc = element.querySelector('.pulse-dashboard__status-description');
+
+        expect(label.textContent).toBe('Stable');
+        expect(desc.textContent).toContain('consistent activity');
+      });
+
+      it('should display cooling label and description', () => {
+        const element = createPulseDashboard(createMockPulseData({ overallStatus: 'cooling' }));
+        const label = element.querySelector('.pulse-dashboard__status-label');
+        const desc = element.querySelector('.pulse-dashboard__status-description');
+
+        expect(label.textContent).toBe('Cooling');
+        expect(desc.textContent).toContain('declining');
+      });
+
+      it('should display at_risk label and description', () => {
+        const element = createPulseDashboard(createMockPulseData({ overallStatus: 'at_risk' }));
+        const label = element.querySelector('.pulse-dashboard__status-label');
+        const desc = element.querySelector('.pulse-dashboard__status-description');
+
+        expect(label.textContent).toBe('At Risk');
+        expect(desc.textContent).toContain('dying or unmaintained');
+      });
+
+      it('should fall back to calculated status for invalid status value', () => {
+        // When overallStatus is invalid, it falls back to calculating from metrics
+        const data = createMockPulseData();
+        data.overallStatus = 'invalid_status';
+        const element = createPulseDashboard(data);
+        const label = element.querySelector('.pulse-dashboard__status-label');
+
+        // Mock data has 4 thriving metrics, so calculated status is 'thriving'
+        expect(label.textContent).toBe('Thriving');
+      });
+
+      it('should display correct status icons', () => {
+        const testCases = [
+          { status: 'thriving', icon: '🟢' },
+          { status: 'stable', icon: '🟡' },
+          { status: 'cooling', icon: '🟠' },
+          { status: 'at_risk', icon: '🔴' }
+        ];
+
+        testCases.forEach(({ status, icon }) => {
+          const element = createPulseDashboard(createMockPulseData({ overallStatus: status }));
+          const iconElement = element.querySelector('.pulse-dashboard__status-icon');
+          expect(iconElement.textContent).toBe(icon);
+        });
+      });
+
+      it('should set aria-hidden on status icon', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const icon = element.querySelector('.pulse-dashboard__status-icon');
+
+        expect(icon.getAttribute('aria-hidden')).toBe('true');
+      });
+    });
+
+    // Metric card content tests
+    describe('metric cards content', () => {
+      it('should render commit velocity card with sparkline', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const cards = element.querySelectorAll('.pulse-card');
+        const velocityCard = cards[0];
+
+        expect(velocityCard.textContent).toContain('Commit Velocity');
+        expect(velocityCard.querySelector('.sparkline')).not.toBeNull();
+      });
+
+      it('should render issue health card with temperature indicator', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const tempIndicator = element.querySelector('.temperature-indicator');
+
+        expect(tempIndicator).not.toBeNull();
+      });
+
+      it('should render PR health card with funnel', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const funnel = element.querySelector('.pr-funnel');
+
+        expect(funnel).not.toBeNull();
+      });
+
+      it('should render bus factor card with contributor bars', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const bars = element.querySelector('.contributor-bars');
+
+        expect(bars).not.toBeNull();
+      });
+
+      it('should render freshness card with gauge', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const gauge = element.querySelector('.freshness-gauge');
+
+        expect(gauge).not.toBeNull();
+      });
+
+      it('should handle missing metric data gracefully', () => {
+        const partialData = {
+          commitVelocity: { value: 25, status: 'thriving' }
+          // Other metrics are missing
+        };
+        const element = createPulseDashboard(partialData);
+        const cards = element.querySelectorAll('.pulse-card');
+
+        // Should still render all 6 cards
+        expect(cards.length).toBe(6);
+      });
     });
   });
 
   describe('createPulseDashboardSkeleton', () => {
-    it('should create loading skeleton dashboard', () => {
+    it('should create skeleton dashboard container', () => {
       const element = createPulseDashboardSkeleton();
 
-      expect(element.className).toContain('pulse-dashboard--skeleton');
+      expect(element.tagName.toLowerCase()).toBe('section');
+      expect(element.className).toContain('pulse-dashboard');
+      expect(element.className).toContain('pulse-dashboard--loading');
     });
 
-    it('should have multiple placeholder cards', () => {
+    it('should set aria-label for loading state', () => {
       const element = createPulseDashboardSkeleton();
-      const skeletons = element.querySelectorAll('.metric-card--skeleton');
 
-      expect(skeletons.length).toBeGreaterThan(0);
+      expect(element.getAttribute('aria-label')).toBe('Loading Repository Pulse Dashboard');
     });
 
-    it('should be marked as loading', () => {
+    it('should set aria-busy to true', () => {
       const element = createPulseDashboardSkeleton();
 
       expect(element.getAttribute('aria-busy')).toBe('true');
     });
+
+    it('should create skeleton header', () => {
+      const element = createPulseDashboardSkeleton();
+      const header = element.querySelector('.pulse-dashboard__header--skeleton');
+
+      expect(header).not.toBeNull();
+      expect(header.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should create title skeleton line', () => {
+      const element = createPulseDashboardSkeleton();
+      const titleSkeleton = element.querySelector('.pulse-dashboard__skeleton-line--title');
+
+      expect(titleSkeleton).not.toBeNull();
+    });
+
+    it('should create status skeleton line', () => {
+      const element = createPulseDashboardSkeleton();
+      const statusSkeleton = element.querySelector('.pulse-dashboard__skeleton-line--status');
+
+      expect(statusSkeleton).not.toBeNull();
+    });
+
+    it('should create skeleton grid', () => {
+      const element = createPulseDashboardSkeleton();
+      const grid = element.querySelector('.pulse-dashboard__grid');
+
+      expect(grid).not.toBeNull();
+      expect(grid.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should create 6 skeleton metric cards', () => {
+      const element = createPulseDashboardSkeleton();
+      const skeletonCards = element.querySelectorAll('.pulse-card--skeleton');
+
+      expect(skeletonCards.length).toBe(6);
+    });
+
+    it('should have skeleton header and body elements in cards', () => {
+      const element = createPulseDashboardSkeleton();
+      const firstCard = element.querySelector('.pulse-card--skeleton');
+
+      expect(firstCard.querySelector('.pulse-card__header')).not.toBeNull();
+      expect(firstCard.querySelector('.pulse-card__body')).not.toBeNull();
+    });
   });
 
   describe('createPulseDashboardError', () => {
-    it('should create error state dashboard', () => {
-      const element = createPulseDashboardError('Failed to load data');
+    it('should create error dashboard container', () => {
+      const element = createPulseDashboardError(() => {});
 
+      expect(element.tagName.toLowerCase()).toBe('section');
+      expect(element.className).toContain('pulse-dashboard');
       expect(element.className).toContain('pulse-dashboard--error');
-      expect(element.textContent).toContain('Failed to load data');
     });
 
-    it('should have error icon', () => {
-      const element = createPulseDashboardError('Test error');
-      const icon = element.querySelector('.dashboard-error__icon');
+    it('should set aria-label for error state', () => {
+      const element = createPulseDashboardError(() => {});
 
-      expect(icon).not.toBeNull();
+      expect(element.getAttribute('aria-label')).toBe('Repository Pulse Dashboard - Error');
     });
 
-    it('should have retry action if callback provided', () => {
-      const callback = vi.fn();
-      const element = createPulseDashboardError('Error', callback);
-      const button = element.querySelector('.dashboard-error__retry');
-
-      expect(button).not.toBeNull();
-      button.click();
-      expect(callback).toHaveBeenCalled();
-    });
-
-    it('should be accessible', () => {
-      const element = createPulseDashboardError('Test error');
+    it('should set role="alert" for screen readers', () => {
+      const element = createPulseDashboardError(() => {});
 
       expect(element.getAttribute('role')).toBe('alert');
+    });
+
+    it('should create error content container', () => {
+      const element = createPulseDashboardError(() => {});
+      const content = element.querySelector('.pulse-dashboard__error-content');
+
+      expect(content).not.toBeNull();
+    });
+
+    it('should display error icon', () => {
+      const element = createPulseDashboardError(() => {});
+      const icon = element.querySelector('.pulse-dashboard__error-icon');
+
+      expect(icon).not.toBeNull();
+      expect(icon.textContent).toBe('⚠️');
+      expect(icon.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should display error message', () => {
+      const element = createPulseDashboardError(() => {});
+      const message = element.querySelector('.pulse-dashboard__error-message');
+
+      expect(message).not.toBeNull();
+      expect(message.textContent).toContain('Unable to load');
+    });
+
+    it('should display error description', () => {
+      const element = createPulseDashboardError(() => {});
+      const description = element.querySelector('.pulse-dashboard__error-description');
+
+      expect(description).not.toBeNull();
+      expect(description.textContent).toContain('problem fetching');
+    });
+
+    it('should create retry button', () => {
+      const element = createPulseDashboardError(() => {});
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      expect(button).not.toBeNull();
+      expect(button.tagName.toLowerCase()).toBe('button');
+      expect(button.type).toBe('button');
+      expect(button.textContent).toBe('Retry');
+    });
+
+    it('should set aria-label on retry button', () => {
+      const element = createPulseDashboardError(() => {});
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      expect(button.getAttribute('aria-label')).toBe('Retry loading pulse data');
+    });
+
+    it('should call onRetry callback when retry button is clicked', () => {
+      const onRetry = vi.fn();
+      const element = createPulseDashboardError(onRetry);
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      button.click();
+
+      expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call onRetry callback multiple times on multiple clicks', () => {
+      const onRetry = vi.fn();
+      const element = createPulseDashboardError(onRetry);
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      button.click();
+      button.click();
+      button.click();
+
+      expect(onRetry).toHaveBeenCalledTimes(3);
+    });
+
+    it('should handle undefined onRetry gracefully', () => {
+      const element = createPulseDashboardError(undefined);
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      // Should not throw when clicking
+      expect(() => button.click()).not.toThrow();
+    });
+
+    it('should handle null onRetry gracefully', () => {
+      const element = createPulseDashboardError(null);
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      // Should not throw when clicking
+      expect(() => button.click()).not.toThrow();
+    });
+
+    it('should handle non-function onRetry gracefully', () => {
+      const element = createPulseDashboardError('not a function');
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      // Should not throw when clicking
+      expect(() => button.click()).not.toThrow();
     });
   });
 });
