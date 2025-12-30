@@ -182,8 +182,9 @@
             "command": "node -e \"import('./src/js/api.js').then(m => console.log('fetchPulseData:', typeof m.fetchPulseData))\"",
             "expected": "fetchPulseData: function"
           },
-          "status": "pending",
-          "notes": "Use Promise.allSettled to call all 6 functions (including existing getCommitActivity). Return object with keys: participation, contributors, issues, pullRequests, releases, commits. Failed endpoints return null for that key. NEVER throw - catch all errors."
+          "status": "completed",
+          "notes": "Added fetchPulseData aggregator function with Promise.allSettled for error resilience. Returns object with 6 keys (participation, contributors, issues, pullRequests, releases, commits). Failed endpoints return null. Verification passed: function is properly exported.",
+          "updated_at": "2025-12-30T17:15:59.053234+00:00"
         }
       ]
     },
@@ -213,8 +214,9 @@
             "command": "npm test -- --grep 'getParticipationStats' 2>&1 | tail -10",
             "expected": "pass"
           },
-          "status": "pending",
-          "notes": "Follow getCommitActivity test patterns for 202 handling verification"
+          "status": "in_progress",
+          "notes": "Starting implementation of getParticipationStats tests",
+          "updated_at": "2025-12-30T17:16:27.892799+00:00"
         },
         {
           "id": "subtask-5-2",
@@ -454,5 +456,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T17:14:50.374531+00:00"
+  "last_updated": "2025-12-30T17:16:27.892807+00:00"
 }
