@@ -5,23 +5,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ```bash
-npm run dev      # Start dev server on http://localhost:3000 (auto-opens browser)
+npm run dev      # Start dev server on http://localhost:5173
 npm run build    # Production build to dist/
 npm run preview  # Preview production build locally
+npm test         # Run tests in watch mode
+npm test -- --run  # Run tests once (CI mode)
 ```
 
 ## Architecture
 
 ### Multi-Page Vite Application
 
-This is a multi-page vanilla JavaScript app with four entry points configured in `vite.config.js`:
+This is a multi-page vanilla JavaScript app with six entry points configured in `vite.config.js`:
 
 | Page | Entry | Purpose |
 |------|-------|---------|
 | `index.html` | Main | Repository search with filters (language, stars) |
-| `trending.html` | Trending | Repos created in last 7 days, sorted by stars |
+| `trending.html` | Trending | Repos created in last 7 days, sorted by stars with category filters |
 | `favorites.html` | Favorites | User-saved repositories from localStorage |
-| `detail.html` | Detail | Single repo analytics (languages, events, README) |
+| `detail.html` | Detail | Single repo analytics (languages, events, README, health score) |
+| `compare.html` | Compare | Side-by-side repository comparison |
+| `collections.html` | Collections | Smart collections management with import/export |
 
 ### Core Modules (`src/js/`)
 
@@ -29,21 +33,36 @@ This is a multi-page vanilla JavaScript app with four entry points configured in
 - In-memory cache (5-min TTL, 50 entries max)
 - Exponential backoff retry (3 attempts)
 - Rate limit handling and token auth support
-- Exports: `searchRepositories`, `getTrendingRepositories`, `getRepository`, `getRepositoryReadme`, `getRepositoryLanguages`, `getRepositoryEvents`
+- 202 response handling with retry for stats endpoints
+- UTF-8 safe base64 decoding for README content
+- Exports: `searchRepositories`, `getTrendingRepositories`, `getRepository`, `getRepositoryReadme`, `getRepositoryLanguages`, `getRepositoryEvents`, `getCommitActivity`, `checkRateLimit`, `clearCache`
 
 **`common.js`** - Shared utilities:
-- `Storage` object: favorites CRUD, theme persistence, GitHub token management
+- `Storage` object: favorites CRUD, theme persistence, GitHub token, notes, collections, exploration tracking
 - UI helpers: `showToast`, `formatNumber`, `formatDate`, `debounce`
 - XSS prevention: `safeText`, `createElement`, `escapeHtml`
+- Security: `sanitizeUrl` (validates http/https only)
 - `Icons` object: inline SVG strings for UI elements
 
-**`constants.js`** - Configuration values for API, caching, pagination, localStorage keys
+**`constants.js`** - Configuration values for API, caching, pagination, localStorage keys, trending categories
 
-**`components/RepoGrid.js`** - Repository card rendering with pagination and favorite toggle handlers
+**`components/`** - Reusable UI components:
+- `RepoGrid.js` - Repository card rendering with pagination, favorite toggle, collection picker
+- `HealthScore.js` - Repository health assessment (0-100 score based on 5 metrics)
+- `CommitHeatmap.js` - GitHub-style contribution calendar
+- `CloneCommands.js` - Clone command tabs (HTTPS, SSH, CLI, Degit) with clipboard fallback
+- `RepoNotes.js` - Personal notes system per repository
+- `DiscoveryStats.js` - Personal exploration tracking stats
 
 ### Page Scripts
 
-Each HTML page imports its corresponding script (`search.js`, `trending.js`, `favorites.js`, `detail.js`) which handles page-specific initialization and event binding.
+Each HTML page imports its corresponding script which handles page-specific initialization:
+- `main.js` / `search.js` - Search page with filters
+- `trending.js` - Trending with category tabs
+- `favorites.js` - Favorites management
+- `detail.js` - Repository deep-dive analytics
+- `compare.js` - Side-by-side comparison
+- `collections.js` - Smart collections with import/export
 
 ### Styling
 
@@ -63,3 +82,24 @@ Each HTML page imports its corresponding script (`search.js`, `trending.js`, `fa
 - Unauthenticated: 60 req/hr (core), 10 req/min (search)
 - Authenticated: 5,000 req/hr (core), 30 req/min (search)
 - Token stored in localStorage under `gh-token` key
+- Stats endpoints (commit activity) may return 202 while computing - api.js handles retry
+
+## Testing
+
+Tests use Vitest with jsdom environment. Test files are in `src/js/__tests__/`:
+
+| File | Coverage |
+|------|----------|
+| `api.test.js` | API wrapper, caching, error handling, 202 retry |
+| `common.test.js` | Storage, utilities, sanitization |
+| `constants.test.js` | Configuration validation |
+| `components.test.js` | CloneCommands, RepoNotes, CommitHeatmap, DiscoveryStats |
+| `HealthScore.test.js` | Health score calculation |
+| `RepoGrid.test.js` | Card rendering, pagination |
+| `collections.test.js` | Collection import/export |
+
+Current: **241 tests passing**
+
+---
+
+*Updated by Sisyphus: December 29, 2025*
