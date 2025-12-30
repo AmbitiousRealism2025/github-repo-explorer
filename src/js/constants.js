@@ -3,6 +3,7 @@ export const API_VERSION = '2022-11-28';
 
 export const CACHE_TTL_MS = 5 * 60 * 1000;
 export const CACHE_MAX_ENTRIES = 50;
+export const STATS_CACHE_TTL_MS = 10 * 60 * 1000;
 
 export const DEFAULT_PER_PAGE = 30;
 export const MAX_SEARCH_PAGES = 34;
