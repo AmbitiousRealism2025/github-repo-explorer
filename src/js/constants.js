@@ -32,36 +32,36 @@ export const TRENDING_CATEGORIES = {
   templates: {
     label: 'Starter Templates',
     topics: ['boilerplate', 'starter', 'template', 'scaffold'],
-    keywords: ['starter', 'template', 'boilerplate', 'scaffold', 'kickstart']
+    keywords: []
   },
   cli: {
     label: 'CLI Tools',
     topics: ['cli', 'command-line', 'terminal'],
-    keywords: ['cli', 'command-line', 'terminal tool']
+    keywords: []
   },
   libraries: {
     label: 'Libraries',
-    topics: ['library', 'package', 'module', 'sdk'],
-    keywords: ['library', 'lib', 'package', 'sdk']
+    topics: ['library', 'package', 'sdk'],
+    keywords: []
   },
   frameworks: {
     label: 'Frameworks',
     topics: ['framework'],
-    keywords: ['framework']
+    keywords: []
   },
   devtools: {
     label: 'Developer Tools',
-    topics: ['devtools', 'developer-tools', 'linter', 'formatter', 'ide', 'vscode-extension'],
-    keywords: ['linter', 'formatter', 'plugin', 'extension', 'devtool']
+    topics: ['devtools', 'developer-tools', 'linter', 'formatter', 'vscode-extension'],
+    keywords: []
   },
   learning: {
     label: 'Learning Resources',
     topics: ['awesome', 'awesome-list', 'tutorial', 'learn', 'education'],
-    keywords: ['awesome', 'tutorial', 'learn', 'course', 'roadmap', 'cheatsheet']
+    keywords: []
   },
   apis: {
     label: 'APIs & Services',
-    topics: ['api', 'rest-api', 'graphql', 'api-wrapper'],
-    keywords: ['api', 'client', 'wrapper', 'integration']
+    topics: ['api', 'rest-api', 'graphql'],
+    keywords: []
   }
 };

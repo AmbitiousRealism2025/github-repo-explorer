@@ -142,14 +142,9 @@ export const getTrendingRepositories = async (options = {}) => {
   
   if (category && category !== 'all') {
     const categoryConfig = TRENDING_CATEGORIES[category];
-    if (categoryConfig && (categoryConfig.topics.length > 0 || categoryConfig.keywords.length > 0)) {
+    if (categoryConfig && categoryConfig.topics.length > 0) {
       const topicFilters = categoryConfig.topics.map(t => `topic:${t}`);
-      const keywordFilters = categoryConfig.keywords.map(k => `${k} in:name,description`);
-      const allFilters = [...topicFilters, ...keywordFilters];
-      
-      if (allFilters.length > 0) {
-        q += ` (${allFilters.join(' OR ')})`;
-      }
+      q += ` (${topicFilters.join(' OR ')})`;
     }
   }
   

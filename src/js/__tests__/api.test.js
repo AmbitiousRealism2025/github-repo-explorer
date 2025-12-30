@@ -190,22 +190,6 @@ describe('API', () => {
       expect(calledUrl).toMatch(/topic%3Acli/);
     });
 
-    it('should include category keywords in query', async () => {
-      const mockData = { items: [], total_count: 0 };
-      global.fetch.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve(mockData),
-        headers: { get: () => '59' }
-      });
-
-      await getTrendingRepositories({ category: 'cli' });
-      const calledUrl = global.fetch.mock.calls[0][0];
-      
-      // Should include keyword search in name/description
-      expect(calledUrl).toMatch(/cli.*in%3Aname%2Cdescription/);
-    });
-
     it('should combine category and language filters', async () => {
       const mockData = { items: [], total_count: 0 };
       global.fetch.mockResolvedValueOnce({
