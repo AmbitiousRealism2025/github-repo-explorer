@@ -443,3 +443,37 @@ export const getReleaseHistory = async (owner, repo, perPage = 30) => {
   const url = `${API_BASE}/repos/${owner}/${repo}/releases?per_page=${perPage}`;
   return fetchWithRetry(url);
 };
+
+/**
+ * Fetches all pulse-related data for a repository in parallel
+ * Uses Promise.allSettled for error resilience - failed endpoints return null
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @returns {Promise<{participation: Object|null, contributors: Array|null, issues: Array|null, pullRequests: Array|null, releases: Array|null, commits: Array|null}>}
+ */
+export const fetchPulseData = async (owner, repo) => {
+  const results = await Promise.allSettled([
+    getParticipationStats(owner, repo),
+    getContributorStats(owner, repo),
+    getIssueTimeline(owner, repo),
+    getPullRequestTimeline(owner, repo),
+    getReleaseHistory(owner, repo),
+    getCommitActivity(owner, repo)
+  ]);
+
+  const extractData = (result) => {
+    if (result.status === 'fulfilled' && result.value) {
+      return result.value.data;
+    }
+    return null;
+  };
+
+  return {
+    participation: extractData(results[0]),
+    contributors: extractData(results[1]),
+    issues: extractData(results[2]),
+    pullRequests: extractData(results[3]),
+    releases: extractData(results[4]),
+    commits: extractData(results[5])
+  };
+};

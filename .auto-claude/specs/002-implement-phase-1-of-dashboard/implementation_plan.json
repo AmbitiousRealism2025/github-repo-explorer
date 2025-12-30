@@ -151,8 +151,9 @@
             "command": "node -e \"import('./src/js/api.js').then(m => console.log('getReleaseHistory:', typeof m.getReleaseHistory))\"",
             "expected": "getReleaseHistory: function"
           },
-          "status": "pending",
-          "notes": "Use URLSearchParams with default: per_page=30. Simple endpoint, no params override needed."
+          "status": "completed",
+          "notes": "Added getReleaseHistory function to api.js. Function fetches release history from /repos/{owner}/{repo}/releases endpoint with default of 30 releases per page. Verification passed: function is properly exported.",
+          "updated_at": "2025-12-30T17:14:50.374520+00:00"
         }
       ]
     },
@@ -453,5 +454,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T17:13:49.736814+00:00"
+  "last_updated": "2025-12-30T17:14:50.374531+00:00"
 }

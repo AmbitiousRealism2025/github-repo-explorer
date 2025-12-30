@@ -1,7 +1,7 @@
 {
   "spec_id": "002-implement-phase-1-of-dashboard",
   "created_at": "2025-12-30T16:58:17.662536+00:00",
-  "updated_at": "2025-12-30T17:14:41.293233+00:00",
+  "updated_at": "2025-12-30T17:15:50.596499+00:00",
   "phases": {
     "planning": {
       "phase": "planning",
@@ -1540,6 +1540,169 @@
           "tool_input": "git add . && git commit -m \"$(cat <<'EOF'\nauto-...",
           "subtask_id": "subtask-3-3",
           "session": 6
+        },
+        {
+          "timestamp": "2025-12-30T17:14:42.399433+00:00",
+          "type": "tool_end",
+          "content": "[Bash] Done",
+          "phase": "coding",
+          "tool_name": "Bash",
+          "subtask_id": "subtask-3-3",
+          "session": 6,
+          "detail": "[auto-claude/002-implement-phase-1-of-dashboard 49931a2] auto-claude: subtask-3-3 - Add getReleaseHistory function\n 7 files changed, 214 insertions(+), 10 deletions(-)\n create mode 100644 .auto-claude/specs/002-implement-phase-1-of-dashboard/memory/session_insights/session_005.json",
+          "collapsed": true
+        },
+        {
+          "timestamp": "2025-12-30T17:14:48.174159+00:00",
+          "type": "text",
+          "content": "Now let me update the subtask status in the implementation plan:",
+          "phase": "coding",
+          "subtask_id": "subtask-3-3",
+          "session": 6
+        },
+        {
+          "timestamp": "2025-12-30T17:14:50.371464+00:00",
+          "type": "tool_start",
+          "content": "[mcp__auto-claude__update_subtask_status]",
+          "phase": "coding",
+          "tool_name": "mcp__auto-claude__update_subtask_status",
+          "subtask_id": "subtask-3-3",
+          "session": 6
+        },
+        {
+          "timestamp": "2025-12-30T17:14:50.383480+00:00",
+          "type": "tool_end",
+          "content": "[mcp__auto-claude__update_subtask_status] Done",
+          "phase": "coding",
+          "tool_name": "mcp__auto-claude__update_subtask_status",
+          "subtask_id": "subtask-3-3",
+          "session": 6,
+          "collapsed": true
+        },
+        {
+          "timestamp": "2025-12-30T17:15:00.116248+00:00",
+          "type": "text",
+          "content": "✅ **Subtask 3-3 completed successfully!**\n\n## Summary\n\n**Added `getReleaseHistory` function to `src/js/api.js`:**\n\n```javascript\n/**\n * Fetches release history for a repository\n * @param {string} owner - Repository owner's username\n * @param {string} repo - Repository name\n * @param {number} [perPage=30] - Number of releases to fetch (max 100)\n * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}\n * @throws {Error} When API request fails\n */\nexport const getReleaseHistory = async (owner, repo, perPage = 30) => {\n  const url = `${API_BASE}/repos/${owner}/${repo}/releases?per_page=${perPage}`;\n  return fetchWithRetry(url);\n};\n```\n\n**Implementation details:**\n- Follows the simple endpoint pattern from `getRepositoryEvents` (lines 251-254)\n- Uses `fetchWithRetry` for automatic caching and error handling\n- Returns up to 30 releases by default (with `published_at` timestamps)\n- Includes proper JSDoc documentation\n\n**Verification:** ✅ Passed - `getReleaseHistory: function`\n\n**Commit:** `49931a2` - \"auto-claude: subtask-3-3 - Add getReleaseHistory function\"",
+          "phase": "coding",
+          "subtask_id": "subtask-3-3",
+          "session": 6
+        },
+        {
+          "timestamp": "2025-12-30T17:15:12.503518+00:00",
+          "type": "tool_start",
+          "content": "[Read] ...pecs/002-implement-phase-1-of-dashboard/spec.md",
+          "phase": "coding",
+          "tool_name": "Read",
+          "tool_input": "...pecs/002-implement-phase-1-of-dashboard/spec.md",
+          "subtask_id": "subtask-4-1",
+          "session": 7
+        },
+        {
+          "timestamp": "2025-12-30T17:15:13.149101+00:00",
+          "type": "tool_start",
+          "content": "[Read] ...t-phase-1-of-dashboard/implementation_plan.json",
+          "phase": "coding",
+          "tool_name": "Read",
+          "tool_input": "...t-phase-1-of-dashboard/implementation_plan.json",
+          "subtask_id": "subtask-4-1",
+          "session": 7
+        },
+        {
+          "timestamp": "2025-12-30T17:15:13.706530+00:00",
+          "type": "tool_start",
+          "content": "[Read] ./src/js/api.js",
+          "phase": "coding",
+          "tool_name": "Read",
+          "tool_input": "./src/js/api.js",
+          "subtask_id": "subtask-4-1",
+          "session": 7
+        },
+        {
+          "timestamp": "2025-12-30T17:15:13.737509+00:00",
+          "type": "tool_end",
+          "content": "[Read] Done",
+          "phase": "coding",
+          "tool_name": "Read",
+          "subtask_id": "subtask-4-1",
+          "session": 7,
+          "detail": "     1→# Specification: Implement Phase 1 - Data Collection & API Layer for Pulse Dashboard\n     2→\n     3→## Overview\n     4→\n     5→Extend the existing GitHub API layer (`src/js/api.js`) to fetch all data required for the Repository Pulse Dashboard's trend calculations. This phase adds 5 new API endpoint functions for fetching participation stats, contributor activity, issue timelines, pull request timelines, and release history. It also includes a batch data fetcher (`fetchPulseData`) that aggregates all pulse-related API calls with proper error resilience and 202 response handling.\n     6→\n     7→## Workflow Type\n     8→\n     9→**Type**: feature\n    10→\n    11→**Rationale**: This is a new feature addition that extends the existing API layer with new capabilities. No existing functionality is being modified or refactored - we're purely adding new exported functions to support the upcoming Pulse Dashboard feature.\n    12→\n    13→## Task Scope\n    14→\n    15→### Services Involved\n    16→- **main** (primary) - Vanilla JavaScript frontend with Vite build system\n    17→\n    18→### This Task Will:\n    19→- [ ] Add `getParticipationStats(owner, repo)` function to fetch weekly commit activity\n    20→- [ ] Add `getContributorStats(owner, repo)` function to fetch contributor commit activity\n    21→- [ ] Add `getIssueTimeline(owner, repo, params)` function to fetch issues with timestamps\n    22→- [ ] Add `getPullRequestTimeline(owner, repo, params)` function to fetch PRs with merge data\n    23→- [ ] Add `getReleaseHistory(owner, repo)` function to fetch release timeline\n    24→- [ ] Add `fetchPulseData(owner, repo)` aggregator that fetches all data in parallel\n    25→- [ ] Handle 202 \"computing\" responses from GitHub stats endpoints with retry logic\n    26→- [ ] Add extended cache TTL constant for statistics endpoints\n    27→\n    28→### Out of Scope:\n    29→- Metric calculation logic (Phase 2)\n    30→- UI components and visualizations (Phases 3-5)\n    31→- Integration into detail.html page (Phase 6)\n    32→- localStorage fallback caching (deferred - may add if needed)\n    33→- Cache versioning (deferred - may add if needed)\n    34→\n    35→## Service Context\n    36→\n    37→### Main Service\n    38→\n    39→**Tech Stack:**\n    40→- Language: JavaScript (ES Modules)\n    41→- Framework: Vanilla JS with Vite\n    42→- Testing: Vitest with jsdom\n    43→- Key directories: `src/js/`, `src/css/`\n    44→\n    45→**Entry Point:** `src/js/api.js`\n    46→\n    47→**How to Run:**\n    48→```bash\n    49→npm run dev\n    50→```\n    51→\n    52→**Port:** 5173 (Vite dev server)\n    53→\n    54→**Test Command:**\n    55→```bash\n    56→npm test\n    57→```\n    58→\n    59→## Files to Modify\n    60→\n    61→| File | Service | What to Change |\n    62→|------|---------|---------------|\n    63→| `src/js/api.js` | main | Add 6 new exported functions: `getParticipationStats`, `getContributorStats`, `getIssueTimeline`, `getPullRequestTimeline`, `getReleaseHistory`, `fetchPulseData` |\n    64→| `src/js/constants.js` | main | Add `STATS_CACHE_TTL_MS` constant for extended stats caching (10 minutes) |\n    65→| `src/js/__tests__/api.test.js` | main | Add tests for all 6 new API functions |\n    66→\n    67→## Files to Reference\n    68→\n    69→These files show patterns to follow:\n    70→\n    71→| File | Pattern to Copy |\n    72→|------|----------------|\n    73→| `src/js/api.js` | Existing API function structure, JSDoc comments, `fetchWithRetry` usage, 202 handling pattern from `getCommitActivity` |\n    74→| `src/js/constants.js` | Constant naming conventions and export pattern |\n    75→| `src/js/__tests__/api.test.js` | Test structure, mocking patterns for fetch |\n    76→\n    77→## Patterns to Follow\n    78→\n    79→### Pattern 1: API Function Structure\n    80→\n    81→From `src/js/api.js` - `getRepositoryEvents`:\n    82→\n    83→```javascript\n    84→/**\n    85→ * Fetches recent events/activity for a repository\n    86→ * @param {string} owner - Repository owner's username\n    87→ * @param {string} repo - Repository name\n    88→ * @param {number} [perPage=10] - Number of events to fetch (max 100)\n    89→ * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}\n    90→ * @throws {Error} When API request fails\n    91→ */\n    92→export const getRepositoryEvents = async (owner, repo, perPage = 10) => {\n    93→  const url = `${API_BASE}/repos/${owner}/${repo}/events?per_page=${perPage}`;\n    94→  return fetchWithRetry(url);\n    95→};\n    96→```\n    97→\n    98→**Key Points:**\n    99→- Use JSDoc with `@param`, `@returns`, `@throws` annotations\n   100→- Use arrow function with `async`\n   101→- Build URL using `API_BASE` constant\n   102→- Return result from `fetchWithRetry`\n   103→- Export as named constant\n   104→\n   105→### Pattern 2: 202 Response Handling\n   106→\n   107→From `src/js/api.js` - `getCommitActivity`:\n   108→\n   109→```javascript\n   110→export const getCommitActivity = async (owner, repo, retryOnce = true) => {\n   111→  const url = `${API_BASE}/repos/${owner}/${repo}/stats/commit_activity`;\n   112→\n   113→  try {\n   114→    const response = await fetch(url, { headers: getHeaders() });\n   115→\n   116→    if (response.status === 202) {\n   117→      if (retryOnce) {\n   118→        await sleep(2000);\n   119→        return getCommitActivity(owner, repo, false);\n   120→      }\n   121→      return { data: null, processing: true, rateLimit: null };\n   122→    }\n   123→\n   124→    if (!response.ok) {\n   125→      throw new Error(`HTTP ${response.status}: ${response.statusText}`);\n   126→    }\n   127→\n   128→    return {\n   129→      data: await response.json(),\n   130→      processing: false,\n   131→      rateLimit: { /* ... */ }\n   132→    };\n   133→  } catch (error) {\n   134→    throw error;\n   135→  }\n   136→};\n   137→```\n   138→\n   139→**Key Points:**\n   140→- Stats endpoints may return 202 while GitHub computes data\n   141→- Use `retryOnce` parameter to limit retry attempts\n   142→- Wait 2 seconds before retry\n   143→- Return `{ data: null, processing: true }` if still 202 after retry\n   144→- Include `processing` flag in response object\n   145→\n   146→### Pattern 3: Query Parameters with URLSearchParams\n   147→\n   148→From implementation plan:\n   149→\n   150→```javascript\n   151→export async function getIssueTimeline(owner, repo, params = {}) {\n   152→  const query = new URLSearchParams({\n   153→    state: 'all',\n   154→    per_page: 100,\n   155→    sort: 'created',\n   156→    direction: 'desc',\n   157→    ...params\n   158→  });\n   159→  return fetchWithRetry(`repos/${owner}/${repo}/issues?${query}`);\n   160→}\n   161→```\n   162→\n   163→**Key Points:**\n   164→- Use `URLSearchParams` for building query strings\n   165→- Provide sensible defaults that can be overridden via `params`\n   166→- Spread `params` to allow caller customization\n   167→\n   168→## Requirements\n   169→\n   170→### Functional Requirements\n   171→\n   172→1. **getParticipationStats Function**\n   173→   - Description: Fetches weekly commit activity for the last year (52 weeks) from `/repos/{owner}/{repo}/stats/participation`\n   174→   - Acceptance: Returns `{ data: { all: number[], owner: number[] }, processing: boolean, rateLimit: Object }` or handles 202 response with retry\n   175→\n   176→2. **getContributorStats Function**\n   177→   - Description: Fetches contributor commit activity from `/repos/{owner}/{repo}/stats/contributors`\n   178→   - Acceptance: Returns array of contributor objects with weekly commit data, handles 202 with retry\n   179→\n   180→3. **getIssueTimeline Function**\n   181→   - Description: Fetches issues with created/closed timestamps from `/repos/{owner}/{repo}/issues`\n   182→   - Acceptance: Returns up to 100 issues sorted by creation date descending, supports optional params override\n   183→\n   184→4. **getPullRequestTimeline Function**\n   185→   - Description: Fetches pull requests with merge timestamps from `/repos/{owner}/{repo}/pulls`\n   186→   - Acceptance: Returns up to 100 PRs sorted by creation date descending, includes `merged_at` field\n   187→\n   188→5. **getReleaseHistory Function**\n   189→   - Description: Fetches release history from `/repos/{owner}/{repo}/releases`\n   190→   - Acceptance: Returns up to 30 most recent releases with `published_at` timestamps\n   191→\n   192→6. **fetchPulseData Aggregator Function**\n   193→   - Description: Fetches all pulse-related data in parallel using `Promise.allSettled`\n   194→   - Acceptance: Returns object with `participation`, `contributors`, `issues`, `pullRequests`, `releases`, `commits` keys; failed requests return `null` for that key instead of throwing\n   195→\n   196→7. **Extended Cache TTL for Stats**\n   197→   - Description: Add `STATS_CACHE_TTL_MS` constant (10 minutes) for stats endpoints that are expensive to compute\n   198→   - Acceptance: New constant exported from `constants.js`\n   199→\n   200→### Edge Cases\n   201→\n   202→1. **202 Response After Retry** - Return `{ data: null, processing: true }` to allow UI to show \"computing\" state\n   203→2. **Partial Data in fetchPulseData** - Continue with available data if some endpoints fail; only include successful results\n   204→3. **Empty Repository** - Handle repos with no issues, PRs, or releases gracefully (return empty arrays)\n   205→4. **Rate Limit During Batch Fetch** - `Promise.allSettled` prevents one failure from blocking others\n   206→5. **Private Repos Without Token** - Return 404 error for individual endpoints, null in aggregator\n   207→\n   208→## Implementation Notes\n   209→\n   210→### DO\n   211→- Follow the exact JSDoc comment style from existing `api.js` functions\n   212→- Use `fetchWithRetry` for endpoints that don't need 202 handling (issues, PRs, releases)\n   213→- Use the direct `fetch` pattern from `getCommitActivity` for stats endpoints (participation, contributors)\n   214→- Use `Promise.allSettled` in `fetchPulseData` to handle partial failures gracefully\n   215→- Include the existing `getCommitActivity` in `fetchPulseData` aggregation\n   216→- Add `processing` flag to stats endpoint responses for UI state handling\n   217→- Export all new functions as named exports\n   218→\n   219→### DON'T\n   220→- Don't modify existing functions or their sign\n\n... [truncated - full output was 18704 chars]",
+          "collapsed": true
+        },
+        {
+          "timestamp": "2025-12-30T17:15:23.728498+00:00",
+          "type": "text",
+          "content": "Now I understand the task. I need to add the `fetchPulseData` aggregator function that uses `Promise.allSettled` to call all 6 pulse-related functions in parallel with error resilience. The function should:\n1. Call all 6 functions (`getParticipationStats`, `getContributorStats`, `getIssueTimeline`, `getPullRequestTimeline`, `getReleaseHistory`, `getCommitActivity`) in parallel\n2. Return an object with keys: `participation`, `contributors`, `issues`, `pullRequests`, `releases`, `commits`\n3. Failed endpoints should return `null` instead of throwing\n4. Never throw - catch all errors\n\nLet me add the function to api.js:",
+          "phase": "coding",
+          "subtask_id": "subtask-4-1",
+          "session": 7
+        },
+        {
+          "timestamp": "2025-12-30T17:15:31.752753+00:00",
+          "type": "tool_start",
+          "content": "[Edit] ./src/js/api.js",
+          "phase": "coding",
+          "tool_name": "Edit",
+          "tool_input": "./src/js/api.js",
+          "subtask_id": "subtask-4-1",
+          "session": 7
+        },
+        {
+          "timestamp": "2025-12-30T17:15:31.765962+00:00",
+          "type": "tool_end",
+          "content": "[Edit] Done",
+          "phase": "coding",
+          "tool_name": "Edit",
+          "subtask_id": "subtask-4-1",
+          "session": 7,
+          "detail": "The file ./src/js/api.js has been updated. Here's the result of running `cat -n` on a snippet of the edited file:\n   438→ * @param {number} [perPage=30] - Number of releases to fetch (max 100)\n   439→ * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}\n   440→ * @throws {Error} When API request fails\n   441→ */\n   442→export const getReleaseHistory = async (owner, repo, perPage = 30) => {\n   443→  const url = `${API_BASE}/repos/${owner}/${repo}/releases?per_page=${perPage}`;\n   444→  return fetchWithRetry(url);\n   445→};\n   446→\n   447→/**\n   448→ * Fetches all pulse-related data for a repository in parallel\n   449→ * Uses Promise.allSettled for error resilience - failed endpoints return null\n   450→ * @param {string} owner - Repository owner's username\n   451→ * @param {string} repo - Repository name\n   452→ * @returns {Promise<{participation: Object|null, contributors: Array|null, issues: Array|null, pullRequests: Array|null, releases: Array|null, commits: Array|null}>}\n   453→ */\n   454→export const fetchPulseData = async (owner, repo) => {\n   455→  const results = await Promise.allSettled([\n   456→    getParticipationStats(owner, repo),\n   457→    getContributorStats(owner, repo),\n   458→    getIssueTimeline(owner, repo),\n   459→    getPullRequestTimeline(owner, repo),\n   460→    getReleaseHistory(owner, repo),\n   461→    getCommitActivity(owner, repo)\n   462→  ]);\n   463→\n   464→  const extractData = (result) => {\n   465→    if (result.status === 'fulfilled' && result.value) {\n   466→      return result.value.data;\n   467→    }\n   468→    return null;\n   469→  };\n   470→\n   471→  return {\n   472→    participation: extractData(results[0]),\n   473→    contributors: extractData(results[1]),\n   474→    issues: extractData(results[2]),\n   475→    pullRequests: extractData(results[3]),\n   476→    releases: extractData(results[4]),\n   477→    commits: extractData(results[5])\n   478→  };\n   479→};\n   480→",
+          "collapsed": true
+        },
+        {
+          "timestamp": "2025-12-30T17:15:38.207579+00:00",
+          "type": "text",
+          "content": "Now let me run the verification command:",
+          "phase": "coding",
+          "subtask_id": "subtask-4-1",
+          "session": 7
+        },
+        {
+          "timestamp": "2025-12-30T17:15:40.504319+00:00",
+          "type": "tool_start",
+          "content": "[Bash] node -e \"import('./src/js/api.js').then(m => co...",
+          "phase": "coding",
+          "tool_name": "Bash",
+          "tool_input": "node -e \"import('./src/js/api.js').then(m => co...",
+          "subtask_id": "subtask-4-1",
+          "session": 7
+        },
+        {
+          "timestamp": "2025-12-30T17:15:41.463101+00:00",
+          "type": "tool_end",
+          "content": "[Bash] Done",
+          "phase": "coding",
+          "tool_name": "Bash",
+          "subtask_id": "subtask-4-1",
+          "session": 7,
+          "detail": "fetchPulseData: function",
+          "collapsed": true
+        },
+        {
+          "timestamp": "2025-12-30T17:15:45.796467+00:00",
+          "type": "text",
+          "content": "Verification passed. Now let me commit the changes and update the implementation plan:",
+          "phase": "coding",
+          "subtask_id": "subtask-4-1",
+          "session": 7
+        },
+        {
+          "timestamp": "2025-12-30T17:15:50.596461+00:00",
+          "type": "tool_start",
+          "content": "[Bash] git add . && git commit -m \"$(cat <<'EOF'\nauto-...",
+          "phase": "coding",
+          "tool_name": "Bash",
+          "tool_input": "git add . && git commit -m \"$(cat <<'EOF'\nauto-...",
+          "subtask_id": "subtask-4-1",
+          "session": 7
         }
       ]
     },
