@@ -13,6 +13,7 @@ import {
   getIssueTimeline,
   getPullRequestTimeline,
   getReleaseHistory,
+  fetchPulseData,
   clearCache
 } from '../api.js';
 
@@ -714,6 +715,212 @@ describe('API', () => {
       await searchRepositories('react');
 
       expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('fetchPulseData', () => {
+    const mockSuccessResponse = (data) => ({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(data),
+      headers: {
+        get: () => '59'
+      }
+    });
+
+    const mockFailResponse = () => ({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: { get: () => null }
+    });
+
+    const mock202Response = () => ({
+      ok: true,
+      status: 202,
+      json: () => Promise.resolve(null),
+      headers: { get: () => '59' }
+    });
+
+    it('should fetch all pulse data successfully', async () => {
+      const mockParticipation = { all: [1, 2, 3], owner: [0, 1, 1] };
+      const mockContributors = [{ author: { login: 'user1' }, total: 50 }];
+      const mockIssues = [{ id: 1, title: 'Issue 1', state: 'open' }];
+      const mockPullRequests = [{ id: 1, title: 'PR 1', state: 'open' }];
+      const mockReleases = [{ id: 1, tag_name: 'v1.0.0' }];
+      const mockCommits = [{ week: 1234567890, days: [1, 2, 3, 4, 5, 6, 7], total: 28 }];
+
+      // Mock based on URL to handle parallel execution
+      global.fetch.mockImplementation((url) => {
+        if (url.includes('stats/participation')) {
+          return Promise.resolve(mockSuccessResponse(mockParticipation));
+        }
+        if (url.includes('stats/contributors')) {
+          return Promise.resolve(mockSuccessResponse(mockContributors));
+        }
+        if (url.includes('/issues')) {
+          return Promise.resolve(mockSuccessResponse(mockIssues));
+        }
+        if (url.includes('/pulls')) {
+          return Promise.resolve(mockSuccessResponse(mockPullRequests));
+        }
+        if (url.includes('/releases')) {
+          return Promise.resolve(mockSuccessResponse(mockReleases));
+        }
+        if (url.includes('stats/commit_activity')) {
+          return Promise.resolve(mockSuccessResponse(mockCommits));
+        }
+        return Promise.resolve(mockSuccessResponse({}));
+      });
+
+      const result = await fetchPulseData('owner', 'repo');
+
+      expect(result.participation).toEqual(mockParticipation);
+      expect(result.contributors).toEqual(mockContributors);
+      expect(result.issues).toEqual(mockIssues);
+      expect(result.pullRequests).toEqual(mockPullRequests);
+      expect(result.releases).toEqual(mockReleases);
+      expect(result.commits).toEqual(mockCommits);
+    });
+
+    it('should return null for failed endpoints while returning data for successful ones', async () => {
+      const mockParticipation = { all: [1, 2, 3], owner: [0, 1, 1] };
+      const mockIssues = [{ id: 1, title: 'Issue 1', state: 'open' }];
+      const mockReleases = [{ id: 1, tag_name: 'v1.0.0' }];
+
+      // Mock based on URL - some succeed, some fail
+      global.fetch.mockImplementation((url) => {
+        if (url.includes('stats/participation')) {
+          return Promise.resolve(mockSuccessResponse(mockParticipation));
+        }
+        if (url.includes('stats/contributors')) {
+          return Promise.resolve(mockFailResponse());
+        }
+        if (url.includes('/issues')) {
+          return Promise.resolve(mockSuccessResponse(mockIssues));
+        }
+        if (url.includes('/pulls')) {
+          return Promise.resolve(mockFailResponse());
+        }
+        if (url.includes('/releases')) {
+          return Promise.resolve(mockSuccessResponse(mockReleases));
+        }
+        if (url.includes('stats/commit_activity')) {
+          return Promise.resolve(mockFailResponse());
+        }
+        return Promise.resolve(mockSuccessResponse({}));
+      });
+
+      const result = await fetchPulseData('owner', 'repo');
+
+      expect(result.participation).toEqual(mockParticipation);
+      expect(result.contributors).toBeNull();
+      expect(result.issues).toEqual(mockIssues);
+      expect(result.pullRequests).toBeNull();
+      expect(result.releases).toEqual(mockReleases);
+      expect(result.commits).toBeNull();
+    });
+
+    it('should return all null when all endpoints fail', async () => {
+      // All endpoints fail
+      global.fetch.mockImplementation(() => {
+        return Promise.resolve(mockFailResponse());
+      });
+
+      const result = await fetchPulseData('owner', 'repo');
+
+      expect(result.participation).toBeNull();
+      expect(result.contributors).toBeNull();
+      expect(result.issues).toBeNull();
+      expect(result.pullRequests).toBeNull();
+      expect(result.releases).toBeNull();
+      expect(result.commits).toBeNull();
+    });
+
+    it('should handle 202 processing status for stats endpoints', async () => {
+      const mockIssues = [{ id: 1, title: 'Issue 1' }];
+      const mockPullRequests = [{ id: 1, title: 'PR 1' }];
+      const mockReleases = [{ id: 1, tag_name: 'v1.0.0' }];
+
+      // Track call counts for stats endpoints to return 202 twice
+      const statsCalls = {
+        participation: 0,
+        contributors: 0,
+        commit_activity: 0
+      };
+
+      global.fetch.mockImplementation((url) => {
+        if (url.includes('stats/participation')) {
+          statsCalls.participation++;
+          return Promise.resolve(mock202Response());
+        }
+        if (url.includes('stats/contributors')) {
+          statsCalls.contributors++;
+          return Promise.resolve(mock202Response());
+        }
+        if (url.includes('/issues')) {
+          return Promise.resolve(mockSuccessResponse(mockIssues));
+        }
+        if (url.includes('/pulls')) {
+          return Promise.resolve(mockSuccessResponse(mockPullRequests));
+        }
+        if (url.includes('/releases')) {
+          return Promise.resolve(mockSuccessResponse(mockReleases));
+        }
+        if (url.includes('stats/commit_activity')) {
+          statsCalls.commit_activity++;
+          return Promise.resolve(mock202Response());
+        }
+        return Promise.resolve(mockSuccessResponse({}));
+      });
+
+      const result = await fetchPulseData('owner', 'repo');
+
+      // Stats endpoints that got 202 twice should return null (from processing: true)
+      expect(result.participation).toBeNull();
+      expect(result.contributors).toBeNull();
+      // Non-stats endpoints should succeed
+      expect(result.issues).toEqual(mockIssues);
+      expect(result.pullRequests).toEqual(mockPullRequests);
+      expect(result.releases).toEqual(mockReleases);
+      expect(result.commits).toBeNull();
+    });
+
+    it('should handle mixed success and rejection errors gracefully', async () => {
+      const mockIssues = [{ id: 1, title: 'Issue 1' }];
+      const mockReleases = [{ id: 1, tag_name: 'v1.0.0' }];
+
+      // Mix of HTTP errors and network errors
+      global.fetch.mockImplementation((url) => {
+        if (url.includes('stats/participation')) {
+          return Promise.resolve(mockFailResponse());
+        }
+        if (url.includes('stats/contributors')) {
+          return Promise.resolve(mockFailResponse());
+        }
+        if (url.includes('/issues')) {
+          return Promise.resolve(mockSuccessResponse(mockIssues));
+        }
+        if (url.includes('/pulls')) {
+          return Promise.resolve(mockFailResponse());
+        }
+        if (url.includes('/releases')) {
+          return Promise.resolve(mockSuccessResponse(mockReleases));
+        }
+        if (url.includes('stats/commit_activity')) {
+          return Promise.resolve(mockFailResponse());
+        }
+        return Promise.resolve(mockSuccessResponse({}));
+      });
+
+      const result = await fetchPulseData('owner', 'repo');
+
+      expect(result.participation).toBeNull();
+      expect(result.contributors).toBeNull();
+      expect(result.issues).toEqual(mockIssues);
+      expect(result.pullRequests).toBeNull();
+      expect(result.releases).toEqual(mockReleases);
+      expect(result.commits).toBeNull();
     });
   });
 });

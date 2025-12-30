@@ -131,11 +131,23 @@
         }
       ],
       "status": "completed"
+    },
+    "subtask-5-5": {
+      "attempts": [
+        {
+          "session": 12,
+          "timestamp": "2025-12-30T12:24:41.544378",
+          "approach": "Implemented: Add tests for getReleaseHistory (success)",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
     }
   },
   "stuck_subtasks": [],
   "metadata": {
     "created_at": "2025-12-30T12:07:56.553358",
-    "last_updated": "2025-12-30T12:22:45.215138"
+    "last_updated": "2025-12-30T12:24:41.544381"
   }
 }
