@@ -9,6 +9,7 @@ import {
   checkRateLimit,
   getCommitActivity,
   getParticipationStats,
+  getContributorStats,
   clearCache
 } from '../api.js';
 
@@ -417,6 +418,64 @@ describe('API', () => {
       });
 
       await expect(getParticipationStats('owner', 'repo')).rejects.toThrow('HTTP 500');
+    });
+  });
+
+  describe('getContributorStats', () => {
+    it('should fetch contributor stats', async () => {
+      const mockData = [
+        { author: { login: 'user1' }, total: 50, weeks: [] },
+        { author: { login: 'user2' }, total: 30, weeks: [] }
+      ];
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+        headers: {
+          get: () => '59'
+        }
+      });
+
+      const result = await getContributorStats('owner', 'repo');
+      expect(result.data).toEqual(mockData);
+      expect(result.processing).toBe(false);
+    });
+
+    it('should retry once on 202 status and return processing flag on second 202', async () => {
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 202,
+          json: () => Promise.resolve(null),
+          headers: {
+            get: () => '59'
+          }
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 202,
+          json: () => Promise.resolve(null),
+          headers: {
+            get: () => '59'
+          }
+        });
+
+      const result = await getContributorStats('owner', 'repo');
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ data: null, processing: true, rateLimit: null });
+    });
+
+    it('should throw error on HTTP failure', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        headers: {
+          get: () => null
+        }
+      });
+
+      await expect(getContributorStats('owner', 'repo')).rejects.toThrow('HTTP 500');
     });
   });
 
