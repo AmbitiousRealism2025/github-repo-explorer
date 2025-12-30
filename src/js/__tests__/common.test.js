@@ -11,7 +11,8 @@ import {
   escapeHtml,
   safeText,
   createElement,
-  Icons
+  Icons,
+  sanitizeUrl
 } from '../common.js';
 
 describe('Storage', () => {
@@ -442,5 +443,75 @@ describe('Icons', () => {
     expect(Icons.folderPlus).toBeDefined();
     expect(Icons.check).toBeDefined();
     expect(Icons.plus).toBeDefined();
+  });
+});
+
+describe('sanitizeUrl', () => {
+  describe('valid URLs', () => {
+    it('should allow http URLs', () => {
+      expect(sanitizeUrl('http://example.com')).toBe('http://example.com');
+    });
+
+    it('should allow https URLs', () => {
+      expect(sanitizeUrl('https://example.com')).toBe('https://example.com');
+    });
+
+    it('should allow URLs with paths and query strings', () => {
+      expect(sanitizeUrl('https://example.com/path?query=1')).toBe('https://example.com/path?query=1');
+    });
+
+    it('should allow URLs with ports', () => {
+      expect(sanitizeUrl('https://example.com:8080')).toBe('https://example.com:8080');
+    });
+  });
+
+  describe('blocked URLs (XSS prevention)', () => {
+    it('should block javascript: URLs', () => {
+      expect(sanitizeUrl('javascript:alert(1)')).toBeNull();
+    });
+
+    it('should block javascript: URLs with encoding tricks', () => {
+      expect(sanitizeUrl('javascript:alert(document.cookie)')).toBeNull();
+    });
+
+    it('should block data: URLs', () => {
+      expect(sanitizeUrl('data:text/html,<script>alert(1)</script>')).toBeNull();
+    });
+
+    it('should block vbscript: URLs', () => {
+      expect(sanitizeUrl('vbscript:msgbox(1)')).toBeNull();
+    });
+
+    it('should block file: URLs', () => {
+      expect(sanitizeUrl('file:///etc/passwd')).toBeNull();
+    });
+
+    it('should block ftp: URLs', () => {
+      expect(sanitizeUrl('ftp://example.com')).toBeNull();
+    });
+  });
+
+  describe('invalid inputs', () => {
+    it('should return null for null input', () => {
+      expect(sanitizeUrl(null)).toBeNull();
+    });
+
+    it('should return null for undefined input', () => {
+      expect(sanitizeUrl(undefined)).toBeNull();
+    });
+
+    it('should return null for empty string', () => {
+      expect(sanitizeUrl('')).toBeNull();
+    });
+
+    it('should return null for malformed URLs', () => {
+      expect(sanitizeUrl('not-a-url')).toBeNull();
+    });
+
+    it('should return null for non-string inputs', () => {
+      expect(sanitizeUrl(123)).toBeNull();
+      expect(sanitizeUrl({})).toBeNull();
+      expect(sanitizeUrl([])).toBeNull();
+    });
   });
 });

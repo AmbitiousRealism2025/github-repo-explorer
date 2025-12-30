@@ -410,3 +410,19 @@ export const escapeHtml = (str) => {
   div.textContent = str;
   return div.innerHTML;
 };
+
+/**
+ * Sanitize a URL to only allow safe schemes (http, https)
+ * Prevents XSS via javascript: or data: URLs
+ * @param {string} url - URL to sanitize
+ * @returns {string|null} - Sanitized URL or null if unsafe/invalid
+ */
+export const sanitizeUrl = (url) => {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:'].includes(parsed.protocol) ? url : null;
+  } catch {
+    return null;
+  }
+};
