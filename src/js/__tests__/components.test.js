@@ -58,8 +58,26 @@ describe('CloneCommands', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalled();
   });
 
-  it('should show error toast when clipboard API fails', async () => {
+  it('should fallback to execCommand when clipboard API fails', async () => {
     navigator.clipboard.writeText = vi.fn().mockRejectedValue(new Error('fail'));
+    document.execCommand = vi.fn().mockReturnValue(true);
+    
+    const element = createCloneCommands('owner/repo');
+    document.body.appendChild(element);
+    const copyBtn = element.querySelector('.clone-commands__copy');
+    
+    copyBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    
+    expect(document.execCommand).toHaveBeenCalledWith('copy');
+    const toast = document.querySelector('.toast');
+    expect(toast).not.toBeNull();
+    expect(toast.textContent).toContain('Copied to clipboard');
+  });
+
+  it('should show error toast when both clipboard API and execCommand fail', async () => {
+    navigator.clipboard.writeText = vi.fn().mockRejectedValue(new Error('fail'));
+    document.execCommand = vi.fn().mockReturnValue(false);
     
     const element = createCloneCommands('owner/repo');
     document.body.appendChild(element);
