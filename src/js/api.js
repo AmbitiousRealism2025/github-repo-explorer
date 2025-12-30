@@ -406,3 +406,27 @@ export const getIssueTimeline = async (owner, repo, params = {}) => {
   const url = `${API_BASE}/repos/${owner}/${repo}/issues?${query}`;
   return fetchWithRetry(url);
 };
+
+/**
+ * Fetches pull requests with merge timestamps for a repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {Object} [params={}] - Optional query parameters to override defaults
+ * @param {string} [params.state='all'] - PR state filter (open, closed, all)
+ * @param {string} [params.sort='created'] - Sort field (created, updated, popularity, long-running)
+ * @param {string} [params.direction='desc'] - Sort direction (asc, desc)
+ * @param {number} [params.per_page=100] - Results per page (max 100)
+ * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}
+ * @throws {Error} When API request fails
+ */
+export const getPullRequestTimeline = async (owner, repo, params = {}) => {
+  const query = new URLSearchParams({
+    state: 'all',
+    per_page: '100',
+    sort: 'created',
+    direction: 'desc',
+    ...params
+  });
+  const url = `${API_BASE}/repos/${owner}/${repo}/pulls?${query}`;
+  return fetchWithRetry(url);
+};

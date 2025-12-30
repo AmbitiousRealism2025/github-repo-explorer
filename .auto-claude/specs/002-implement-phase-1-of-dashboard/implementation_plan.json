@@ -111,8 +111,9 @@
             "command": "node -e \"import('./src/js/api.js').then(m => console.log('getIssueTimeline:', typeof m.getIssueTimeline))\"",
             "expected": "getIssueTimeline: function"
           },
-          "status": "pending",
-          "notes": "Use URLSearchParams with defaults: state='all', per_page=100, sort='created', direction='desc'. Allow params override via spread."
+          "status": "completed",
+          "notes": "Added getIssueTimeline function with URLSearchParams for query building. Defaults: state='all', per_page=100, sort='created', direction='desc'. Supports optional params override. Verified with node import check.",
+          "updated_at": "2025-12-30T17:12:33.410782+00:00"
         },
         {
           "id": "subtask-3-2",
@@ -451,5 +452,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T17:11:17.785714+00:00"
+  "last_updated": "2025-12-30T17:12:33.410789+00:00"
 }
