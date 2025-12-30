@@ -1,25 +1,25 @@
 {
   "active": true,
-  "spec": "005-implement-phase-4-of-repository-pulse-dashboard",
-  "state": "complete",
+  "spec": "007-implement-phase-6-of-repository-dashboard",
+  "state": "building",
   "subtasks": {
-    "completed": 7,
-    "total": 7,
-    "in_progress": 0,
+    "completed": 1,
+    "total": 9,
+    "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Unit Tests",
+    "current": "Pulse Dashboard UI Integration",
     "id": null,
-    "total": 1
+    "total": 4
   },
   "workers": {
     "active": 0,
     "max": 1
   },
   "session": {
-    "number": 7,
-    "started_at": "2025-12-30T15:04:19.957236"
+    "number": 2,
+    "started_at": "2025-12-30T15:56:13.527236"
   },
-  "last_update": "2025-12-30T15:32:11.982464"
+  "last_update": "2025-12-30T15:58:26.604564"
 }

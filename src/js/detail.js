@@ -1,4 +1,4 @@
-import { getRepository, getRepositoryReadme, getRepositoryLanguages, getRepositoryEvents, getCommitActivity } from './api.js';
+import { getRepository, getRepositoryReadme, getRepositoryLanguages, getRepositoryEvents, getCommitActivity, fetchPulseData } from './api.js';
 import {
   initTheme,
   toggleTheme,
@@ -20,6 +20,8 @@ import { createRepoNotes } from './components/RepoNotes.js';
 import { createCommitHeatmap } from './components/CommitHeatmap.js';
 import { createHealthScore } from './components/HealthScore.js';
 import { createRepositoryDNA } from './components/RepositoryDNA/index.js';
+import { createPulseDashboard, createPulseDashboardSkeleton, createPulseDashboardError } from './components/PulseDashboard/index.js';
+import { calculateAllMetrics } from './components/PulseDashboard/PulseCalculator.js';
 
 initTheme();
 initMobileNav();
