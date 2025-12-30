@@ -77,11 +77,11 @@ const loadPulseDashboard = async () => {
 
   try {
     // Fetch pulse data from the API
-    const pulseResult = await fetchPulseData(owner, repo);
-    const rawPulseData = pulseResult.data;
+    // fetchPulseData returns object directly with: participation, contributors, issues, pullRequests, releases, commits
+    const pulseData = await fetchPulseData(owner, repo);
 
     // Calculate all metrics from the raw data
-    const calculatedMetrics = calculateAllMetrics(rawPulseData);
+    const calculatedMetrics = calculateAllMetrics(pulseData);
 
     // Transform calculator output to dashboard format
     // Map: velocity → commitVelocity, momentum → communityHealth,
