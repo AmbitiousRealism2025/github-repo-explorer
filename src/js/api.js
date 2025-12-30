@@ -273,10 +273,10 @@ export const checkRateLimit = async () => {
  */
 export const getCommitActivity = async (owner, repo, retryOnce = true) => {
   const url = `${API_BASE}/repos/${owner}/${repo}/stats/commit_activity`;
-  
+
   try {
     const response = await fetch(url, { headers: getHeaders() });
-    
+
     if (response.status === 202) {
       if (retryOnce) {
         await sleep(2000);
@@ -284,11 +284,51 @@ export const getCommitActivity = async (owner, repo, retryOnce = true) => {
       }
       return { data: null, processing: true, rateLimit: null };
     }
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
+    return {
+      data: await response.json(),
+      processing: false,
+      rateLimit: {
+        remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
+        limit: parseInt(response.headers.get('x-ratelimit-limit') || '0'),
+        reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
+      }
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Fetches weekly participation stats (commit counts) for the last year
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {boolean} [retryOnce=true] - Whether to retry once if GitHub returns 202 (processing)
+ * @returns {Promise<{data: {all: number[], owner: number[]} | null, processing: boolean, rateLimit: Object | null}>}
+ * @throws {Error} When API request fails
+ */
+export const getParticipationStats = async (owner, repo, retryOnce = true) => {
+  const url = `${API_BASE}/repos/${owner}/${repo}/stats/participation`;
+
+  try {
+    const response = await fetch(url, { headers: getHeaders() });
+
+    if (response.status === 202) {
+      if (retryOnce) {
+        await sleep(2000);
+        return getParticipationStats(owner, repo, false);
+      }
+      return { data: null, processing: true, rateLimit: null };
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
     return {
       data: await response.json(),
       processing: false,

@@ -1,0 +1,123 @@
+{
+  "complexity": "standard",
+  "workflow_type": "feature",
+  "confidence": 0.90,
+  "reasoning": "Phase 1 involves extending the existing api.js with 5 new endpoint functions following established patterns (fetchWithCache, existing stats endpoints). The implementation plan provides detailed code examples. No new integrations, no infrastructure changes, and all patterns already exist in the codebase.",
+
+  "analysis": {
+    "scope": {
+      "estimated_files": 3,
+      "estimated_services": 1,
+      "is_cross_cutting": false,
+      "notes": "Primarily api.js modifications, possibly constants.js for cache TTL, and test file additions. All changes contained to API layer."
+    },
+    "integrations": {
+      "external_services": ["GitHub REST API"],
+      "new_dependencies": [],
+      "research_needed": false,
+      "notes": "GitHub API is already integrated with fetchWithCache, retry logic, 202 handling, and rate limit awareness. New endpoints follow same patterns."
+    },
+    "infrastructure": {
+      "docker_changes": false,
+      "database_changes": false,
+      "config_changes": false,
+      "notes": "No infrastructure changes. May add cache TTL constants but this is purely in-code configuration."
+    },
+    "knowledge": {
+      "patterns_exist": true,
+      "research_required": false,
+      "unfamiliar_tech": [],
+      "notes": "Existing patterns: fetchWithCache(), getCommitActivity(), getRepositoryEvents(), getRepositoryLanguages(). Implementation plan provides complete code examples for each new function."
+    },
+    "risk": {
+      "level": "low",
+      "concerns": [
+        "Rate limiting on new endpoints (mitigated by existing retry logic)",
+        "202 computing responses on stats endpoints (mitigated by existing 202 handling)"
+      ],
+      "notes": "Additive changes only. New endpoints use proven patterns. Batch fetcher uses Promise.allSettled for resilience."
+    }
+  },
+
+  "recommended_phases": [
+    "discovery",
+    "requirements",
+    "context",
+    "spec_writing",
+    "planning",
+    "validation"
+  ],
+
+  "flags": {
+    "needs_research": false,
+    "needs_self_critique": false,
+    "needs_infrastructure_setup": false
+  },
+
+  "validation_recommendations": {
+    "risk_level": "low",
+    "skip_validation": false,
+    "minimal_mode": false,
+    "test_types_required": ["unit", "integration"],
+    "security_scan_required": false,
+    "staging_deployment_required": false,
+    "reasoning": "New API layer functions require unit tests for each endpoint wrapper and integration tests for the batch fetcher. No security-sensitive changes (no auth modifications, existing token handling). Tests should cover error resilience, 202 retry handling, and cache behavior."
+  },
+
+  "task_breakdown": {
+    "phase_1_subtasks": [
+      {
+        "id": "1.1",
+        "task": "Add getParticipationStats() function",
+        "files": ["src/js/api.js"],
+        "complexity": "simple"
+      },
+      {
+        "id": "1.2",
+        "task": "Add getContributorStats() function",
+        "files": ["src/js/api.js"],
+        "complexity": "simple"
+      },
+      {
+        "id": "1.3",
+        "task": "Add getIssueTimeline() function with query params",
+        "files": ["src/js/api.js"],
+        "complexity": "simple"
+      },
+      {
+        "id": "1.4",
+        "task": "Add getPullRequestTimeline() function with query params",
+        "files": ["src/js/api.js"],
+        "complexity": "simple"
+      },
+      {
+        "id": "1.5",
+        "task": "Add getReleaseHistory() function",
+        "files": ["src/js/api.js"],
+        "complexity": "simple"
+      },
+      {
+        "id": "1.6",
+        "task": "Implement fetchPulseData() aggregator with Promise.allSettled",
+        "files": ["src/js/api.js"],
+        "complexity": "medium"
+      },
+      {
+        "id": "1.7",
+        "task": "Add extended cache TTL for stats endpoints (optional - evaluate if needed)",
+        "files": ["src/js/api.js", "src/js/constants.js"],
+        "complexity": "simple"
+      },
+      {
+        "id": "1.8",
+        "task": "Add unit tests for new API functions",
+        "files": ["src/js/__tests__/api.test.js"],
+        "complexity": "medium"
+      }
+    ],
+    "estimated_effort": "2-3 hours",
+    "critical_path": ["1.1-1.5 (endpoint functions)", "1.6 (aggregator)", "1.8 (tests)"]
+  },
+
+  "created_at": "2025-12-30T00:00:00.000Z"
+}

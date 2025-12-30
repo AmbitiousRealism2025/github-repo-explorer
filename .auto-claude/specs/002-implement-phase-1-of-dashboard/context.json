@@ -1,0 +1,31 @@
+{
+  "task_description": "Implement Phase 1 of Repository Pulse Dashboard - Data Collection & API Layer",
+  "scoped_services": ["main"],
+  "files_to_modify": {
+    "main": [
+      "src/js/api.js",
+      "src/js/constants.js",
+      "src/js/__tests__/api.test.js"
+    ]
+  },
+  "files_to_reference": [
+    "src/js/api.js",
+    "src/js/constants.js",
+    "src/js/__tests__/api.test.js"
+  ],
+  "patterns": {
+    "api_function_pattern": "Arrow functions with async, JSDoc with @param/@returns/@throws, return fetchWithRetry(url) for standard endpoints",
+    "stats_202_pattern": "Use direct fetch with getHeaders(), retryOnce param, sleep(2000), recursive call for retry, return { data: null, processing: true, rateLimit: null } on exhausted retry",
+    "test_pattern": "describe/it blocks, clearCache in beforeEach, mock fetch with vi.fn(), mock response with headers object",
+    "constant_naming": "UPPER_SNAKE_CASE, time values use _MS suffix"
+  },
+  "existing_implementations": {
+    "description": "getCommitActivity already implements 202 handling pattern, getRepositoryEvents shows simple endpoint pattern, fetchWithRetry handles caching and errors",
+    "relevant_files": [
+      "src/js/api.js:274-304 (getCommitActivity - 202 pattern)",
+      "src/js/api.js:251-254 (getRepositoryEvents - simple pattern)",
+      "src/js/api.js:54-110 (fetchWithRetry - caching/retry)"
+    ]
+  },
+  "created_at": "2025-12-30T12:00:00.000Z"
+}

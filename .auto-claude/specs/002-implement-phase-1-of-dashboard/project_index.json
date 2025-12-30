@@ -1,0 +1,33 @@
+{
+  "project_root": "/Users/ambrealismwork/Desktop/Coding-Projects/github-repo-explorer",
+  "project_type": "single",
+  "services": {
+    "main": {
+      "name": "main",
+      "path": "/Users/ambrealismwork/Desktop/Coding-Projects/github-repo-explorer",
+      "language": "JavaScript",
+      "framework": null,
+      "type": "unknown",
+      "package_manager": "npm",
+      "build_tool": "Vite",
+      "default_port": 5173,
+      "dev_command": "npm run dev",
+      "key_directories": {
+        "src": {
+          "path": "src",
+          "purpose": "Source code"
+        }
+      },
+      "dependencies": [],
+      "dev_dependencies": [
+        "@vitest/coverage-v8",
+        "jsdom",
+        "vite",
+        "vitest"
+      ],
+      "testing": "Vitest"
+    }
+  },
+  "infrastructure": {},
+  "conventions": {}
+}
