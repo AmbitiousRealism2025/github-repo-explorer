@@ -31,6 +31,7 @@ const loadingState = getRequiredElement('loading-state');
 const detailContent = getRequiredElement('detail-content');
 const errorState = getRequiredElement('error-state');
 const errorMessage = getRequiredElement('error-message');
+const retryBtn = getRequiredElement('retry-btn');
 const themeToggle = getRequiredElement('theme-toggle');
 
 const repoName = getRequiredElement('repo-name');
@@ -368,5 +369,9 @@ favoriteBtn.addEventListener('click', () => {
 });
 
 themeToggle.addEventListener('click', toggleTheme);
+
+retryBtn.addEventListener('click', () => {
+  loadRepository();
+});
 
 loadRepository();
