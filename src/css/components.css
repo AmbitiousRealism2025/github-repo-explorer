@@ -2366,3 +2366,148 @@
     will-change: auto;
   }
 }
+
+/* ============================================
+   Pulse Dashboard Animations (Phase 5)
+   ============================================ */
+
+/* Speed variants via data-speed attribute */
+[data-speed="fast"] {
+  --pulse-duration: 0.8s;
+}
+
+[data-speed="normal"] {
+  --pulse-duration: 1.2s;
+}
+
+[data-speed="slow"] {
+  --pulse-duration: 1.8s;
+}
+
+/* Pulse container */
+.pulse-dashboard__pulse {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Pulse dot - the central heartbeat indicator */
+.pulse-dashboard__pulse-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  transform: translate(-50%, -50%);
+  animation: pulse-beat var(--pulse-duration, 1.2s) ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+
+/* Ripple effect - radiating circles */
+.pulse-dashboard__pulse-ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.5);
+  animation: pulse-ripple var(--pulse-duration, 1.2s) ease-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Staggered ripple for deeper effect */
+.pulse-dashboard__pulse-ripple:nth-child(2) {
+  animation-delay: calc(var(--pulse-duration, 1.2s) * 0.33);
+}
+
+.pulse-dashboard__pulse-ripple:nth-child(3) {
+  animation-delay: calc(var(--pulse-duration, 1.2s) * 0.66);
+}
+
+/* Pulse heartbeat keyframes */
+@keyframes pulse-beat {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  25% {
+    transform: translate(-50%, -50%) scale(1.15);
+    box-shadow: 0 0 8px 2px currentColor;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 4px 1px currentColor;
+  }
+  75% {
+    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow: 0 0 6px 2px currentColor;
+  }
+}
+
+/* Ripple expansion keyframes */
+@keyframes pulse-ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}
+
+/* ============================================
+   Pulse Status Colors
+   ============================================ */
+
+/* Thriving - healthy, active repository (green) */
+.pulse-dashboard__header--thriving .pulse-dashboard__pulse-dot {
+  background: var(--color-success);
+  color: var(--color-success);
+}
+
+.pulse-dashboard__header--thriving .pulse-dashboard__pulse-ripple {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+/* Stable - normal activity (yellow/warning) */
+.pulse-dashboard__header--stable .pulse-dashboard__pulse-dot {
+  background: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.pulse-dashboard__header--stable .pulse-dashboard__pulse-ripple {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+/* Cooling - decreased activity (orange) */
+.pulse-dashboard__header--cooling .pulse-dashboard__pulse-dot {
+  background: #f97316;
+  color: #f97316;
+}
+
+.pulse-dashboard__header--cooling .pulse-dashboard__pulse-ripple {
+  border-color: #f97316;
+  color: #f97316;
+}
+
+/* At Risk - low activity, needs attention (red) */
+.pulse-dashboard__header--at_risk .pulse-dashboard__pulse-dot {
+  background: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.pulse-dashboard__header--at_risk .pulse-dashboard__pulse-ripple {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
