@@ -3338,3 +3338,395 @@
     display: none;
   }
 }
+
+
+/* ============================================
+   Pulse Dashboard Animations (Phase 5)
+   ============================================ */
+
+/* Speed variants via data-speed attribute */
+[data-speed="fast"] {
+  --pulse-duration: 0.8s;
+}
+
+[data-speed="normal"] {
+  --pulse-duration: 1.2s;
+}
+
+[data-speed="slow"] {
+  --pulse-duration: 1.8s;
+}
+
+/* Pulse container */
+.pulse-dashboard__pulse {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Pulse dot - the central heartbeat indicator */
+.pulse-dashboard__pulse-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  transform: translate(-50%, -50%);
+  animation: pulse-beat var(--pulse-duration, 1.2s) ease-in-out infinite;
+  will-change: transform, box-shadow;
+}
+
+/* Ripple effect - radiating circles */
+.pulse-dashboard__pulse-ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.5);
+  animation: pulse-ripple var(--pulse-duration, 1.2s) ease-out infinite;
+  will-change: transform, opacity;
+}
+
+/* Staggered ripple for deeper effect */
+.pulse-dashboard__pulse-ripple:nth-child(2) {
+  animation-delay: calc(var(--pulse-duration, 1.2s) * 0.33);
+}
+
+.pulse-dashboard__pulse-ripple:nth-child(3) {
+  animation-delay: calc(var(--pulse-duration, 1.2s) * 0.66);
+}
+
+/* Pulse heartbeat keyframes */
+@keyframes pulse-beat {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  25% {
+    transform: translate(-50%, -50%) scale(1.15);
+    box-shadow: 0 0 8px 2px currentColor;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 4px 1px currentColor;
+  }
+  75% {
+    transform: translate(-50%, -50%) scale(1.1);
+    box-shadow: 0 0 6px 2px currentColor;
+  }
+}
+
+/* Ripple expansion keyframes */
+@keyframes pulse-ripple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0.6;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}
+
+/* ============================================
+   Pulse Status Colors
+   ============================================ */
+
+/* Thriving - healthy, active repository (green) */
+.pulse-dashboard__header--thriving .pulse-dashboard__pulse-dot {
+  background: var(--color-success);
+  color: var(--color-success);
+}
+
+.pulse-dashboard__header--thriving .pulse-dashboard__pulse-ripple {
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+/* Stable - normal activity (yellow/warning) */
+.pulse-dashboard__header--stable .pulse-dashboard__pulse-dot {
+  background: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.pulse-dashboard__header--stable .pulse-dashboard__pulse-ripple {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+/* Cooling - decreased activity (orange) */
+.pulse-dashboard__header--cooling .pulse-dashboard__pulse-dot {
+  background: #f97316;
+  color: #f97316;
+}
+
+.pulse-dashboard__header--cooling .pulse-dashboard__pulse-ripple {
+  border-color: #f97316;
+  color: #f97316;
+}
+
+/* At Risk - low activity, needs attention (red) */
+.pulse-dashboard__header--at_risk .pulse-dashboard__pulse-dot {
+  background: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.pulse-dashboard__header--at_risk .pulse-dashboard__pulse-ripple {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* ============================================
+   Pulse Card Entrance Animations
+   ============================================ */
+
+/* Card entrance keyframes - fade + slide up */
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Attention pulse for at-risk cards - pulsing glow effect */
+@keyframes attention-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 12px 4px rgba(239, 68, 68, 0.6);
+  }
+}
+
+/* Base pulse card with entrance animation */
+.pulse-card {
+  animation: card-enter 0.4s ease-out both;
+}
+
+/* Staggered entrance delays - 50ms increments */
+.pulse-card:nth-child(1) { animation-delay: 0.05s; }
+.pulse-card:nth-child(2) { animation-delay: 0.1s; }
+.pulse-card:nth-child(3) { animation-delay: 0.15s; }
+.pulse-card:nth-child(4) { animation-delay: 0.2s; }
+.pulse-card:nth-child(5) { animation-delay: 0.25s; }
+.pulse-card:nth-child(6) { animation-delay: 0.3s; }
+
+/* ============================================
+   Pulse Card Status Glow Effects
+   ============================================ */
+
+/* Thriving - subtle green glow */
+.pulse-card--thriving {
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 8px 0 rgba(16, 185, 129, 0.15);
+}
+
+.pulse-card--thriving:hover {
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 12px 2px rgba(16, 185, 129, 0.25);
+}
+
+/* Stable - subtle yellow glow */
+.pulse-card--stable {
+  border-color: rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 8px 0 rgba(245, 158, 11, 0.15);
+}
+
+.pulse-card--stable:hover {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: 0 0 12px 2px rgba(245, 158, 11, 0.25);
+}
+
+/* Cooling - subtle orange glow */
+.pulse-card--cooling {
+  border-color: rgba(249, 115, 22, 0.3);
+  box-shadow: 0 0 8px 0 rgba(249, 115, 22, 0.15);
+}
+
+.pulse-card--cooling:hover {
+  border-color: rgba(249, 115, 22, 0.5);
+  box-shadow: 0 0 12px 2px rgba(249, 115, 22, 0.25);
+}
+
+/* At Risk - animated attention pulse glow */
+.pulse-card--at_risk {
+  border-color: rgba(239, 68, 68, 0.4);
+  animation: card-enter 0.4s ease-out both, attention-pulse 2s ease-in-out infinite;
+  animation-delay: var(--card-enter-delay, 0s), 0.5s;
+}
+
+/* Override nth-child delays for at_risk cards (they have dual animations) */
+.pulse-card--at_risk:nth-child(1) { --card-enter-delay: 0.05s; }
+.pulse-card--at_risk:nth-child(2) { --card-enter-delay: 0.1s; }
+.pulse-card--at_risk:nth-child(3) { --card-enter-delay: 0.15s; }
+.pulse-card--at_risk:nth-child(4) { --card-enter-delay: 0.2s; }
+.pulse-card--at_risk:nth-child(5) { --card-enter-delay: 0.25s; }
+.pulse-card--at_risk:nth-child(6) { --card-enter-delay: 0.3s; }
+
+.pulse-card--at_risk:hover {
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
+/* ============================================
+   Sparkline Draw Animation
+   ============================================ */
+
+/* Sparkline path draw effect - progressively draws from left to right */
+@keyframes sparkline-draw {
+  from {
+    stroke-dashoffset: 200;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Base sparkline styling with draw animation */
+.sparkline path {
+  stroke-dasharray: 200;
+  stroke-dashoffset: 200;
+  animation: sparkline-draw 1s ease-out forwards;
+}
+
+/* Sparkline gradient fill animation delay */
+.sparkline path.sparkline__fill {
+  animation-delay: 0.2s;
+}
+
+/* ============================================
+   Trend Arrow Animations
+   ============================================ */
+
+/* Bounce up animation for upward trends */
+@keyframes arrow-bounce-up {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+  60% {
+    transform: translateY(-2px);
+  }
+  80% {
+    transform: translateY(-3px);
+  }
+  100% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Bounce down animation for downward trends */
+@keyframes arrow-bounce-down {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  40% {
+    transform: translateY(4px);
+    opacity: 1;
+  }
+  60% {
+    transform: translateY(2px);
+  }
+  80% {
+    transform: translateY(3px);
+  }
+  100% {
+    transform: translateY(2px);
+  }
+}
+
+/* Subtle pulse for stable/neutral trend */
+@keyframes arrow-bounce-stable {
+  0% {
+    transform: scale(1);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Apply animations to trend arrow variants */
+.trend-arrow--up .trend-arrow__icon {
+  animation: arrow-bounce-up 0.6s ease-out both;
+}
+
+.trend-arrow--down .trend-arrow__icon {
+  animation: arrow-bounce-down 0.6s ease-out both;
+}
+
+.trend-arrow--stable .trend-arrow__icon {
+  animation: arrow-bounce-stable 0.6s ease-out both;
+}
+
+/* ============================================
+   Reduced Motion - Pulse Dashboard Animations
+   ============================================ */
+
+/* prefers-reduced-motion: disable pulse animations */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable pulse heartbeat and ripple animations */
+  .pulse-dashboard__pulse-dot,
+  .pulse-dashboard__pulse-ripple {
+    animation: none;
+  }
+
+  /* Keep dot visible without animation */
+  .pulse-dashboard__pulse-dot {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 4px 1px currentColor;
+  }
+
+  /* Hide ripples completely when reduced motion preferred */
+  .pulse-dashboard__pulse-ripple {
+    display: none;
+  }
+
+  /* Disable card entrance animations */
+  .pulse-card {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Disable attention pulse on at-risk cards */
+  .pulse-card--at_risk {
+    animation: none;
+  }
+
+  /* Disable sparkline draw animation */
+  .sparkline path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  /* Disable trend arrow bounce animations */
+  .trend-arrow--up .trend-arrow__icon,
+  .trend-arrow--down .trend-arrow__icon,
+  .trend-arrow--stable .trend-arrow__icon {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
