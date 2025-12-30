@@ -2706,3 +2706,54 @@
 .trend-arrow--stable .trend-arrow__icon {
   animation: arrow-bounce-stable 0.6s ease-out both;
 }
+
+/* ============================================
+   Reduced Motion - Pulse Dashboard Animations
+   ============================================ */
+
+/* prefers-reduced-motion: disable pulse animations */
+@media (prefers-reduced-motion: reduce) {
+  /* Disable pulse heartbeat and ripple animations */
+  .pulse-dashboard__pulse-dot,
+  .pulse-dashboard__pulse-ripple {
+    animation: none;
+  }
+
+  /* Keep dot visible without animation */
+  .pulse-dashboard__pulse-dot {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 4px 1px currentColor;
+  }
+
+  /* Hide ripples completely when reduced motion preferred */
+  .pulse-dashboard__pulse-ripple {
+    display: none;
+  }
+
+  /* Disable card entrance animations */
+  .pulse-card {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Disable attention pulse on at-risk cards */
+  .pulse-card--at_risk {
+    animation: none;
+  }
+
+  /* Disable sparkline draw animation */
+  .sparkline path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  /* Disable trend arrow bounce animations */
+  .trend-arrow--up .trend-arrow__icon,
+  .trend-arrow--down .trend-arrow__icon,
+  .trend-arrow--stable .trend-arrow__icon {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
