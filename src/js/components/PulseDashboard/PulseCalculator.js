@@ -25,7 +25,8 @@ import {
   DEFAULTS,
   DEFAULT_METRIC,
   TIME_MS,
-  COMMUNITY
+  COMMUNITY,
+  ISSUES
 } from './constants.js';
 
 // =============================================================================
@@ -590,6 +591,215 @@ function generateApproximateSparkline(totalStars, recentStars, events, days) {
       // Create a gentle wave pattern using sine
       const wave = Math.sin((i + seed) * 0.3) * 0.3 + 0.7;
       sparkline[i] = Math.round(baseDaily * wave * 10) / 10;
+    }
+  }
+
+  return sparkline;
+}
+
+/**
+ * Calculate issue temperature from issue data
+ * Analyzes open vs close rate with Hot/Warm/Cool classification
+ *
+ * @param {Object[]} issues - Array of GitHub issue objects
+ * @param {string} issues[].created_at - Issue creation date (ISO string)
+ * @param {string} [issues[].closed_at] - Issue close date (ISO string, null if open)
+ * @param {string} issues[].state - Issue state ('open' or 'closed')
+ * @returns {Object} MetricResult with temperature classification
+ *
+ * @example
+ * // Healthy repo with issues being closed quickly
+ * const issues = [
+ *   { created_at: '2024-01-01', closed_at: '2024-01-02', state: 'closed' },
+ *   { created_at: '2024-01-05', closed_at: '2024-01-06', state: 'closed' },
+ *   { created_at: '2024-01-10', state: 'open' }
+ * ];
+ * const result = calculateIssueTemperature(issues);
+ * // result.temperature === 'cool'
+ * // result.status === 'thriving'
+ *
+ * @example
+ * // Handle no issues
+ * const result = calculateIssueTemperature([]);
+ * // result.temperature === 'cool'
+ * // result.label === 'No recent issues'
+ */
+export function calculateIssueTemperature(issues) {
+  // Handle missing or invalid issues data
+  if (!issues || !Array.isArray(issues)) {
+    return getDefaultMetric('issues');
+  }
+
+  // Filter to issues within the analysis window (last 30 days)
+  const windowDays = ISSUES.WINDOW_DAYS;
+  const windowCutoff = Date.now() - (windowDays * TIME_MS.DAY);
+
+  const recentIssues = issues.filter(issue => {
+    if (!issue?.created_at) return false;
+    const createdDate = safeParseDate(issue.created_at);
+    return createdDate && createdDate.getTime() >= windowCutoff;
+  });
+
+  // No recent issues = default "Cool" (healthy, no issues to worry about)
+  if (recentIssues.length === 0) {
+    return getDefaultMetric('issues');
+  }
+
+  // Categorize issues
+  const closedIssues = recentIssues.filter(issue => issue.state === 'closed');
+  const openIssues = recentIssues.filter(issue => issue.state === 'open');
+
+  const totalCount = recentIssues.length;
+  const closedCount = closedIssues.length;
+  const openCount = openIssues.length;
+
+  // Calculate close rate (percentage of issues that were closed)
+  const closeRate = (closedCount / totalCount) * 100;
+
+  // Calculate average response time for closed issues
+  let avgResponseDays = 0;
+  const responseTimes = [];
+
+  for (const issue of closedIssues) {
+    if (issue.created_at && issue.closed_at) {
+      const days = daysBetween(issue.created_at, issue.closed_at);
+      if (days >= 0) {
+        responseTimes.push(days);
+      }
+    }
+  }
+
+  if (responseTimes.length > 0) {
+    avgResponseDays = average(responseTimes);
+  }
+
+  // Determine temperature based on close rate
+  // Cool = healthy (issues getting resolved), Hot = problematic (piling up)
+  let temperature;
+  let temperatureLabel;
+
+  if (closeRate >= ISSUES.CLOSE_RATE.COOL) {
+    temperature = 'cool';
+    temperatureLabel = 'Cool';
+  } else if (closeRate >= ISSUES.CLOSE_RATE.WARM) {
+    temperature = 'warm';
+    temperatureLabel = 'Warm';
+  } else if (closeRate >= ISSUES.CLOSE_RATE.HOT) {
+    temperature = 'hot';
+    temperatureLabel = 'Hot';
+  } else {
+    temperature = 'critical';
+    temperatureLabel = 'Critical';
+  }
+
+  // Calculate score (0-100) based on close rate and response time
+  let closeRateScore = 0;
+  if (closeRate >= ISSUES.CLOSE_RATE.COOL) closeRateScore = 100;
+  else if (closeRate >= ISSUES.CLOSE_RATE.WARM) closeRateScore = 70;
+  else if (closeRate >= ISSUES.CLOSE_RATE.HOT) closeRateScore = 40;
+  else closeRateScore = 15;
+
+  // Response time modifier
+  let responseModifier = 0;
+  if (avgResponseDays <= ISSUES.RESPONSE_TIME.EXCELLENT) responseModifier = 10;
+  else if (avgResponseDays <= ISSUES.RESPONSE_TIME.GOOD) responseModifier = 5;
+  else if (avgResponseDays <= ISSUES.RESPONSE_TIME.FAIR) responseModifier = 0;
+  else if (avgResponseDays <= ISSUES.RESPONSE_TIME.SLOW) responseModifier = -10;
+  else responseModifier = -15;
+
+  // Final score
+  const score = clamp(closeRateScore + responseModifier, 0, 100);
+
+  // Determine status based on temperature (map to standard status)
+  let status;
+  if (temperature === 'cool') status = 'thriving';
+  else if (temperature === 'warm') status = 'stable';
+  else if (temperature === 'hot') status = 'cooling';
+  else status = 'at_risk';
+
+  // Calculate trend by comparing first half vs second half of window
+  // Split issues into older half and newer half
+  const halfWindow = windowCutoff + (windowDays * TIME_MS.DAY / 2);
+
+  const olderIssues = recentIssues.filter(issue => {
+    const date = safeParseDate(issue.created_at);
+    return date && date.getTime() < halfWindow;
+  });
+
+  const newerIssues = recentIssues.filter(issue => {
+    const date = safeParseDate(issue.created_at);
+    return date && date.getTime() >= halfWindow;
+  });
+
+  // Calculate close rates for each half
+  const olderClosed = olderIssues.filter(i => i.state === 'closed').length;
+  const newerClosed = newerIssues.filter(i => i.state === 'closed').length;
+
+  const olderCloseRate = olderIssues.length > 0 ? (olderClosed / olderIssues.length) * 100 : 0;
+  const newerCloseRate = newerIssues.length > 0 ? (newerClosed / newerIssues.length) * 100 : 0;
+
+  // Trend: positive = improving (higher close rate recently), negative = worsening
+  const trend = Math.round(percentageChange(newerCloseRate, olderCloseRate));
+  const direction = getTrendDirection(trend);
+
+  // Generate sparkline data (daily issue activity over window)
+  const sparklineData = generateIssueSparkline(recentIssues, windowDays);
+
+  // Generate human-readable label
+  const roundedCloseRate = Math.round(closeRate);
+  const roundedResponseDays = Math.round(avgResponseDays * 10) / 10;
+  let label;
+
+  if (closedCount === 0 && openCount > 0) {
+    label = `${temperatureLabel}: ${openCount} open (0% closed)`;
+  } else if (avgResponseDays > 0) {
+    label = `${temperatureLabel}: ${roundedCloseRate}% closed, ~${roundedResponseDays}d avg`;
+  } else {
+    label = `${temperatureLabel}: ${roundedCloseRate}% closed`;
+  }
+
+  return {
+    value: temperatureLabel,
+    temperature,
+    trend: clamp(trend, -100, 100),
+    direction,
+    sparklineData,
+    status,
+    label,
+    // Additional metadata
+    totalCount,
+    openCount,
+    closedCount,
+    closeRate: Math.round(closeRate * 10) / 10,
+    avgResponseDays: Math.round(avgResponseDays * 10) / 10,
+    score
+  };
+}
+
+/**
+ * Generate sparkline data for issue activity
+ * Creates an array representing daily issue counts over the window
+ *
+ * @param {Object[]} issues - Array of issue objects with created_at
+ * @param {number} days - Number of days in the window
+ * @returns {number[]} Array of daily issue counts (oldest to newest)
+ */
+function generateIssueSparkline(issues, days) {
+  const sparkline = Array(days).fill(0);
+  const now = Date.now();
+  const dayMs = TIME_MS.DAY;
+
+  for (const issue of issues) {
+    if (!issue?.created_at) continue;
+
+    const createdDate = safeParseDate(issue.created_at);
+    if (!createdDate) continue;
+
+    const daysAgo = Math.floor((now - createdDate.getTime()) / dayMs);
+    if (daysAgo >= 0 && daysAgo < days) {
+      // Index 0 = oldest, index (days-1) = most recent
+      const index = days - 1 - daysAgo;
+      sparkline[index]++;
     }
   }
 
