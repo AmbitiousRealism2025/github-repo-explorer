@@ -242,3 +242,133 @@ export function emptySparkline(length) {
   if (typeof length !== 'number' || length < 0) return [];
   return Array(Math.floor(length)).fill(0);
 }
+
+// =============================================================================
+// METRIC CALCULATORS
+// =============================================================================
+
+/**
+ * Calculate velocity score from participation data
+ * Compares last 4 weeks vs previous 12 weeks to determine commit velocity trend
+ *
+ * @param {Object} participation - GitHub stats participation data
+ * @param {number[]} participation.all - Array of weekly commit counts (52 weeks, oldest to newest)
+ * @returns {Object} MetricResult with velocity score data
+ *
+ * @example
+ * // Increasing velocity
+ * const participation = { all: [...12 weeks of 5 commits..., ...4 weeks of 10 commits...] };
+ * const result = calculateVelocityScore(participation);
+ * // result.direction === 'up'
+ * // result.status === 'thriving'
+ *
+ * @example
+ * // Handle missing data
+ * const result = calculateVelocityScore(null);
+ * // result.status === 'stable'
+ * // result.label === 'Commit data unavailable'
+ */
+export function calculateVelocityScore(participation) {
+  // Import velocity constants inline to avoid circular deps and keep function self-contained
+  const RECENT_WEEKS = 4;
+  const PREVIOUS_WEEKS = 12;
+  const SPARKLINE_WEEKS = 13;
+
+  // Velocity thresholds from constants.js
+  const COMMITS_EXCELLENT = 20;
+  const COMMITS_GOOD = 10;
+  const COMMITS_FAIR = 5;
+  const COMMITS_MINIMAL = 1;
+
+  // Growth thresholds (percentage)
+  const GROWTH_THRIVING = 25;   // >25% increase = thriving
+  const GROWTH_STABLE = -10;    // -10% to +25% = stable
+  const GROWTH_COOLING = -30;   // -30% to -10% = cooling
+  // Below -30% = at_risk
+
+  // Handle missing or invalid participation data
+  if (!participation || !participation.all || !Array.isArray(participation.all)) {
+    return getDefaultMetric('velocity');
+  }
+
+  const allWeeks = participation.all;
+
+  // Need at least enough weeks for comparison
+  if (allWeeks.length < RECENT_WEEKS) {
+    return {
+      ...getDefaultMetric('velocity'),
+      sparklineData: allWeeks.slice(-SPARKLINE_WEEKS),
+      label: 'Insufficient commit history'
+    };
+  }
+
+  // Extract recent weeks (last 4) and previous weeks (prior 12)
+  const recentWeeks = allWeeks.slice(-RECENT_WEEKS);
+  const previousStart = Math.max(0, allWeeks.length - RECENT_WEEKS - PREVIOUS_WEEKS);
+  const previousEnd = allWeeks.length - RECENT_WEEKS;
+  const previousWeeks = allWeeks.slice(previousStart, previousEnd);
+
+  // Calculate averages
+  const recentAvg = average(recentWeeks);
+  const previousAvg = average(previousWeeks);
+
+  // Calculate trend (percentage change)
+  const trend = percentageChange(recentAvg, previousAvg);
+
+  // Determine direction
+  const direction = getTrendDirection(trend);
+
+  // Generate sparkline data (last 13 weeks)
+  const sparklineData = allWeeks.slice(-SPARKLINE_WEEKS);
+
+  // Calculate score (0-100) based on recent commit activity and growth
+  let activityScore = 0;
+  if (recentAvg >= COMMITS_EXCELLENT) activityScore = 100;
+  else if (recentAvg >= COMMITS_GOOD) activityScore = 80;
+  else if (recentAvg >= COMMITS_FAIR) activityScore = 60;
+  else if (recentAvg >= COMMITS_MINIMAL) activityScore = 40;
+  else activityScore = 20;
+
+  // Adjust score based on growth trend
+  let growthModifier = 0;
+  if (trend >= GROWTH_THRIVING) growthModifier = 15;
+  else if (trend >= GROWTH_STABLE) growthModifier = 0;
+  else if (trend >= GROWTH_COOLING) growthModifier = -15;
+  else growthModifier = -25;
+
+  // Final score clamped to 0-100
+  const score = clamp(activityScore + growthModifier, 0, 100);
+
+  // Determine status based on growth rate (more important than raw activity)
+  let status;
+  if (trend >= GROWTH_THRIVING) status = 'thriving';
+  else if (trend >= GROWTH_STABLE) status = 'stable';
+  else if (trend >= GROWTH_COOLING) status = 'cooling';
+  else status = 'at_risk';
+
+  // Generate human-readable label
+  const roundedAvg = Math.round(recentAvg * 10) / 10;
+  const roundedTrend = Math.round(trend);
+  let label;
+
+  if (direction === 'up') {
+    label = `${roundedAvg} commits/week (+${roundedTrend}%)`;
+  } else if (direction === 'down') {
+    label = `${roundedAvg} commits/week (${roundedTrend}%)`;
+  } else {
+    label = `${roundedAvg} commits/week (stable)`;
+  }
+
+  return {
+    value: roundedAvg,
+    trend: roundedTrend,
+    direction,
+    sparklineData,
+    status,
+    label,
+    // Additional metadata for debugging/display
+    recentAvg,
+    previousAvg,
+    score
+  };
+}
