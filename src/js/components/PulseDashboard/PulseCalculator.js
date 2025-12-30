@@ -28,7 +28,8 @@ import {
   COMMUNITY,
   ISSUES,
   PR_HEALTH,
-  BUS_FACTOR
+  BUS_FACTOR,
+  FRESHNESS
 } from './constants.js';
 
 // =============================================================================
@@ -1222,6 +1223,246 @@ function generateContributorSparkline(sortedContributors, totalCommits) {
   // Pad with zeros if fewer than maxPoints contributors
   while (sparkline.length < maxPoints) {
     sparkline.push(0);
+  }
+
+  return sparkline;
+}
+
+/**
+ * Calculate freshness index from repository data and releases
+ * Analyzes days since push, last release, and computes a freshness score
+ *
+ * @param {Object} repo - GitHub repository data
+ * @param {string} repo.pushed_at - Last push date (ISO string)
+ * @param {string} repo.updated_at - Last update date (ISO string)
+ * @param {Object[]} releases - Array of GitHub release objects
+ * @param {string} releases[].published_at - Release publish date (ISO string)
+ * @param {string} releases[].tag_name - Release tag name
+ * @returns {Object} MetricResult with freshness classification and days since push
+ *
+ * @example
+ * // Fresh repository with recent activity
+ * const repo = { pushed_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+ * const releases = [{ published_at: new Date().toISOString(), tag_name: 'v1.0.0' }];
+ * const result = calculateFreshnessIndex(repo, releases);
+ * // result.freshness === 'fresh'
+ * // result.status === 'thriving'
+ *
+ * @example
+ * // Aging repository with no recent activity
+ * const oldDate = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+ * const repo = { pushed_at: oldDate, updated_at: oldDate };
+ * const result = calculateFreshnessIndex(repo, []);
+ * // result.freshness === 'aging'
+ * // result.status === 'cooling'
+ *
+ * @example
+ * // Handle missing data
+ * const result = calculateFreshnessIndex(null, []);
+ * // result.freshness === 'stale'
+ * // result.label === 'Update data unavailable'
+ */
+export function calculateFreshnessIndex(repo, releases = []) {
+  // Handle missing or invalid repo data
+  if (!repo) {
+    return getDefaultMetric('freshness');
+  }
+
+  // Calculate days since last push
+  const daysSincePush = daysSince(repo.pushed_at);
+
+  // Calculate days since last update (metadata update)
+  const daysSinceUpdate = daysSince(repo.updated_at);
+
+  // Handle case where dates are invalid
+  if (daysSincePush === Infinity && daysSinceUpdate === Infinity) {
+    return getDefaultMetric('freshness');
+  }
+
+  // Find the most recent release
+  let daysSinceRelease = Infinity;
+  let lastRelease = 'None';
+
+  if (Array.isArray(releases) && releases.length > 0) {
+    // Sort releases by published_at (descending) to get most recent
+    const sortedReleases = [...releases]
+      .filter(r => r && r.published_at)
+      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+
+    if (sortedReleases.length > 0) {
+      const mostRecent = sortedReleases[0];
+      daysSinceRelease = daysSince(mostRecent.published_at);
+      lastRelease = mostRecent.tag_name || 'Unknown';
+    }
+  }
+
+  // Calculate individual freshness scores (0-100)
+
+  // Push freshness (most important - 60% weight)
+  let pushScore;
+  let pushFreshness;
+  if (daysSincePush <= FRESHNESS.PUSH_DAYS.FRESH) {
+    pushScore = FRESHNESS.SCORES.FRESH;
+    pushFreshness = 'fresh';
+  } else if (daysSincePush <= FRESHNESS.PUSH_DAYS.RECENT) {
+    pushScore = FRESHNESS.SCORES.RECENT;
+    pushFreshness = 'recent';
+  } else if (daysSincePush <= FRESHNESS.PUSH_DAYS.AGING) {
+    pushScore = FRESHNESS.SCORES.AGING;
+    pushFreshness = 'aging';
+  } else if (daysSincePush <= FRESHNESS.PUSH_DAYS.STALE) {
+    pushScore = FRESHNESS.SCORES.STALE;
+    pushFreshness = 'stale';
+  } else {
+    pushScore = FRESHNESS.SCORES.DORMANT;
+    pushFreshness = 'dormant';
+  }
+
+  // Release freshness (25% weight)
+  let releaseScore;
+  if (daysSinceRelease === Infinity) {
+    // No releases - neutral impact (use middle score)
+    releaseScore = FRESHNESS.SCORES.AGING;
+  } else if (daysSinceRelease <= FRESHNESS.RELEASE_DAYS.FRESH) {
+    releaseScore = FRESHNESS.SCORES.FRESH;
+  } else if (daysSinceRelease <= FRESHNESS.RELEASE_DAYS.RECENT) {
+    releaseScore = FRESHNESS.SCORES.RECENT;
+  } else if (daysSinceRelease <= FRESHNESS.RELEASE_DAYS.AGING) {
+    releaseScore = FRESHNESS.SCORES.AGING;
+  } else if (daysSinceRelease <= FRESHNESS.RELEASE_DAYS.STALE) {
+    releaseScore = FRESHNESS.SCORES.STALE;
+  } else {
+    releaseScore = FRESHNESS.SCORES.DORMANT;
+  }
+
+  // Update freshness (15% weight) - uses the general updated_at timestamp
+  let updateScore;
+  const effectiveUpdateDays = Math.min(daysSinceUpdate, daysSincePush);
+  if (effectiveUpdateDays <= FRESHNESS.PUSH_DAYS.FRESH) {
+    updateScore = FRESHNESS.SCORES.FRESH;
+  } else if (effectiveUpdateDays <= FRESHNESS.PUSH_DAYS.RECENT) {
+    updateScore = FRESHNESS.SCORES.RECENT;
+  } else if (effectiveUpdateDays <= FRESHNESS.PUSH_DAYS.AGING) {
+    updateScore = FRESHNESS.SCORES.AGING;
+  } else if (effectiveUpdateDays <= FRESHNESS.PUSH_DAYS.STALE) {
+    updateScore = FRESHNESS.SCORES.STALE;
+  } else {
+    updateScore = FRESHNESS.SCORES.DORMANT;
+  }
+
+  // Calculate weighted average score
+  const weightedScore = Math.round(
+    (pushScore * FRESHNESS.WEIGHTS.PUSH +
+     releaseScore * FRESHNESS.WEIGHTS.RELEASE +
+     updateScore * FRESHNESS.WEIGHTS.UPDATE) / 100
+  );
+
+  // Determine overall freshness classification based on weighted score
+  let freshness;
+  if (weightedScore >= FRESHNESS.SCORES.FRESH - 10) {
+    freshness = 'fresh';
+  } else if (weightedScore >= FRESHNESS.SCORES.RECENT - 10) {
+    freshness = 'recent';
+  } else if (weightedScore >= FRESHNESS.SCORES.AGING - 10) {
+    freshness = 'aging';
+  } else if (weightedScore >= FRESHNESS.SCORES.STALE - 5) {
+    freshness = 'stale';
+  } else {
+    freshness = 'dormant';
+  }
+
+  // Map freshness to standard status
+  let status;
+  if (freshness === 'fresh') status = 'thriving';
+  else if (freshness === 'recent') status = 'stable';
+  else if (freshness === 'aging') status = 'cooling';
+  else status = 'at_risk';
+
+  // Trend calculation - not applicable for freshness (snapshot metric)
+  // We could compare pushed_at vs updated_at but it's not meaningful
+  const trend = 0;
+  const direction = 'stable';
+
+  // Generate sparkline data - show recency of different activity types
+  // Points: [push age bucket, release age bucket, update age bucket]
+  // Normalize to 0-100 scale where 100 = fresh, 0 = very old
+  const sparklineData = generateFreshnessSparkline(daysSincePush, daysSinceRelease, daysSinceUpdate);
+
+  // Get freshness label info
+  const freshnessInfo = FRESHNESS.LABELS[freshness] || FRESHNESS.LABELS.stale;
+
+  // Generate human-readable label
+  let label;
+  const pushDays = Math.floor(daysSincePush);
+
+  if (pushDays === 0) {
+    label = `${freshnessInfo.label}: Updated today`;
+  } else if (pushDays === 1) {
+    label = `${freshnessInfo.label}: Updated yesterday`;
+  } else if (pushDays < 7) {
+    label = `${freshnessInfo.label}: Updated ${pushDays} days ago`;
+  } else if (pushDays < 30) {
+    const weeks = Math.floor(pushDays / 7);
+    label = `${freshnessInfo.label}: Updated ${weeks}w ago`;
+  } else if (pushDays < 365) {
+    const months = Math.floor(pushDays / 30);
+    label = `${freshnessInfo.label}: Updated ${months}mo ago`;
+  } else {
+    const years = Math.floor(pushDays / 365);
+    label = `${freshnessInfo.label}: Updated ${years}y ago`;
+  }
+
+  return {
+    value: weightedScore,
+    trend,
+    direction,
+    sparklineData,
+    status,
+    label,
+    freshness,
+    // Additional metadata
+    daysSincePush: Math.floor(daysSincePush),
+    daysSinceRelease: daysSinceRelease === Infinity ? null : Math.floor(daysSinceRelease),
+    daysSinceUpdate: Math.floor(daysSinceUpdate),
+    lastRelease,
+    pushScore,
+    releaseScore,
+    updateScore,
+    score: weightedScore
+  };
+}
+
+/**
+ * Generate sparkline data for freshness visualization
+ * Shows the relative recency of push, release, and update activity
+ *
+ * @param {number} daysSincePush - Days since last push
+ * @param {number} daysSinceRelease - Days since last release
+ * @param {number} daysSinceUpdate - Days since last update
+ * @returns {number[]} Array of freshness values (0-100, higher = fresher)
+ */
+function generateFreshnessSparkline(daysSincePush, daysSinceRelease, daysSinceUpdate) {
+  // Convert days to freshness score (0-100)
+  // Uses a decay function: 100 for 0 days, decaying towards 0 for older dates
+  const maxDays = 365; // Beyond this, treat as 0 freshness
+
+  const normalize = (days) => {
+    if (days === Infinity || days > maxDays) return 0;
+    if (days <= 0) return 100;
+    // Exponential decay for more visual impact
+    return Math.round(100 * Math.exp(-days / 60));
+  };
+
+  // Generate 10 data points showing freshness trend
+  // We'll show a simple decay curve based on days since push
+  const sparkline = [];
+
+  // Simulate how freshness might have looked over past 10 weeks
+  // Assuming steady decay from 100 to current value
+  for (let i = 9; i >= 0; i--) {
+    // Assume we were fresher in the past (if we're old now)
+    const pastDays = Math.max(0, daysSincePush - (i * 7));
+    sparkline.push(normalize(pastDays));
   }
 
   return sparkline;

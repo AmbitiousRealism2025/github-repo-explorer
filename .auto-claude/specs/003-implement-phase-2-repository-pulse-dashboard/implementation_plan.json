@@ -1,0 +1,529 @@
+{
+  "feature": "Repository Pulse Dashboard - Phase 2 Metrics Calculation Engine",
+  "workflow_type": "feature",
+  "workflow_rationale": "This is a new feature implementation adding 7 metric calculators to enable trend analysis for repositories. It requires creating new modules following established patterns with comprehensive unit testing.",
+  "phases": [
+    {
+      "id": "phase-1-setup",
+      "name": "Directory Setup & Constants",
+      "type": "setup",
+      "description": "Create PulseDashboard directory structure and constants file with thresholds",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Create PulseDashboard directory and constants.js with thresholds, status labels, and default values",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "src/js/components/PulseDashboard/constants.js"
+          ],
+          "patterns_from": [
+            "src/js/components/HealthScore.js"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/constants.js').then(m => { console.log(Object.keys(m)); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Module exports constants successfully"
+          },
+          "status": "completed",
+          "notes": "Created PulseDashboard directory and constants.js with all thresholds, status labels, and default values. Module exports 14 constants objects successfully verified.",
+          "updated_at": "2025-12-30T17:34:40.326590+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-2-utilities",
+      "name": "Utility Functions",
+      "type": "implementation",
+      "description": "Create shared utility functions for calculations (average, daysSince, daysBetween, etc.)",
+      "depends_on": [
+        "phase-1-setup"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-2-1",
+          "description": "Create PulseCalculator.js with utility functions: average(), daysSince(), daysBetween(), getTrendDirection(), getMetricStatus(), getDefaultMetric()",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "src/js/components/PulseDashboard/PulseCalculator.js"
+          ],
+          "patterns_from": [
+            "src/js/components/HealthScore.js",
+            "docs/repository-pulse-dashboard-implementation-plan.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { console.log('getTrendDirection:', typeof m.getTrendDirection); console.log('getMetricStatus:', typeof m.getMetricStatus); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Utility functions exported successfully"
+          },
+          "status": "completed",
+          "notes": "Created PulseCalculator.js with 10 utility functions: average(), daysSince(), daysBetween(), getTrendDirection(), getMetricStatus(), getDefaultMetric(), clamp(), percentageChange(), safeParseDate(), emptySparkline(). All functions include JSDoc documentation and handle edge cases gracefully. Verified all exports working correctly.",
+          "updated_at": "2025-12-30T17:38:01.621842+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-3-core-calculators",
+      "name": "Core Metric Calculators (Group 1)",
+      "type": "implementation",
+      "description": "Implement Velocity Score, Community Momentum, and Issue Temperature calculators",
+      "depends_on": [
+        "phase-2-utilities"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Implement calculateVelocityScore(participation) - Compare last 4 weeks vs previous 12 weeks, generate sparkline data",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/components/PulseDashboard/PulseCalculator.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/components/HealthScore.js",
+            "docs/repository-pulse-dashboard-implementation-plan.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const r = m.calculateVelocityScore({all: Array(16).fill(5)}); console.log(JSON.stringify(r)); process.exit(r.status ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Returns MetricResult object with value, trend, direction, status, sparklineData, label"
+          },
+          "status": "completed",
+          "notes": "Implemented calculateVelocityScore(participation) - Compares last 4 weeks vs previous 12 weeks commit activity. Returns MetricResult with value, trend, direction, sparklineData, status, and label. Handles edge cases: null data, empty arrays, short history. All 283 tests passing.",
+          "updated_at": "2025-12-30T17:41:02.969436+00:00"
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Implement calculateCommunityMomentum(repo, events) - Star/fork growth rate with approximate sparkline",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/components/PulseDashboard/PulseCalculator.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/components/HealthScore.js",
+            "docs/repository-pulse-dashboard-implementation-plan.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const repo = {stargazers_count: 1000, forks_count: 100, created_at: '2020-01-01'}; const r = m.calculateCommunityMomentum(repo, []); console.log(JSON.stringify(r)); process.exit(r.status ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Returns MetricResult with star count and growth trend"
+          },
+          "status": "completed",
+          "notes": "Implemented calculateCommunityMomentum(repo, events) - Calculates star/fork growth rate with approximate sparkline. Returns MetricResult with value (stars), trend, direction, sparklineData, status, and label. Handles edge cases: null repo, zero stars, missing events. Added helper function generateApproximateSparkline(). All 283 tests passing.",
+          "updated_at": "2025-12-30T17:44:23.437443+00:00"
+        },
+        {
+          "id": "subtask-3-3",
+          "description": "Implement calculateIssueTemperature(issues) - Open vs close rate with Hot/Warm/Cool classification",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/components/PulseDashboard/PulseCalculator.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/components/HealthScore.js",
+            "docs/repository-pulse-dashboard-implementation-plan.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const r = m.calculateIssueTemperature([]); console.log(JSON.stringify(r)); process.exit(r.temperature !== undefined ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Returns MetricResult with temperature classification"
+          },
+          "status": "completed",
+          "notes": "Implemented calculateIssueTemperature function with Hot/Warm/Cool/Critical classification based on close rate thresholds. Includes response time analysis, trend calculation, sparkline generation, and comprehensive metadata. Verification passed, all 283 tests passing.",
+          "updated_at": "2025-12-30T17:49:23.634117+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-4-advanced-calculators",
+      "name": "Advanced Metric Calculators (Group 2)",
+      "type": "implementation",
+      "description": "Implement PR Health, Bus Factor, and Freshness Index calculators",
+      "depends_on": [
+        "phase-2-utilities"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Implement calculatePRHealth(pullRequests) - Merge rate, time-to-merge, funnel data",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/components/PulseDashboard/PulseCalculator.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/components/HealthScore.js",
+            "docs/repository-pulse-dashboard-implementation-plan.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const r = m.calculatePRHealth([]); console.log(JSON.stringify(r)); process.exit(r.funnel !== undefined ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Returns MetricResult with merge rate and funnel data"
+          },
+          "status": "completed",
+          "notes": "Implemented calculatePRHealth(pullRequests) with merge rate, time-to-merge, and funnel data. All 283 tests pass. Committed as d9cf8c4.",
+          "updated_at": "2025-12-30T17:53:12.320221+00:00"
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Implement calculateBusFactor(contributors) - Contributor concentration risk (1-10 scale)",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/components/PulseDashboard/PulseCalculator.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/components/HealthScore.js",
+            "docs/repository-pulse-dashboard-implementation-plan.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const r = m.calculateBusFactor([{total: 100, author: {login: 'dev'}}]); console.log(JSON.stringify(r)); process.exit(r.riskLevel !== undefined ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Returns MetricResult with bus factor value and risk level"
+          },
+          "status": "completed",
+          "notes": "Implemented calculateBusFactor(contributors) - analyzes contributor concentration risk on 1-10 scale. Algorithm considers: contributors needed for 80% of commits, top contributor concentration, number of significant contributors. Includes risk levels (healthy/moderate/high/critical) and sparkline showing contribution distribution. All 283 tests pass.",
+          "updated_at": "2025-12-30T17:56:15.602262+00:00"
+        },
+        {
+          "id": "subtask-4-3",
+          "description": "Implement calculateFreshnessIndex(repo, releases) - Days since push, last release, freshness score",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/components/PulseDashboard/PulseCalculator.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/components/HealthScore.js",
+            "docs/repository-pulse-dashboard-implementation-plan.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const repo = {updated_at: new Date().toISOString(), pushed_at: new Date().toISOString()}; const r = m.calculateFreshnessIndex(repo, []); console.log(JSON.stringify(r)); process.exit(r.freshness !== undefined ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Returns MetricResult with freshness classification and days since push"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-aggregator",
+      "name": "Overall Pulse Aggregator",
+      "type": "implementation",
+      "description": "Implement calculateOverallPulse and calculateAllMetrics wrapper functions",
+      "depends_on": [
+        "phase-3-core-calculators",
+        "phase-4-advanced-calculators"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Implement calculateOverallPulse(metrics) - Aggregate all 6 metrics into single status, pulse speed, concerns count",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/components/PulseDashboard/PulseCalculator.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/components/HealthScore.js",
+            "docs/repository-pulse-dashboard-implementation-plan.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const metrics = {velocity: {status: 'stable'}, momentum: {status: 'stable'}, issues: {status: 'stable'}, prs: {status: 'stable'}, busFactor: {status: 'stable'}, freshness: {status: 'stable'}}; const r = m.calculateOverallPulse(metrics); console.log(JSON.stringify(r)); process.exit(r.status !== undefined ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Returns overall status, score, pulseSpeed, concerns count"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Implement calculateAllMetrics(pulseData) - Wrapper that calls all calculators and returns complete metrics object",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/components/PulseDashboard/PulseCalculator.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "docs/repository-pulse-dashboard-implementation-plan.md"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const data = {repo: {stargazers_count: 100, forks_count: 10, created_at: '2020-01-01', updated_at: new Date().toISOString(), pushed_at: new Date().toISOString()}}; const r = m.calculateAllMetrics(data); console.log(Object.keys(r)); process.exit(r.metrics && r.overall ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Returns object with metrics (6) and overall pulse"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-6-exports",
+      "name": "Public API & Exports",
+      "type": "implementation",
+      "description": "Create index.js with public exports for the PulseDashboard module",
+      "depends_on": [
+        "phase-5-aggregator"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "Create index.js exporting all public functions: calculateAllMetrics, individual calculators, utility functions",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "src/js/components/PulseDashboard/index.js"
+          ],
+          "patterns_from": [
+            "src/js/components/RepositoryDNA/index.js"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/index.js').then(m => { console.log('Exports:', Object.keys(m).join(', ')); process.exit(m.calculateAllMetrics ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Module exports calculateAllMetrics and individual calculators"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-7-testing",
+      "name": "Unit Tests",
+      "type": "implementation",
+      "description": "Create comprehensive unit tests for all calculators with edge case coverage",
+      "depends_on": [
+        "phase-6-exports"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-7-1",
+          "description": "Create PulseDashboard.test.js with utility function tests and mock data factories",
+          "service": "main",
+          "files_to_modify": [],
+          "files_to_create": [
+            "src/js/__tests__/PulseDashboard.test.js"
+          ],
+          "patterns_from": [
+            "src/js/__tests__/HealthScore.test.js"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --run src/js/__tests__/PulseDashboard.test.js 2>&1 | head -20",
+            "expected": "Tests run without errors"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-7-2",
+          "description": "Add tests for calculateVelocityScore - empty data, increasing activity, declining activity",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/PulseDashboard.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/HealthScore.test.js"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --run src/js/__tests__/PulseDashboard.test.js 2>&1 | grep -E '(PASS|FAIL|velocity)' | head -10",
+            "expected": "Velocity tests pass"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-7-3",
+          "description": "Add tests for calculateCommunityMomentum, calculateIssueTemperature, calculatePRHealth",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/PulseDashboard.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/HealthScore.test.js"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --run src/js/__tests__/PulseDashboard.test.js 2>&1 | grep -E '(PASS|FAIL|momentum|temperature|PRHealth)' | head -10",
+            "expected": "Momentum, temperature, PR health tests pass"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-7-4",
+          "description": "Add tests for calculateBusFactor, calculateFreshnessIndex, calculateOverallPulse",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/PulseDashboard.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/HealthScore.test.js"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --run src/js/__tests__/PulseDashboard.test.js 2>&1 | grep -E '(PASS|FAIL|busFactor|freshness|overall)' | head -10",
+            "expected": "Bus factor, freshness, overall pulse tests pass"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-7-5",
+          "description": "Add edge case tests: null data, partial data, boundary values, and integration test for calculateAllMetrics",
+          "service": "main",
+          "files_to_modify": [
+            "src/js/__tests__/PulseDashboard.test.js"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "src/js/__tests__/HealthScore.test.js"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "npm test -- --run src/js/__tests__/PulseDashboard.test.js 2>&1 | grep -E '(Tests|pass)' | tail -5",
+            "expected": "All edge case tests pass"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-8-verification",
+      "name": "Final Verification",
+      "type": "integration",
+      "description": "Run full test suite and verify no regressions",
+      "depends_on": [
+        "phase-7-testing"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-8-1",
+          "description": "Run full test suite (npm test) and verify 283+ existing tests plus new PulseDashboard tests pass",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "npm test 2>&1 | tail -15",
+            "expected": "All tests pass, 290+ total tests"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-8-2",
+          "description": "Verify module can be imported and used - simulate integration with detail.js",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "node -e \"import('./src/js/components/PulseDashboard/index.js').then(m => { const data = {repo: {stargazers_count: 5000, forks_count: 500, created_at: '2020-01-01', updated_at: new Date().toISOString(), pushed_at: new Date().toISOString()}, participation: {all: Array(52).fill(10)}}; const result = m.calculateAllMetrics(data); console.log('Overall status:', result.overall.status); console.log('Metrics:', Object.keys(result.metrics).length); process.exit(result.overall.status ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
+            "expected": "Module integrates successfully"
+          },
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 8,
+    "total_subtasks": 15,
+    "services_involved": [
+      "main"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 2,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-3-core-calculators",
+            "phase-4-advanced-calculators"
+          ],
+          "reason": "Both depend on phase-2-utilities, independent calculator implementations"
+        }
+      ],
+      "recommended_workers": 1,
+      "speedup_estimate": "1.2x faster with parallel phases 3-4"
+    },
+    "startup_command": "npm install && npm test"
+  },
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All 7 calculators return valid MetricResult objects",
+      "calculateAllMetrics wrapper returns complete pulse data",
+      "Edge cases handled gracefully (null, empty, partial data)",
+      "No console errors during calculation",
+      "Existing 283 tests still pass",
+      "New PulseDashboard tests achieve 90%+ coverage",
+      "JSDoc documentation on all public functions"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "npm test",
+        "expected_outcome": "All tests pass (290+ total)",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Module Import Test",
+        "command": "node -e \"import('./src/js/components/PulseDashboard/index.js').then(m => console.log('OK')).catch(e => process.exit(1))\"",
+        "expected_outcome": "Module imports successfully",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      }
+    ],
+    "reasoning": "Medium risk calculation module requires comprehensive unit tests for all 7 metric calculators including edge cases. No security concerns as pure data transformation."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "npm test"
+      ],
+      "minimum_coverage": 90
+    },
+    "integration_tests": {
+      "required": false,
+      "commands": [],
+      "services_to_test": []
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    }
+  },
+  "qa_signoff": null,
+  "last_updated": "2025-12-30T17:56:15.602271+00:00"
+}

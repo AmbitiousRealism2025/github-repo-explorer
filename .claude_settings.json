@@ -1,0 +1,34 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(/Users/ambrealismwork/Desktop/Coding-Projects/github-repo-explorer/.worktrees/003-implement-phase-2-repository-pulse-dashboard/**)",
+      "Write(/Users/ambrealismwork/Desktop/Coding-Projects/github-repo-explorer/.worktrees/003-implement-phase-2-repository-pulse-dashboard/**)",
+      "Edit(/Users/ambrealismwork/Desktop/Coding-Projects/github-repo-explorer/.worktrees/003-implement-phase-2-repository-pulse-dashboard/**)",
+      "Glob(/Users/ambrealismwork/Desktop/Coding-Projects/github-repo-explorer/.worktrees/003-implement-phase-2-repository-pulse-dashboard/**)",
+      "Grep(/Users/ambrealismwork/Desktop/Coding-Projects/github-repo-explorer/.worktrees/003-implement-phase-2-repository-pulse-dashboard/**)",
+      "Read(/Users/ambrealismwork/Desktop/Coding-Projects/github-repo-explorer/.worktrees/003-implement-phase-2-repository-pulse-dashboard/.auto-claude/specs/003-implement-phase-2-repository-pulse-dashboard/**)",
+      "Write(/Users/ambrealismwork/Desktop/Coding-Projects/github-repo-explorer/.worktrees/003-implement-phase-2-repository-pulse-dashboard/.auto-claude/specs/003-implement-phase-2-repository-pulse-dashboard/**)",
+      "Edit(/Users/ambrealismwork/Desktop/Coding-Projects/github-repo-explorer/.worktrees/003-implement-phase-2-repository-pulse-dashboard/.auto-claude/specs/003-implement-phase-2-repository-pulse-dashboard/**)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__get-library-docs(*)",
+      "mcp__graphiti-memory__search_nodes(*)",
+      "mcp__graphiti-memory__search_facts(*)",
+      "mcp__graphiti-memory__add_episode(*)",
+      "mcp__graphiti-memory__get_episodes(*)",
+      "mcp__graphiti-memory__get_entity_edge(*)"
+    ]
+  }
+}

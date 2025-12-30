@@ -1,0 +1,93 @@
+{
+  "subtasks": {
+    "subtask-1-1": {
+      "attempts": [
+        {
+          "session": 1,
+          "timestamp": "2025-12-30T12:35:08.167144",
+          "approach": "Implemented: Create PulseDashboard directory and constants.js with thresholds, status labels, and default values",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-2-1": {
+      "attempts": [
+        {
+          "session": 2,
+          "timestamp": "2025-12-30T12:38:21.053600",
+          "approach": "Implemented: Create PulseCalculator.js with utility functions: average(), daysSince(), daysBetween(), getTrendDir",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-1": {
+      "attempts": [
+        {
+          "session": 3,
+          "timestamp": "2025-12-30T12:41:13.499333",
+          "approach": "Implemented: Implement calculateVelocityScore(participation) - Compare last 4 weeks vs previous 12 weeks, generat",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-2": {
+      "attempts": [
+        {
+          "session": 4,
+          "timestamp": "2025-12-30T12:44:33.111890",
+          "approach": "Implemented: Implement calculateCommunityMomentum(repo, events) - Star/fork growth rate with approximate sparklin",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-3-3": {
+      "attempts": [
+        {
+          "session": 5,
+          "timestamp": "2025-12-30T12:49:33.515492",
+          "approach": "Implemented: Implement calculateIssueTemperature(issues) - Open vs close rate with Hot/Warm/Cool classification",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-4-1": {
+      "attempts": [
+        {
+          "session": 6,
+          "timestamp": "2025-12-30T12:53:21.964186",
+          "approach": "Implemented: Implement calculatePRHealth(pullRequests) - Merge rate, time-to-merge, funnel data",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-4-2": {
+      "attempts": [
+        {
+          "session": 7,
+          "timestamp": "2025-12-30T12:56:23.464006",
+          "approach": "Implemented: Implement calculateBusFactor(contributors) - Contributor concentration risk (1-10 scale)",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    }
+  },
+  "stuck_subtasks": [],
+  "metadata": {
+    "created_at": "2025-12-30T12:31:39.501818",
+    "last_updated": "2025-12-30T12:56:23.464011"
+  }
+}
