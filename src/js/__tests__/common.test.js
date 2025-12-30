@@ -12,7 +12,8 @@ import {
   safeText,
   createElement,
   Icons,
-  sanitizeUrl
+  sanitizeUrl,
+  renderMarkdown
 } from '../common.js';
 
 describe('Storage', () => {
@@ -512,6 +513,193 @@ describe('sanitizeUrl', () => {
       expect(sanitizeUrl(123)).toBeNull();
       expect(sanitizeUrl({})).toBeNull();
       expect(sanitizeUrl([])).toBeNull();
+    });
+  });
+});
+
+describe('renderMarkdown', () => {
+  describe('basic rendering', () => {
+    it('should render headings', () => {
+      expect(renderMarkdown('# Heading 1')).toContain('<h1');
+      expect(renderMarkdown('## Heading 2')).toContain('<h2');
+      expect(renderMarkdown('### Heading 3')).toContain('<h3');
+    });
+
+    it('should render paragraphs', () => {
+      const result = renderMarkdown('Hello world');
+      expect(result).toContain('<p>');
+      expect(result).toContain('Hello world');
+    });
+
+    it('should render bold text', () => {
+      const result = renderMarkdown('**bold text**');
+      expect(result).toContain('<strong>bold text</strong>');
+    });
+
+    it('should render italic text', () => {
+      const result = renderMarkdown('*italic text*');
+      expect(result).toContain('<em>italic text</em>');
+    });
+
+    it('should render links', () => {
+      const result = renderMarkdown('[Example](https://example.com)');
+      expect(result).toContain('<a href="https://example.com"');
+      expect(result).toContain('Example</a>');
+    });
+
+    it('should render unordered lists', () => {
+      const result = renderMarkdown('- Item 1\n- Item 2');
+      expect(result).toContain('<ul>');
+      expect(result).toContain('<li>');
+      expect(result).toContain('Item 1');
+      expect(result).toContain('Item 2');
+    });
+
+    it('should render ordered lists', () => {
+      const result = renderMarkdown('1. First\n2. Second');
+      expect(result).toContain('<ol>');
+      expect(result).toContain('<li>');
+    });
+
+    it('should render code blocks', () => {
+      const result = renderMarkdown('```javascript\nconst x = 1;\n```');
+      expect(result).toContain('<code');
+      expect(result).toContain('const x = 1;');
+    });
+
+    it('should render inline code', () => {
+      const result = renderMarkdown('Use `npm install`');
+      expect(result).toContain('<code>npm install</code>');
+    });
+
+    it('should render blockquotes', () => {
+      const result = renderMarkdown('> This is a quote');
+      expect(result).toContain('<blockquote>');
+    });
+
+    it('should render horizontal rules', () => {
+      const result = renderMarkdown('---');
+      expect(result).toContain('<hr');
+    });
+
+    it('should render images', () => {
+      const result = renderMarkdown('![Alt text](https://example.com/image.png)');
+      expect(result).toContain('<img');
+      expect(result).toContain('alt="Alt text"');
+    });
+  });
+
+  describe('XSS prevention', () => {
+    it('should sanitize script tags', () => {
+      const result = renderMarkdown('<script>alert("xss")</script>');
+      expect(result).not.toContain('<script');
+      expect(result).not.toContain('alert');
+    });
+
+    it('should sanitize onclick handlers', () => {
+      const result = renderMarkdown('<a onclick="alert(1)" href="#">Click</a>');
+      expect(result).not.toContain('onclick');
+    });
+
+    it('should sanitize onerror handlers', () => {
+      const result = renderMarkdown('<img src="x" onerror="alert(1)">');
+      expect(result).not.toContain('onerror');
+    });
+
+    it('should sanitize javascript: URLs in links', () => {
+      const result = renderMarkdown('[Click](javascript:alert(1))');
+      expect(result).not.toContain('javascript:');
+    });
+
+    it('should escape script content in data: URLs', () => {
+      const result = renderMarkdown('![Image](data:text/html,<script>alert(1)</script>)');
+      // DOMPurify allows data URLs but the script content gets URL-encoded
+      expect(result).toContain('<img');
+      expect(result).not.toContain('<script>alert(1)</script>');
+    });
+
+    it('should sanitize iframe tags', () => {
+      const result = renderMarkdown('<iframe src="https://evil.com"></iframe>');
+      expect(result).not.toContain('<iframe');
+    });
+
+    it('should sanitize event handlers in HTML', () => {
+      const result = renderMarkdown('<div onmouseover="alert(1)">Hover me</div>');
+      expect(result).not.toContain('onmouseover');
+    });
+
+    it('should sanitize style injection', () => {
+      const result = renderMarkdown('<style>body { display: none; }</style>');
+      expect(result).not.toContain('<style');
+    });
+
+    it('should allow form elements (DOMPurify default)', () => {
+      // DOMPurify allows form elements by default for README rendering
+      const result = renderMarkdown('<form action="https://example.com"><input type="text"></form>');
+      expect(result).toContain('<form');
+      expect(result).toContain('<input');
+    });
+
+    it('should allow target attribute on links', () => {
+      const result = renderMarkdown('<a href="https://example.com" target="_blank">Link</a>');
+      expect(result).toContain('target="_blank"');
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should return empty string for null input', () => {
+      expect(renderMarkdown(null)).toBe('');
+    });
+
+    it('should return empty string for undefined input', () => {
+      expect(renderMarkdown(undefined)).toBe('');
+    });
+
+    it('should return empty string for empty string input', () => {
+      expect(renderMarkdown('')).toBe('');
+    });
+
+    it('should handle mixed markdown and HTML', () => {
+      const result = renderMarkdown('# Heading\n\n<p>Paragraph</p>\n\n**Bold**');
+      expect(result).toContain('<h1');
+      expect(result).toContain('<p>');
+      expect(result).toContain('<strong>Bold</strong>');
+    });
+
+    it('should handle very long content', () => {
+      const longText = 'a'.repeat(10000);
+      const result = renderMarkdown(longText);
+      expect(result).toContain(longText);
+    });
+
+    it('should handle unicode characters', () => {
+      const result = renderMarkdown('# 你好世界 🎉');
+      expect(result).toContain('你好世界');
+      expect(result).toContain('🎉');
+    });
+
+    it('should handle nested lists', () => {
+      const result = renderMarkdown('- Item 1\n  - Nested 1\n  - Nested 2\n- Item 2');
+      expect(result).toContain('<ul>');
+      expect(result).toContain('Nested 1');
+    });
+
+    it('should handle GitHub Flavored Markdown tables', () => {
+      const table = '| Header 1 | Header 2 |\n|----------|----------|\n| Cell 1   | Cell 2   |';
+      const result = renderMarkdown(table);
+      expect(result).toContain('<table');
+      expect(result).toContain('<th');
+      expect(result).toContain('<td');
+    });
+
+    it('should handle task lists', () => {
+      const result = renderMarkdown('- [x] Completed\n- [ ] Not completed');
+      expect(result).toContain('type="checkbox"');
+    });
+
+    it('should handle line breaks with GFM breaks enabled', () => {
+      const result = renderMarkdown('Line 1\nLine 2');
+      expect(result).toContain('<br');
     });
   });
 });
