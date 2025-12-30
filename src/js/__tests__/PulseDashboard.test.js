@@ -21,6 +21,26 @@ import {
   createPulseDashboardSkeleton,
   createPulseDashboardError
 } from '../components/PulseDashboard/index.js';
+import {
+  average,
+  daysSince,
+  daysBetween,
+  getTrendDirection as calculatorGetTrendDirection,
+  getMetricStatus,
+  getDefaultMetric,
+  clamp,
+  percentageChange,
+  safeParseDate,
+  emptySparkline,
+  calculateVelocityScore,
+  calculateCommunityMomentum,
+  calculateIssueTemperature,
+  calculatePRHealth,
+  calculateBusFactor,
+  calculateFreshnessIndex,
+  calculateOverallPulse,
+  calculateAllMetrics
+} from '../components/PulseDashboard/PulseCalculator.js';
 
 describe('Sparkline', () => {
   describe('createSparkline', () => {
@@ -2085,6 +2105,1128 @@ describe('PulseDashboard', () => {
 
       // Should not throw when clicking
       expect(() => button.click()).not.toThrow();
+    });
+  });
+});
+
+// =============================================================================
+// PULSE CALCULATOR TESTS
+// =============================================================================
+
+describe('PulseCalculator', () => {
+  // ==========================================================================
+  // UTILITY FUNCTIONS
+  // ==========================================================================
+
+  describe('Utility Functions', () => {
+    describe('average', () => {
+      it('should calculate average of numbers', () => {
+        expect(average([1, 2, 3, 4, 5])).toBe(3);
+      });
+
+      it('should handle single value', () => {
+        expect(average([10])).toBe(10);
+      });
+
+      it('should handle zeros', () => {
+        expect(average([0, 0, 0])).toBe(0);
+      });
+
+      it('should filter out non-numeric values', () => {
+        // 'invalid' gets converted to 0 via Number() || 0, so [1, 2, 0, 3] / 4 = 1.5
+        expect(average([1, 2, 'invalid', 3])).toBe(1.5);
+      });
+
+      it('should return 0 for empty array', () => {
+        expect(average([])).toBe(0);
+      });
+
+      it('should return 0 for null', () => {
+        expect(average(null)).toBe(0);
+      });
+
+      it('should return 0 for undefined', () => {
+        expect(average(undefined)).toBe(0);
+      });
+
+      it('should handle floating point numbers', () => {
+        expect(average([1.5, 2.5, 3.5])).toBeCloseTo(2.5);
+      });
+    });
+
+    describe('daysSince', () => {
+      it('should calculate days since a date', () => {
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        expect(daysSince(yesterday.toISOString())).toBe(1);
+      });
+
+      it('should return 0 for current date', () => {
+        const now = new Date();
+        expect(daysSince(now.toISOString())).toBe(0);
+      });
+
+      it('should return Infinity for null', () => {
+        expect(daysSince(null)).toBe(Infinity);
+      });
+
+      it('should return Infinity for invalid date', () => {
+        expect(daysSince('invalid-date')).toBe(Infinity);
+      });
+
+      it('should handle Date object', () => {
+        const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        expect(daysSince(yesterday)).toBe(1);
+      });
+
+      it('should floor the result', () => {
+        const almostTwoDays = new Date(Date.now() - 1.9 * 24 * 60 * 60 * 1000);
+        expect(daysSince(almostTwoDays)).toBe(1);
+      });
+    });
+
+    describe('daysBetween', () => {
+      it('should calculate days between two dates', () => {
+        const date1 = '2024-01-01';
+        const date2 = '2024-01-15';
+        expect(daysBetween(date1, date2)).toBe(14);
+      });
+
+      it('should return absolute value (order independent)', () => {
+        const date1 = '2024-01-15';
+        const date2 = '2024-01-01';
+        expect(daysBetween(date1, date2)).toBe(14);
+      });
+
+      it('should return 0 for same date', () => {
+        const date = '2024-01-01';
+        expect(daysBetween(date, date)).toBe(0);
+      });
+
+      it('should return 0 for null dates', () => {
+        expect(daysBetween(null, '2024-01-01')).toBe(0);
+        expect(daysBetween('2024-01-01', null)).toBe(0);
+      });
+
+      it('should return 0 for invalid dates', () => {
+        expect(daysBetween('invalid', '2024-01-01')).toBe(0);
+      });
+
+      it('should handle Date objects', () => {
+        const date1 = new Date('2024-01-01');
+        const date2 = new Date('2024-01-15');
+        expect(daysBetween(date1, date2)).toBe(14);
+      });
+    });
+
+    describe('getTrendDirection', () => {
+      it('should return up for values above threshold', () => {
+        expect(calculatorGetTrendDirection(10)).toBe('up');
+      });
+
+      it('should return down for values below negative threshold', () => {
+        expect(calculatorGetTrendDirection(-10)).toBe('down');
+      });
+
+      it('should return stable for values within threshold', () => {
+        expect(calculatorGetTrendDirection(3)).toBe('stable');
+        expect(calculatorGetTrendDirection(-3)).toBe('stable');
+      });
+
+      it('should return stable for zero', () => {
+        expect(calculatorGetTrendDirection(0)).toBe('stable');
+      });
+
+      it('should respect custom threshold', () => {
+        expect(calculatorGetTrendDirection(3, 2)).toBe('up');
+        expect(calculatorGetTrendDirection(-3, 2)).toBe('down');
+      });
+
+      it('should return stable for NaN', () => {
+        expect(calculatorGetTrendDirection(NaN)).toBe('stable');
+      });
+
+      it('should return stable for non-number', () => {
+        expect(calculatorGetTrendDirection('invalid')).toBe('stable');
+      });
+    });
+
+    describe('getMetricStatus', () => {
+      it('should return thriving for score >= 75', () => {
+        expect(getMetricStatus(75)).toBe('thriving');
+        expect(getMetricStatus(100)).toBe('thriving');
+      });
+
+      it('should return stable for score >= 50', () => {
+        expect(getMetricStatus(50)).toBe('stable');
+        expect(getMetricStatus(60)).toBe('stable');
+      });
+
+      it('should return cooling for score >= 25', () => {
+        expect(getMetricStatus(25)).toBe('cooling');
+        expect(getMetricStatus(40)).toBe('cooling');
+      });
+
+      it('should return at_risk for score < 25', () => {
+        expect(getMetricStatus(0)).toBe('at_risk');
+        expect(getMetricStatus(20)).toBe('at_risk');
+      });
+
+      it('should return stable for NaN', () => {
+        expect(getMetricStatus(NaN)).toBe('stable');
+      });
+
+      it('should return stable for non-number', () => {
+        expect(getMetricStatus('invalid')).toBe('stable');
+      });
+    });
+
+    describe('getDefaultMetric', () => {
+      it('should return velocity default', () => {
+        const result = getDefaultMetric('velocity');
+        expect(result.label).toBe('Commit data unavailable');
+        expect(result.status).toBe('stable');
+      });
+
+      it('should return momentum default', () => {
+        const result = getDefaultMetric('momentum');
+        expect(result.label).toBe('Growth data unavailable');
+      });
+
+      it('should return issues default', () => {
+        const result = getDefaultMetric('issues');
+        expect(result.value).toBe('Cool');
+        expect(result.temperature).toBe('cool');
+      });
+
+      it('should return prs default', () => {
+        const result = getDefaultMetric('prs');
+        expect(result.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
+      });
+
+      it('should return busFactor default', () => {
+        const result = getDefaultMetric('busFactor');
+        expect(result.value).toBe(1);
+        expect(result.riskLevel).toBe('critical');
+      });
+
+      it('should return freshness default', () => {
+        const result = getDefaultMetric('freshness');
+        expect(result.freshness).toBe('stale');
+      });
+
+      it('should return generic default for unknown type', () => {
+        const result = getDefaultMetric('unknown');
+        expect(result.label).toBe('unknown data unavailable');
+      });
+
+      it('should return generic default for no type', () => {
+        const result = getDefaultMetric();
+        expect(result.label).toBe('Data unavailable');
+      });
+    });
+
+    describe('clamp', () => {
+      it('should clamp value above max', () => {
+        expect(clamp(150, 0, 100)).toBe(100);
+      });
+
+      it('should clamp value below min', () => {
+        expect(clamp(-10, 0, 100)).toBe(0);
+      });
+
+      it('should return value within range', () => {
+        expect(clamp(50, 0, 100)).toBe(50);
+      });
+
+      it('should handle value at boundaries', () => {
+        expect(clamp(0, 0, 100)).toBe(0);
+        expect(clamp(100, 0, 100)).toBe(100);
+      });
+
+      it('should return min for NaN', () => {
+        expect(clamp(NaN, 0, 100)).toBe(0);
+      });
+
+      it('should return min for non-number', () => {
+        expect(clamp('invalid', 0, 100)).toBe(0);
+      });
+    });
+
+    describe('percentageChange', () => {
+      it('should calculate positive percentage change', () => {
+        expect(percentageChange(120, 100)).toBe(20);
+      });
+
+      it('should calculate negative percentage change', () => {
+        expect(percentageChange(80, 100)).toBe(-20);
+      });
+
+      it('should return 0 for same values', () => {
+        expect(percentageChange(100, 100)).toBe(0);
+      });
+
+      it('should return 100 for growth from zero', () => {
+        expect(percentageChange(50, 0)).toBe(100);
+      });
+
+      it('should return -100 for decline to negative from zero', () => {
+        expect(percentageChange(-50, 0)).toBe(-100);
+      });
+
+      it('should return 0 for zero to zero', () => {
+        expect(percentageChange(0, 0)).toBe(0);
+      });
+
+      it('should return 0 for NaN values', () => {
+        expect(percentageChange(NaN, 100)).toBe(0);
+        expect(percentageChange(100, NaN)).toBe(0);
+      });
+
+      it('should return 0 for non-numbers', () => {
+        expect(percentageChange('invalid', 100)).toBe(0);
+      });
+    });
+
+    describe('safeParseDate', () => {
+      it('should parse valid ISO date string', () => {
+        const result = safeParseDate('2024-06-15T12:00:00Z');
+        expect(result).toBeInstanceOf(Date);
+        expect(result.getFullYear()).toBe(2024);
+        expect(result.getMonth()).toBe(5); // June (0-indexed)
+      });
+
+      it('should return Date object as-is', () => {
+        const date = new Date('2024-01-01');
+        const result = safeParseDate(date);
+        expect(result).toBeInstanceOf(Date);
+      });
+
+      it('should return null for invalid date', () => {
+        expect(safeParseDate('invalid')).toBeNull();
+      });
+
+      it('should return null for null', () => {
+        expect(safeParseDate(null)).toBeNull();
+      });
+
+      it('should return null for undefined', () => {
+        expect(safeParseDate(undefined)).toBeNull();
+      });
+
+      it('should return null for empty string', () => {
+        expect(safeParseDate('')).toBeNull();
+      });
+    });
+
+    describe('emptySparkline', () => {
+      it('should create array of zeros', () => {
+        const result = emptySparkline(5);
+        expect(result).toEqual([0, 0, 0, 0, 0]);
+      });
+
+      it('should handle zero length', () => {
+        expect(emptySparkline(0)).toEqual([]);
+      });
+
+      it('should floor decimal length', () => {
+        const result = emptySparkline(3.7);
+        expect(result).toEqual([0, 0, 0]);
+      });
+
+      it('should return empty array for negative length', () => {
+        expect(emptySparkline(-5)).toEqual([]);
+      });
+
+      it('should return empty array for non-number', () => {
+        expect(emptySparkline('invalid')).toEqual([]);
+      });
+    });
+  });
+
+  // ==========================================================================
+  // CALCULATOR FUNCTIONS
+  // ==========================================================================
+
+  describe('Calculator Functions', () => {
+    describe('calculateVelocityScore', () => {
+      it('should calculate velocity with thriving status', () => {
+        // Recent weeks (last 4): 30 commits/week
+        // Previous weeks (prior 12): 10 commits/week
+        // Growth: 200% = thriving
+        const participation = {
+          all: Array(48).fill(10).concat(Array(4).fill(30))
+        };
+        const result = calculateVelocityScore(participation);
+
+        expect(result.status).toBe('thriving');
+        expect(result.direction).toBe('up');
+        expect(result.value).toBe(30);
+        expect(result.sparklineData).toHaveLength(13);
+      });
+
+      it('should calculate velocity with stable status', () => {
+        // Flat activity
+        const participation = {
+          all: Array(52).fill(10)
+        };
+        const result = calculateVelocityScore(participation);
+
+        expect(result.status).toBe('stable');
+        expect(result.direction).toBe('stable');
+        expect(result.value).toBe(10);
+      });
+
+      it('should calculate velocity with cooling status', () => {
+        // Moderate decline: -15 to -30% range for cooling
+        const participation = {
+          all: Array(48).fill(20).concat(Array(4).fill(15))
+        };
+        const result = calculateVelocityScore(participation);
+
+        expect(result.status).toBe('cooling');
+        expect(result.direction).toBe('down');
+      });
+
+      it('should calculate velocity with at_risk status', () => {
+        // Sharp decline
+        const participation = {
+          all: Array(48).fill(30).concat(Array(4).fill(5))
+        };
+        const result = calculateVelocityScore(participation);
+
+        expect(result.status).toBe('at_risk');
+        expect(result.direction).toBe('down');
+      });
+
+      it('should return default for null participation', () => {
+        const result = calculateVelocityScore(null);
+        expect(result.status).toBe('stable');
+        expect(result.label).toBe('Commit data unavailable');
+      });
+
+      it('should return default for missing all array', () => {
+        const result = calculateVelocityScore({});
+        expect(result.label).toBe('Commit data unavailable');
+      });
+
+      it('should handle insufficient data', () => {
+        const participation = { all: [1, 2] };
+        const result = calculateVelocityScore(participation);
+        expect(result.label).toBe('Insufficient commit history');
+      });
+
+      it('should include metadata', () => {
+        const participation = {
+          all: Array(52).fill(10)
+        };
+        const result = calculateVelocityScore(participation);
+
+        expect(result).toHaveProperty('recentAvg');
+        expect(result).toHaveProperty('previousAvg');
+        expect(result).toHaveProperty('score');
+      });
+    });
+
+    describe('calculateCommunityMomentum', () => {
+      it('should calculate momentum for popular repo', () => {
+        const repo = {
+          stargazers_count: 10000,
+          forks_count: 1000,
+          created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const result = calculateCommunityMomentum(repo);
+
+        expect(result.value).toBe(10000);
+        expect(result.status).toBe('thriving');
+        expect(result).toHaveProperty('forkRatio');
+      });
+
+      it('should calculate momentum for emerging repo', () => {
+        const repo = {
+          stargazers_count: 50,
+          forks_count: 5,
+          created_at: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const result = calculateCommunityMomentum(repo);
+
+        expect(result.value).toBe(50);
+        expect(result.sparklineData).toHaveLength(30);
+      });
+
+      it('should handle recent events for growth calculation', () => {
+        const repo = {
+          stargazers_count: 100,
+          forks_count: 10,
+          created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const events = [
+          { type: 'WatchEvent', created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() },
+          { type: 'WatchEvent', created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
+          { type: 'ForkEvent', created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() }
+        ];
+        const result = calculateCommunityMomentum(repo, events);
+
+        expect(result.recentStars).toBe(2);
+        expect(result.recentForks).toBe(1);
+      });
+
+      it('should format large star counts with K suffix', () => {
+        const repo = {
+          stargazers_count: 5500,
+          forks_count: 500,
+          created_at: '2020-01-01'
+        };
+        const result = calculateCommunityMomentum(repo);
+
+        expect(result.label).toContain('5.5K');
+      });
+
+      it('should return default for null repo', () => {
+        const result = calculateCommunityMomentum(null);
+        expect(result.label).toBe('Growth data unavailable');
+      });
+
+      it('should handle zero stars', () => {
+        const repo = {
+          stargazers_count: 0,
+          forks_count: 0,
+          created_at: '2024-01-01'
+        };
+        const result = calculateCommunityMomentum(repo);
+
+        expect(result.value).toBe(0);
+        expect(result.forkRatio).toBe(0);
+      });
+    });
+
+    describe('calculateIssueTemperature', () => {
+      it('should calculate cool temperature for healthy repos', () => {
+        const issues = [
+          { created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), closed_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), state: 'closed' },
+          { created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), closed_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), state: 'closed' },
+          { created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), closed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), state: 'closed' },
+          { created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), state: 'open' }
+        ];
+        const result = calculateIssueTemperature(issues);
+
+        expect(result.temperature).toBe('cool');
+        expect(result.status).toBe('thriving');
+        expect(result.value).toBe('Cool');
+      });
+
+      it('should calculate warm temperature for moderate activity', () => {
+        // Warm: 40-70% close rate. 3 closed out of 6 total = 50%
+        const issues = [
+          { created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), closed_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), state: 'closed' },
+          { created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), closed_at: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(), state: 'closed' },
+          { created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), closed_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(), state: 'closed' },
+          { created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), state: 'open' },
+          { created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), state: 'open' },
+          { created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), state: 'open' }
+        ];
+        const result = calculateIssueTemperature(issues);
+
+        expect(result.temperature).toBe('warm');
+        expect(result.status).toBe('stable');
+      });
+
+      it('should calculate hot temperature for problematic repos', () => {
+        // Hot: 20-40% close rate. 3 closed out of 10 total = 30%
+        const issues = Array(10).fill(0).map((_, i) => ({
+          created_at: new Date(Date.now() - (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
+          state: i < 3 ? 'closed' : 'open',
+          closed_at: i < 3 ? new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString() : null
+        }));
+        const result = calculateIssueTemperature(issues);
+
+        expect(result.temperature).toBe('hot');
+        expect(result.status).toBe('cooling');
+      });
+
+      it('should calculate response time', () => {
+        const issues = [
+          { created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), closed_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), state: 'closed' }
+        ];
+        const result = calculateIssueTemperature(issues);
+
+        expect(result.avgResponseDays).toBeGreaterThan(0);
+        expect(result.label).toContain('avg');
+      });
+
+      it('should return default for no issues', () => {
+        const result = calculateIssueTemperature([]);
+        expect(result.temperature).toBe('cool');
+        expect(result.label).toBe('No recent issues');
+      });
+
+      it('should filter issues by window (30 days)', () => {
+        const oldIssue = {
+          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+          state: 'open'
+        };
+        const recentIssue = {
+          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          state: 'open'
+        };
+        const result = calculateIssueTemperature([oldIssue, recentIssue]);
+
+        expect(result.totalCount).toBe(1);
+      });
+
+      it('should include sparkline data', () => {
+        const issues = [
+          { created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), state: 'open' }
+        ];
+        const result = calculateIssueTemperature(issues);
+
+        expect(result.sparklineData).toHaveLength(30);
+      });
+    });
+
+    describe('calculatePRHealth', () => {
+      it('should calculate excellent PR health', () => {
+        const prs = Array(10).fill(0).map((_, i) => ({
+          created_at: new Date(Date.now() - (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+          merged: true,
+          state: 'closed'
+        }));
+        const result = calculatePRHealth(prs);
+
+        expect(result.mergeRate).toBeGreaterThan(90);
+        expect(result.status).toBe('thriving');
+      });
+
+      it('should calculate PR funnel correctly', () => {
+        const prs = [
+          { created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), merged_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), merged: true, state: 'closed' },
+          { created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), merged_at: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(), merged: true, state: 'closed' },
+          { created_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), closed_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), state: 'closed' },
+          { created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), state: 'open' }
+        ];
+        const result = calculatePRHealth(prs);
+
+        expect(result.funnel.opened).toBe(4);
+        expect(result.funnel.merged).toBe(2);
+        expect(result.funnel.closed).toBe(1);
+        expect(result.funnel.open).toBe(1);
+      });
+
+      it('should calculate time to merge', () => {
+        const prs = [
+          { created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), merged_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), merged: true, state: 'closed' }
+        ];
+        const result = calculatePRHealth(prs);
+
+        expect(result.avgTimeToMerge).toBeGreaterThan(0);
+        expect(result.label).toContain('avg');
+      });
+
+      it('should return default for no PRs', () => {
+        const result = calculatePRHealth([]);
+        expect(result.label).toBe('No recent pull requests');
+        expect(result.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
+      });
+
+      it('should filter PRs by window (30 days)', () => {
+        const oldPR = {
+          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+          merged: true,
+          state: 'closed'
+        };
+        const recentPR = {
+          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          merged: true,
+          state: 'closed'
+        };
+        const result = calculatePRHealth([oldPR, recentPR]);
+
+        expect(result.totalOpened).toBe(1);
+      });
+
+      it('should include sparkline data', () => {
+        const prs = [
+          { created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), merged: true, state: 'closed' }
+        ];
+        const result = calculatePRHealth(prs);
+
+        expect(result.sparklineData).toHaveLength(30);
+      });
+
+      it('should handle only open PRs', () => {
+        const prs = [
+          { created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), state: 'open' }
+        ];
+        const result = calculatePRHealth(prs);
+
+        expect(result.label).toContain('open PRs');
+      });
+    });
+
+    describe('calculateBusFactor', () => {
+      it('should calculate high bus factor for distributed contributions', () => {
+        const contributors = [
+          { total: 100, author: { login: 'dev1' } },
+          { total: 90, author: { login: 'dev2' } },
+          { total: 80, author: { login: 'dev3' } },
+          { total: 70, author: { login: 'dev4' } },
+          { total: 60, author: { login: 'dev5' } }
+        ];
+        const result = calculateBusFactor(contributors);
+
+        expect(result.value).toBeGreaterThan(5);
+        expect(result.riskLevel).toBe('healthy');
+        expect(result.status).toBe('thriving');
+      });
+
+      it('should calculate low bus factor for concentrated contributions', () => {
+        const contributors = [
+          { total: 900, author: { login: 'solo' } },
+          { total: 50, author: { login: 'dev2' } },
+          { total: 50, author: { login: 'dev3' } }
+        ];
+        const result = calculateBusFactor(contributors);
+
+        expect(result.value).toBeLessThanOrEqual(3);
+        expect(result.riskLevel).toBe('critical');
+      });
+
+      it('should calculate bus factor for single contributor', () => {
+        const contributors = [
+          { total: 500, author: { login: 'solo' } }
+        ];
+        const result = calculateBusFactor(contributors);
+
+        expect(result.value).toBe(1);
+        expect(result.riskLevel).toBe('critical');
+        expect(result.status).toBe('at_risk');
+        expect(result.topConcentration).toBe(100);
+      });
+
+      it('should calculate significant contributors correctly', () => {
+        const contributors = [
+          { total: 100, author: { login: 'dev1' } },
+          { total: 50, author: { login: 'dev2' } },
+          { total: 30, author: { login: 'dev3' } },
+          { total: 20, author: { login: 'dev4' } },
+          { total: 5, author: { login: 'dev5' } },  // Below 5% threshold
+          { total: 3, author: { login: 'dev6' } }   // Below 5% threshold
+        ];
+        const result = calculateBusFactor(contributors);
+
+        expect(result.significantContributors).toBe(4);
+      });
+
+      it('should return default for null contributors', () => {
+        const result = calculateBusFactor(null);
+        expect(result.value).toBe(1);
+        expect(result.riskLevel).toBe('critical');
+        expect(result.label).toBe('Contributor data unavailable');
+      });
+
+      it('should return default for empty array', () => {
+        const result = calculateBusFactor([]);
+        expect(result.riskLevel).toBe('critical');
+      });
+
+      it('should filter out invalid contributors', () => {
+        const contributors = [
+          { total: 100, author: { login: 'dev1' } },
+          { total: 0, author: { login: 'dev2' } },  // Zero contributions
+          { total: 50, author: null },               // No author
+          null,                                       // Null entry
+          { total: 30, author: { login: 'dev3' } }
+        ];
+        const result = calculateBusFactor(contributors);
+
+        expect(result.contributorCount).toBe(2);
+      });
+
+      it('should include sparkline with contributor distribution', () => {
+        const contributors = [
+          { total: 100, author: { login: 'dev1' } },
+          { total: 50, author: { login: 'dev2' } },
+          { total: 30, author: { login: 'dev3' } }
+        ];
+        const result = calculateBusFactor(contributors);
+
+        expect(result.sparklineData).toHaveLength(10);
+        expect(result.sparklineData[0]).toBeGreaterThan(0); // Top contributor percentage
+      });
+
+      it('should calculate 80% threshold contributors', () => {
+        const contributors = [
+          { total: 400, author: { login: 'dev1' } },
+          { total: 200, author: { login: 'dev2' } },
+          { total: 100, author: { login: 'dev3' } },
+          { total: 100, author: { login: 'dev4' } },
+          { total: 100, author: { login: 'dev5' } },
+          { total: 100, author: { login: 'dev6' } }
+        ];
+        const result = calculateBusFactor(contributors);
+
+        expect(result.contributorsFor80Percent).toBeLessThanOrEqual(contributors.length);
+      });
+    });
+
+    describe('calculateFreshnessIndex', () => {
+      it('should calculate fresh status for recent activity', () => {
+        // Fresh requires <= 7 days since push
+        const repo = {
+          pushed_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const releases = [
+          { published_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), tag_name: 'v1.0.0' }
+        ];
+        const result = calculateFreshnessIndex(repo, releases);
+
+        expect(result.freshness).toBe('fresh');
+        expect(result.status).toBe('thriving');
+      });
+
+      it('should calculate recent status for moderate activity', () => {
+        const repo = {
+          pushed_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const result = calculateFreshnessIndex(repo);
+
+        expect(result.freshness).toBe('recent');
+        expect(result.status).toBe('stable');
+      });
+
+      it('should calculate aging status for older repos', () => {
+        const repo = {
+          pushed_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const result = calculateFreshnessIndex(repo);
+
+        expect(result.freshness).toBe('aging');
+        expect(result.status).toBe('cooling');
+      });
+
+      it('should calculate stale status for very old repos', () => {
+        const repo = {
+          pushed_at: new Date(Date.now() - 150 * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 150 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const result = calculateFreshnessIndex(repo);
+
+        expect(result.freshness).toBe('stale');
+        expect(result.status).toBe('at_risk');
+      });
+
+      it('should include release data in calculation', () => {
+        const repo = {
+          pushed_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const releases = [
+          { published_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), tag_name: 'v1.0.0' }
+        ];
+        const result = calculateFreshnessIndex(repo, releases);
+
+        expect(result.lastRelease).toBe('v1.0.0');
+        expect(result.daysSinceRelease).toBeLessThan(10);
+      });
+
+      it('should handle no releases', () => {
+        const repo = {
+          pushed_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const result = calculateFreshnessIndex(repo, []);
+
+        expect(result.lastRelease).toBe('None');
+        expect(result.daysSinceRelease).toBeNull();
+      });
+
+      it('should return default for null repo', () => {
+        const result = calculateFreshnessIndex(null);
+        expect(result.freshness).toBe('stale');
+        expect(result.label).toBe('Update data unavailable');
+      });
+
+      it('should format label for today', () => {
+        const repo = {
+          pushed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        const result = calculateFreshnessIndex(repo);
+
+        expect(result.label).toContain('today');
+      });
+
+      it('should format label for weeks ago', () => {
+        const repo = {
+          pushed_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const result = calculateFreshnessIndex(repo);
+
+        expect(result.label).toMatch(/\d+w ago/);
+      });
+
+      it('should include weighted score', () => {
+        const repo = {
+          pushed_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const result = calculateFreshnessIndex(repo);
+
+        expect(result.value).toBeGreaterThan(0);
+        expect(result.value).toBeLessThanOrEqual(100);
+        expect(result).toHaveProperty('pushScore');
+        expect(result).toHaveProperty('releaseScore');
+        expect(result).toHaveProperty('updateScore');
+      });
+
+      it('should include sparkline data', () => {
+        const repo = {
+          pushed_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          updated_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        const result = calculateFreshnessIndex(repo);
+
+        expect(result.sparklineData).toHaveLength(10);
+      });
+    });
+
+    describe('calculateOverallPulse', () => {
+      it('should calculate thriving overall status', () => {
+        const metrics = {
+          velocity: { status: 'thriving', score: 90 },
+          momentum: { status: 'thriving', score: 85 },
+          issues: { status: 'thriving', score: 80 },
+          prs: { status: 'stable', score: 70 },
+          busFactor: { status: 'stable', score: 75 },
+          freshness: { status: 'thriving', score: 95 }
+        };
+        const result = calculateOverallPulse(metrics);
+
+        expect(result.status).toBe('thriving');
+        expect(result.score).toBeGreaterThan(75);
+        expect(result.concerns.count).toBe(0);
+      });
+
+      it('should calculate stable overall status', () => {
+        const metrics = {
+          velocity: { status: 'stable', score: 60 },
+          momentum: { status: 'stable', score: 65 },
+          issues: { status: 'stable', score: 55 },
+          prs: { status: 'stable', score: 70 },
+          busFactor: { status: 'stable', score: 60 },
+          freshness: { status: 'stable', score: 65 }
+        };
+        const result = calculateOverallPulse(metrics);
+
+        expect(result.status).toBe('stable');
+        expect(result.concerns.count).toBe(0);
+      });
+
+      it('should identify concerns correctly', () => {
+        const metrics = {
+          velocity: { status: 'thriving', score: 80 },
+          momentum: { status: 'stable', score: 60 },
+          issues: { status: 'cooling', score: 35 },
+          prs: { status: 'at_risk', score: 20 },
+          busFactor: { status: 'cooling', score: 30 },
+          freshness: { status: 'stable', score: 55 }
+        };
+        const result = calculateOverallPulse(metrics);
+
+        expect(result.concerns.count).toBe(3);
+        expect(result.concerns.metrics).toHaveLength(3);
+        expect(result.concerns.metrics[0].severity).toBe('high'); // at_risk comes first
+      });
+
+      it('should handle missing metrics gracefully', () => {
+        const metrics = {
+          velocity: { status: 'stable', score: 60 },
+          momentum: null,
+          issues: undefined,
+          prs: { status: 'stable', score: 65 }
+        };
+        const result = calculateOverallPulse(metrics);
+
+        expect(result.status).toBeDefined();
+        expect(result.score).toBeGreaterThan(0);
+      });
+
+      it('should return default for null metrics', () => {
+        const result = calculateOverallPulse(null);
+        expect(result.status).toBe('stable');
+        expect(result.label).toBe('Insufficient data for analysis');
+      });
+
+      it('should calculate pulse speed based on status', () => {
+        const metrics = {
+          velocity: { status: 'thriving', score: 90 },
+          momentum: { status: 'thriving', score: 90 },
+          issues: { status: 'thriving', score: 90 },
+          prs: { status: 'thriving', score: 90 },
+          busFactor: { status: 'thriving', score: 90 },
+          freshness: { status: 'thriving', score: 90 }
+        };
+        const result = calculateOverallPulse(metrics);
+
+        expect(result.pulseSpeed).toBe(800); // Fast pulse for thriving
+      });
+
+      it('should include breakdown of all metrics', () => {
+        const metrics = {
+          velocity: { status: 'thriving', score: 90 },
+          momentum: { status: 'stable', score: 60 },
+          issues: { status: 'cooling', score: 35 },
+          prs: { status: 'at_risk', score: 20 },
+          busFactor: { status: 'stable', score: 65 },
+          freshness: { status: 'thriving', score: 85 }
+        };
+        const result = calculateOverallPulse(metrics);
+
+        expect(result.breakdown).toHaveProperty('velocity');
+        expect(result.breakdown).toHaveProperty('momentum');
+        expect(result.breakdown).toHaveProperty('issues');
+        expect(result.breakdown).toHaveProperty('prs');
+        expect(result.breakdown).toHaveProperty('busFactor');
+        expect(result.breakdown).toHaveProperty('freshness');
+      });
+
+      it('should calculate average trend', () => {
+        const metrics = {
+          velocity: { status: 'stable', score: 60, trend: 10 },
+          momentum: { status: 'stable', score: 60, trend: 5 },
+          issues: { status: 'stable', score: 60, trend: -5 },
+          prs: { status: 'stable', score: 60, trend: 0 },
+          busFactor: { status: 'stable', score: 60, trend: 0 },
+          freshness: { status: 'stable', score: 60, trend: 0 }
+        };
+        const result = calculateOverallPulse(metrics);
+
+        expect(result.trend).toBeDefined();
+        expect(result.direction).toBeDefined();
+      });
+
+      it('should include status labels and descriptions', () => {
+        const metrics = {
+          velocity: { status: 'stable', score: 60 },
+          momentum: { status: 'stable', score: 60 },
+          issues: { status: 'stable', score: 60 },
+          prs: { status: 'stable', score: 60 },
+          busFactor: { status: 'stable', score: 60 },
+          freshness: { status: 'stable', score: 60 }
+        };
+        const result = calculateOverallPulse(metrics);
+
+        expect(result.statusLabel).toBeDefined();
+        expect(result.statusDescription).toBeDefined();
+      });
+    });
+
+    describe('calculateAllMetrics', () => {
+      it('should calculate all metrics from pulse data', () => {
+        const pulseData = {
+          repo: {
+            stargazers_count: 1000,
+            forks_count: 100,
+            created_at: '2020-01-01',
+            pushed_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+            updated_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+          },
+          participation: {
+            all: Array(52).fill(10)
+          },
+          issues: [
+            { created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), closed_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), state: 'closed' }
+          ],
+          prs: [
+            { created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), merged_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(), merged: true, state: 'closed' }
+          ],
+          contributors: [
+            { total: 100, author: { login: 'dev1' } },
+            { total: 50, author: { login: 'dev2' } }
+          ],
+          events: [],
+          releases: []
+        };
+        const result = calculateAllMetrics(pulseData);
+
+        expect(result).toHaveProperty('metrics');
+        expect(result).toHaveProperty('overall');
+        expect(result.metrics).toHaveProperty('velocity');
+        expect(result.metrics).toHaveProperty('momentum');
+        expect(result.metrics).toHaveProperty('issues');
+        expect(result.metrics).toHaveProperty('prs');
+        expect(result.metrics).toHaveProperty('busFactor');
+        expect(result.metrics).toHaveProperty('freshness');
+      });
+
+      it('should handle minimal data', () => {
+        const pulseData = {
+          repo: { stargazers_count: 10 }
+        };
+        const result = calculateAllMetrics(pulseData);
+
+        expect(result.metrics.velocity).toBeDefined();
+        expect(result.metrics.momentum).toBeDefined();
+        expect(result.overall).toBeDefined();
+      });
+
+      it('should return defaults for null data', () => {
+        const result = calculateAllMetrics(null);
+
+        expect(result.metrics.velocity.status).toBe('stable');
+        expect(result.overall.status).toBe('stable');
+      });
+
+      it('should return defaults for empty object', () => {
+        const result = calculateAllMetrics({});
+
+        expect(result.metrics).toBeDefined();
+        expect(result.overall).toBeDefined();
+      });
+
+      it('should calculate overall pulse from individual metrics', () => {
+        const pulseData = {
+          repo: {
+            stargazers_count: 10000,
+            forks_count: 1000,
+            created_at: '2020-01-01',
+            pushed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+          },
+          participation: {
+            all: Array(48).fill(10).concat(Array(4).fill(30))
+          },
+          issues: Array(5).fill(0).map((_, i) => ({
+            created_at: new Date(Date.now() - (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
+            closed_at: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+            state: 'closed'
+          })),
+          prs: Array(5).fill(0).map((_, i) => ({
+            created_at: new Date(Date.now() - (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
+            merged_at: new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString(),
+            merged: true,
+            state: 'closed'
+          })),
+          contributors: [
+            { total: 100, author: { login: 'dev1' } },
+            { total: 90, author: { login: 'dev2' } },
+            { total: 80, author: { login: 'dev3' } }
+          ],
+          events: [],
+          releases: [
+            { published_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), tag_name: 'v1.0.0' }
+          ]
+        };
+        const result = calculateAllMetrics(pulseData);
+
+        expect(result.overall.status).toBeTruthy();
+        expect(result.overall.score).toBeGreaterThan(0);
+        expect(result.overall.concerns).toBeDefined();
+      });
     });
   });
 });
