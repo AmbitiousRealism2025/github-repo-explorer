@@ -1,5 +1,7 @@
 import { API_BASE, API_VERSION, CACHE_TTL_MS, CACHE_MAX_ENTRIES, TRENDING_DAYS_BACK, TRENDING_CATEGORIES } from './constants.js';
 
+const RETRY_CONFIG = { MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2 };
+
 const getHeaders = () => {
   const headers = {
     'Accept': 'application/vnd.github+json',
@@ -49,7 +51,7 @@ export const clearCache = () => {
   console.log('[Cache] Cleared');
 };
 
-const fetchWithRetry = async (url, retries = 3, backoff = 1000, useCache = true) => {
+const fetchWithRetry = async (url, retries = RETRY_CONFIG.MAX_RETRIES, backoff = RETRY_CONFIG.INITIAL_BACKOFF_MS, useCache = true) => {
   if (useCache) {
     const cached = getCachedResponse(url);
     if (cached) return cached;
@@ -101,7 +103,7 @@ const fetchWithRetry = async (url, retries = 3, backoff = 1000, useCache = true)
     if (retries > 0 && !isHttpError) {
       const jitter = Math.random() * 100;
       await sleep(backoff + jitter);
-      return fetchWithRetry(url, retries - 1, backoff * 2, useCache);
+      return fetchWithRetry(url, retries - 1, backoff * RETRY_CONFIG.BACKOFF_MULTIPLIER, useCache);
     }
     throw error;
   }

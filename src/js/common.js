@@ -426,3 +426,9 @@ export const sanitizeUrl = (url) => {
     return null;
   }
 };
+
+export const getRequiredElement = (id) => {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`Required element not found: #${id}`);
+  return el;
+};

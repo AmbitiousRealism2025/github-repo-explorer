@@ -19,6 +19,12 @@
  * 
  * @module components/HealthScore
  */
+
+const MAINTENANCE_DAYS = { EXCELLENT: 7, GOOD: 30, FAIR: 90, AGING: 180, STALE: 365 };
+const COMMUNITY_STARS = { EXCELLENT: 10000, GOOD: 1000, FAIR: 100, EMERGING: 10 };
+const ACTIVITY_WEEKS = { EXCELLENT: 10, GOOD: 6, FAIR: 3, MINIMAL: 1 };
+const ENGAGEMENT_FORKS = { EXCELLENT: 1000, GOOD: 100, FAIR: 10, MINIMAL: 1 };
+
 export const calculateHealthScore = (repo, options = {}) => {
   const {
     hasReadme = true,
@@ -45,20 +51,20 @@ export const calculateHealthScore = (repo, options = {}) => {
     (Date.now() - new Date(repo.pushed_at).getTime()) / (1000 * 60 * 60 * 24)
   );
   
-  if (daysSinceUpdate <= 7) scores.maintenance = 100;
-  else if (daysSinceUpdate <= 30) scores.maintenance = 80;
-  else if (daysSinceUpdate <= 90) scores.maintenance = 60;
-  else if (daysSinceUpdate <= 180) scores.maintenance = 40;
-  else if (daysSinceUpdate <= 365) scores.maintenance = 20;
+  if (daysSinceUpdate <= MAINTENANCE_DAYS.EXCELLENT) scores.maintenance = 100;
+  else if (daysSinceUpdate <= MAINTENANCE_DAYS.GOOD) scores.maintenance = 80;
+  else if (daysSinceUpdate <= MAINTENANCE_DAYS.FAIR) scores.maintenance = 60;
+  else if (daysSinceUpdate <= MAINTENANCE_DAYS.AGING) scores.maintenance = 40;
+  else if (daysSinceUpdate <= MAINTENANCE_DAYS.STALE) scores.maintenance = 20;
   else scores.maintenance = 10;
 
   const stars = repo.stargazers_count || 0;
   const forks = repo.forks_count || 0;
   
-  if (stars >= 10000) scores.community = 100;
-  else if (stars >= 1000) scores.community = 80;
-  else if (stars >= 100) scores.community = 60;
-  else if (stars >= 10) scores.community = 40;
+  if (stars >= COMMUNITY_STARS.EXCELLENT) scores.community = 100;
+  else if (stars >= COMMUNITY_STARS.GOOD) scores.community = 80;
+  else if (stars >= COMMUNITY_STARS.FAIR) scores.community = 60;
+  else if (stars >= COMMUNITY_STARS.EMERGING) scores.community = 40;
   else scores.community = 20;
 
   scores.documentation = hasReadme ? 80 : 20;
@@ -71,19 +77,19 @@ export const calculateHealthScore = (repo, options = {}) => {
     const totalCommits = recentWeeks.reduce((sum, week) => sum + (week.total || 0), 0);
     const activeWeeks = recentWeeks.filter(week => (week.total || 0) > 0).length;
     
-    if (activeWeeks >= 10) scores.activity = 100;
-    else if (activeWeeks >= 6) scores.activity = 80;
-    else if (activeWeeks >= 3) scores.activity = 60;
-    else if (activeWeeks >= 1) scores.activity = 40;
+    if (activeWeeks >= ACTIVITY_WEEKS.EXCELLENT) scores.activity = 100;
+    else if (activeWeeks >= ACTIVITY_WEEKS.GOOD) scores.activity = 80;
+    else if (activeWeeks >= ACTIVITY_WEEKS.FAIR) scores.activity = 60;
+    else if (activeWeeks >= ACTIVITY_WEEKS.MINIMAL) scores.activity = 40;
     else scores.activity = 20;
   } else {
-    scores.activity = daysSinceUpdate <= 30 ? 60 : 30;
+    scores.activity = daysSinceUpdate <= MAINTENANCE_DAYS.GOOD ? 60 : 30;
   }
 
-  if (forks >= 1000) scores.engagement = 100;
-  else if (forks >= 100) scores.engagement = 80;
-  else if (forks >= 10) scores.engagement = 60;
-  else if (forks >= 1) scores.engagement = 40;
+  if (forks >= ENGAGEMENT_FORKS.EXCELLENT) scores.engagement = 100;
+  else if (forks >= ENGAGEMENT_FORKS.GOOD) scores.engagement = 80;
+  else if (forks >= ENGAGEMENT_FORKS.FAIR) scores.engagement = 60;
+  else if (forks >= ENGAGEMENT_FORKS.MINIMAL) scores.engagement = 40;
   else scores.engagement = 20;
 
   const totalScore = Math.round(
@@ -178,8 +184,8 @@ const formatMetricName = (key) => {
 };
 
 const getScoreColor = (score) => {
-  if (score >= 80) return 'var(--color-success, #10b981)';
-  if (score >= 60) return 'var(--color-accent, #14b8a6)';
-  if (score >= 40) return 'var(--color-warning, #f59e0b)';
-  return 'var(--color-danger, #ef4444)';
+  if (score >= 80) return 'var(--color-success)';
+  if (score >= 60) return 'var(--color-accent)';
+  if (score >= 40) return 'var(--color-warning)';
+  return 'var(--color-danger)';
 };
