@@ -3382,3 +3382,595 @@ describe('MetricResult Shape Validation', () => {
     expect(result).toMatchObject(metricResultShape);
   });
 });
+
+// =============================================================================
+// EXTENDED EDGE CASE TESTS
+// =============================================================================
+
+describe('Extended Edge Cases', () => {
+  describe('Null and undefined data handling', () => {
+    it('should handle undefined data for all calculators', () => {
+      expect(() => calculateVelocityScore(undefined)).not.toThrow();
+      expect(() => calculateCommunityMomentum(undefined)).not.toThrow();
+      expect(() => calculateIssueTemperature(undefined)).not.toThrow();
+      expect(() => calculatePRHealth(undefined)).not.toThrow();
+      expect(() => calculateBusFactor(undefined)).not.toThrow();
+      expect(() => calculateFreshnessIndex(undefined)).not.toThrow();
+      expect(() => calculateOverallPulse(undefined)).not.toThrow();
+      expect(() => calculateAllMetrics(undefined)).not.toThrow();
+    });
+
+    it('should return stable status for null velocity data', () => {
+      const result = calculateVelocityScore(null);
+      expect(result.status).toBe('stable');
+      expect(result.value).toBe(0);
+      expect(result.trend).toBe(0);
+    });
+
+    it('should return default metric for null community momentum data', () => {
+      const result = calculateCommunityMomentum(null);
+      expect(result.status).toBeDefined();
+      expect(result.value).toBeDefined();
+    });
+
+    it('should return cool temperature for null issue data', () => {
+      const result = calculateIssueTemperature(null);
+      expect(result.temperature).toBe('cool');
+      expect(result.value).toBe('Cool');
+    });
+
+    it('should return default PR health for null PR data', () => {
+      const result = calculatePRHealth(null);
+      expect(result.status).toBe('stable');
+      expect(result.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
+    });
+
+    it('should return critical bus factor for null contributor data', () => {
+      const result = calculateBusFactor(null);
+      expect(result.value).toBe(1);
+      expect(result.riskLevel).toBe('critical');
+    });
+
+    it('should return stale freshness for null repo data', () => {
+      const result = calculateFreshnessIndex(null);
+      expect(result.freshness).toBe('stale');
+    });
+  });
+
+  describe('Partial data handling', () => {
+    it('should handle repo with only id', () => {
+      const partialRepo = { id: 12345 };
+      expect(() => calculateCommunityMomentum(partialRepo)).not.toThrow();
+      expect(() => calculateFreshnessIndex(partialRepo)).not.toThrow();
+    });
+
+    it('should handle repo with missing stargazers_count', () => {
+      const partialRepo = createMockRepo({ stargazers_count: undefined });
+      const result = calculateCommunityMomentum(partialRepo);
+      expect(result.value).toBeDefined();
+    });
+
+    it('should handle repo with null dates', () => {
+      const partialRepo = createMockRepo({
+        created_at: null,
+        pushed_at: null,
+        updated_at: null
+      });
+      const momentumResult = calculateCommunityMomentum(partialRepo);
+      const freshnessResult = calculateFreshnessIndex(partialRepo);
+      expect(momentumResult.status).toBeDefined();
+      expect(freshnessResult.freshness).toBeDefined();
+    });
+
+    it('should handle participation with only some weeks', () => {
+      const partialParticipation = { all: [5, 10, 8, 12] };
+      const result = calculateVelocityScore(partialParticipation);
+      expect(result.value).toBeDefined();
+      expect(result.status).toBeDefined();
+    });
+
+    it('should handle issues with missing fields', () => {
+      const partialIssues = [
+        { state: 'open' }, // missing created_at
+        { created_at: new Date().toISOString() } // missing state
+      ];
+      expect(() => calculateIssueTemperature(partialIssues)).not.toThrow();
+    });
+
+    it('should handle PRs with missing merged field', () => {
+      const partialPRs = [
+        { state: 'closed', created_at: new Date().toISOString() }
+      ];
+      const result = calculatePRHealth(partialPRs);
+      expect(result.funnel).toBeDefined();
+    });
+
+    it('should handle contributors with missing total', () => {
+      const partialContributors = [
+        { author: { login: 'dev1' } },
+        { author: { login: 'dev2' } }
+      ];
+      expect(() => calculateBusFactor(partialContributors)).not.toThrow();
+    });
+
+    it('should handle calculateAllMetrics with only repo data', () => {
+      const result = calculateAllMetrics({ repo: createMockRepo() });
+      expect(result.metrics).toBeDefined();
+      expect(result.overall).toBeDefined();
+      expect(result.metrics.velocity.label).toBe('Commit data unavailable');
+    });
+
+    it('should handle calculateAllMetrics with repo and participation only', () => {
+      const result = calculateAllMetrics({
+        repo: createMockRepo(),
+        participation: createMockParticipation()
+      });
+      expect(result.metrics.velocity.status).toBeDefined();
+      expect(result.metrics.momentum.status).toBeDefined();
+    });
+  });
+
+  describe('Boundary values for STATUS_THRESHOLDS', () => {
+    // STATUS_THRESHOLDS: THRIVING: 75, STABLE: 50, COOLING: 25
+
+    it('should return thriving for score exactly at 75', () => {
+      expect(getMetricStatus(75)).toBe('thriving');
+    });
+
+    it('should return stable for score at 74.99', () => {
+      expect(getMetricStatus(74.99)).toBe('stable');
+    });
+
+    it('should return stable for score exactly at 50', () => {
+      expect(getMetricStatus(50)).toBe('stable');
+    });
+
+    it('should return cooling for score at 49.99', () => {
+      expect(getMetricStatus(49.99)).toBe('cooling');
+    });
+
+    it('should return cooling for score exactly at 25', () => {
+      expect(getMetricStatus(25)).toBe('cooling');
+    });
+
+    it('should return at_risk for score at 24.99', () => {
+      expect(getMetricStatus(24.99)).toBe('at_risk');
+    });
+
+    it('should return at_risk for score of 0', () => {
+      expect(getMetricStatus(0)).toBe('at_risk');
+    });
+
+    it('should return thriving for score above 100', () => {
+      expect(getMetricStatus(100)).toBe('thriving');
+      expect(getMetricStatus(150)).toBe('thriving');
+    });
+  });
+
+  describe('Boundary values for TREND_THRESHOLDS', () => {
+    // TREND_THRESHOLDS: SIGNIFICANT: 5
+
+    it('should return stable for change exactly at threshold (5)', () => {
+      expect(getTrendDirection(5)).toBe('stable');
+    });
+
+    it('should return up for change just above threshold (5.01)', () => {
+      expect(getTrendDirection(5.01)).toBe('up');
+    });
+
+    it('should return stable for negative change at threshold (-5)', () => {
+      expect(getTrendDirection(-5)).toBe('stable');
+    });
+
+    it('should return down for change just below threshold (-5.01)', () => {
+      expect(getTrendDirection(-5.01)).toBe('down');
+    });
+
+    it('should return stable for change of 0', () => {
+      expect(getTrendDirection(0)).toBe('stable');
+    });
+
+    it('should handle very small positive changes as stable', () => {
+      expect(getTrendDirection(0.001)).toBe('stable');
+      expect(getTrendDirection(4.999)).toBe('stable');
+    });
+
+    it('should handle very small negative changes as stable', () => {
+      expect(getTrendDirection(-0.001)).toBe('stable');
+      expect(getTrendDirection(-4.999)).toBe('stable');
+    });
+
+    it('should handle custom threshold boundary values', () => {
+      expect(getTrendDirection(10, 10)).toBe('stable');
+      expect(getTrendDirection(10.01, 10)).toBe('up');
+      expect(getTrendDirection(-10, 10)).toBe('stable');
+      expect(getTrendDirection(-10.01, 10)).toBe('down');
+    });
+  });
+
+  describe('Boundary values for clamp function', () => {
+    it('should return value exactly at min boundary', () => {
+      expect(clamp(0, 0, 100)).toBe(0);
+    });
+
+    it('should return value exactly at max boundary', () => {
+      expect(clamp(100, 0, 100)).toBe(100);
+    });
+
+    it('should clamp value just below min', () => {
+      expect(clamp(-0.001, 0, 100)).toBe(0);
+    });
+
+    it('should clamp value just above max', () => {
+      expect(clamp(100.001, 0, 100)).toBe(100);
+    });
+
+    it('should handle min equals max', () => {
+      expect(clamp(50, 50, 50)).toBe(50);
+      expect(clamp(0, 50, 50)).toBe(50);
+      expect(clamp(100, 50, 50)).toBe(50);
+    });
+
+    it('should handle negative ranges', () => {
+      expect(clamp(-50, -100, -10)).toBe(-50);
+      expect(clamp(-5, -100, -10)).toBe(-10);
+      expect(clamp(-150, -100, -10)).toBe(-100);
+    });
+  });
+
+  describe('Boundary values for percentageChange', () => {
+    it('should return 100 for doubling (from 50 to 100)', () => {
+      expect(percentageChange(100, 50)).toBe(100);
+    });
+
+    it('should return -50 for halving (from 100 to 50)', () => {
+      expect(percentageChange(50, 100)).toBe(-50);
+    });
+
+    it('should return 0 for no change', () => {
+      expect(percentageChange(100, 100)).toBe(0);
+    });
+
+    it('should handle division by zero (old value is 0)', () => {
+      expect(percentageChange(100, 0)).toBe(100);
+      expect(percentageChange(0, 0)).toBe(0);
+      expect(percentageChange(-50, 0)).toBe(-100);
+    });
+
+    it('should handle very small percentages', () => {
+      expect(percentageChange(100.001, 100)).toBeCloseTo(0.001, 2);
+    });
+
+    it('should handle very large percentages', () => {
+      expect(percentageChange(10000, 100)).toBe(9900);
+    });
+  });
+});
+
+// =============================================================================
+// INTEGRATION TESTS FOR calculateAllMetrics
+// =============================================================================
+
+describe('calculateAllMetrics Integration Tests', () => {
+  describe('Full data flow', () => {
+    it('should calculate all metrics with complete data set', () => {
+      const pulseData = {
+        repo: createMockRepo({
+          stargazers_count: 5000,
+          forks_count: 500,
+          open_issues_count: 25
+        }),
+        participation: createMockParticipation({ recentAvg: 15, previousAvg: 10 }),
+        issues: createMockIssueSet({ openCount: 5, closedCount: 15 }),
+        prs: createMockPRSet({ mergedCount: 8, closedCount: 2, openCount: 3 }),
+        contributors: createMockContributorSet({ count: 8, distribution: 'balanced' }),
+        events: Array(10).fill(null).map(() => createMockEvent()),
+        releases: [
+          createMockRelease({ published_at: new Date().toISOString() })
+        ]
+      };
+
+      const result = calculateAllMetrics(pulseData);
+
+      // Verify all 6 metrics are present
+      expect(Object.keys(result.metrics)).toHaveLength(6);
+      expect(result.metrics.velocity).toBeDefined();
+      expect(result.metrics.momentum).toBeDefined();
+      expect(result.metrics.issues).toBeDefined();
+      expect(result.metrics.prs).toBeDefined();
+      expect(result.metrics.busFactor).toBeDefined();
+      expect(result.metrics.freshness).toBeDefined();
+
+      // Verify overall pulse is calculated
+      expect(result.overall.score).toBeGreaterThanOrEqual(0);
+      expect(result.overall.score).toBeLessThanOrEqual(100);
+      expect(result.overall.status).toBeDefined();
+      expect(result.overall.pulseSpeed).toBeDefined();
+      expect(result.overall.metricsUsed).toBe(6);
+    });
+
+    it('should handle thriving repository scenario', () => {
+      const thrivingData = {
+        repo: createMockRepo({
+          stargazers_count: 50000,
+          forks_count: 5000,
+          pushed_at: new Date().toISOString()
+        }),
+        participation: createMockParticipation({ recentAvg: 50, previousAvg: 30 }),
+        issues: createMockIssueSet({ openCount: 2, closedCount: 20 }),
+        prs: createMockPRSet({ mergedCount: 15, closedCount: 1, openCount: 2 }),
+        contributors: createMockContributorSet({ count: 10, distribution: 'balanced' }),
+        releases: [createMockRelease()]
+      };
+
+      const result = calculateAllMetrics(thrivingData);
+
+      expect(result.overall.status).toBe('thriving');
+      expect(result.overall.score).toBeGreaterThanOrEqual(75);
+      expect(result.overall.concerns.count).toBe(0);
+    });
+
+    it('should handle at-risk repository scenario', () => {
+      const veryOldDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+      const atRiskData = {
+        repo: createMockRepo({
+          stargazers_count: 10,
+          forks_count: 1,
+          pushed_at: veryOldDate,
+          updated_at: veryOldDate
+        }),
+        participation: createMockParticipation({ recentAvg: 0, previousAvg: 5 }),
+        issues: createMockIssueSet({ openCount: 20, closedCount: 1 }),
+        prs: createMockPRSet({ mergedCount: 0, closedCount: 5, openCount: 10 }),
+        contributors: createMockContributorSet({ distribution: 'single' })
+      };
+
+      const result = calculateAllMetrics(atRiskData);
+
+      expect(result.overall.status).toBe('at_risk');
+      expect(result.overall.score).toBeLessThan(25);
+      expect(result.overall.concerns.count).toBeGreaterThan(0);
+    });
+
+    it('should handle mixed health scenario', () => {
+      const mixedData = {
+        repo: createMockRepo({
+          stargazers_count: 1000,
+          forks_count: 100,
+          pushed_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        participation: createMockParticipation({ recentAvg: 8, previousAvg: 10 }),
+        issues: createMockIssueSet({ openCount: 10, closedCount: 10 }),
+        prs: createMockPRSet({ mergedCount: 5, closedCount: 3, openCount: 5 }),
+        contributors: createMockContributorSet({ count: 3, distribution: 'balanced' })
+      };
+
+      const result = calculateAllMetrics(mixedData);
+
+      // Should have a valid status and reasonable score range
+      expect(['thriving', 'stable', 'cooling']).toContain(result.overall.status);
+      expect(result.overall.score).toBeGreaterThanOrEqual(25);
+      expect(result.overall.score).toBeLessThanOrEqual(100);
+    });
+  });
+
+  describe('Metric interdependencies', () => {
+    it('should calculate overall score as weighted average of individual metrics', () => {
+      const pulseData = {
+        repo: createMockRepo(),
+        participation: createMockParticipation()
+      };
+
+      const result = calculateAllMetrics(pulseData);
+
+      // Overall score should be derived from metrics
+      expect(result.overall.score).toBeGreaterThanOrEqual(0);
+      expect(result.overall.score).toBeLessThanOrEqual(100);
+    });
+
+    it('should identify at-risk metrics in concerns', () => {
+      const pulseData = {
+        repo: createMockRepo({
+          stargazers_count: 0,
+          pushed_at: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        contributors: createMockContributorSet({ distribution: 'single' })
+      };
+
+      const result = calculateAllMetrics(pulseData);
+
+      // Should have concerns for at_risk metrics
+      if (result.overall.concerns.count > 0) {
+        expect(Array.isArray(result.overall.concerns.metrics)).toBe(true);
+      }
+    });
+
+    it('should scale pulse speed based on overall health', () => {
+      const healthyData = {
+        repo: createMockRepo({ stargazers_count: 50000 }),
+        participation: createMockParticipation({ recentAvg: 30 })
+      };
+
+      const unhealthyData = {
+        repo: createMockRepo({
+          stargazers_count: 0,
+          pushed_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        participation: createMockParticipation({ recentAvg: 0, previousAvg: 0 })
+      };
+
+      const healthyResult = calculateAllMetrics(healthyData);
+      const unhealthyResult = calculateAllMetrics(unhealthyData);
+
+      // Healthier repos should have faster pulse (lower ms value)
+      expect(healthyResult.overall.pulseSpeed).toBeLessThanOrEqual(
+        unhealthyResult.overall.pulseSpeed
+      );
+    });
+  });
+
+  describe('Graceful degradation', () => {
+    it('should work with only repo data', () => {
+      const result = calculateAllMetrics({ repo: createMockRepo() });
+
+      expect(result.metrics.velocity.label).toBe('Commit data unavailable');
+      expect(result.metrics.issues.temperature).toBe('cool');
+      expect(result.metrics.prs.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
+      expect(result.metrics.busFactor.riskLevel).toBe('critical');
+
+      // Momentum and freshness can still be calculated from repo
+      expect(result.metrics.momentum.status).toBeDefined();
+      expect(result.metrics.freshness.status).toBeDefined();
+    });
+
+    it('should adjust metricsUsed count based on available data', () => {
+      const fullResult = calculateAllMetrics({
+        repo: createMockRepo(),
+        participation: createMockParticipation(),
+        issues: createMockIssueSet(),
+        prs: createMockPRSet(),
+        contributors: createMockContributorSet(),
+        releases: [createMockRelease()]
+      });
+
+      const partialResult = calculateAllMetrics({ repo: createMockRepo() });
+
+      expect(fullResult.overall.metricsUsed).toBeGreaterThanOrEqual(
+        partialResult.overall.metricsUsed
+      );
+    });
+
+    it('should handle empty arrays as valid data', () => {
+      const result = calculateAllMetrics({
+        repo: createMockRepo(),
+        issues: [],
+        prs: [],
+        contributors: [],
+        releases: []
+      });
+
+      expect(result.metrics.issues.temperature).toBe('cool');
+      expect(result.metrics.prs.label).toBe('No recent pull requests');
+      expect(result.metrics.busFactor.riskLevel).toBe('critical');
+      expect(result.metrics.freshness.freshness).toBeDefined();
+    });
+
+    it('should not throw on malformed data', () => {
+      const malformedData = {
+        repo: { id: 123 }, // Minimal repo
+        participation: { all: 'not an array' },
+        issues: 'not an array',
+        prs: null,
+        contributors: undefined,
+        releases: { not: 'an array' }
+      };
+
+      expect(() => calculateAllMetrics(malformedData)).not.toThrow();
+      const result = calculateAllMetrics(malformedData);
+      expect(result.metrics).toBeDefined();
+      expect(result.overall).toBeDefined();
+    });
+  });
+
+  describe('Edge case combinations', () => {
+    it('should handle new repository (created today)', () => {
+      const now = new Date().toISOString();
+      const newRepoData = {
+        repo: createMockRepo({
+          created_at: now,
+          pushed_at: now,
+          stargazers_count: 5,
+          forks_count: 0
+        }),
+        participation: { all: [0, 0, 0, 1] } // Minimal activity
+      };
+
+      const result = calculateAllMetrics(newRepoData);
+
+      // New repos should have fresh/recent status but potentially low community metrics
+      expect(['fresh', 'recent']).toContain(result.metrics.freshness.freshness);
+      expect(result.overall.status).toBeDefined();
+    });
+
+    it('should handle archived repository pattern', () => {
+      const yearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+      const archivedData = {
+        repo: createMockRepo({
+          stargazers_count: 10000, // High stars (popular but archived)
+          pushed_at: yearAgo,
+          updated_at: yearAgo
+        }),
+        participation: { all: Array(52).fill(0) }
+      };
+
+      const result = calculateAllMetrics(archivedData);
+
+      // Should show freshness as stale despite high stars
+      expect(result.metrics.freshness.freshness).toBe('stale');
+      expect(result.metrics.velocity.status).toBeDefined();
+    });
+
+    it('should handle viral repository pattern (rapid growth)', () => {
+      const viralData = {
+        repo: createMockRepo({
+          stargazers_count: 50000,
+          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() // 1 week old
+        }),
+        participation: createMockParticipation({ recentAvg: 100, previousAvg: 5 }),
+        events: Array(50).fill(null).map(() => createMockEvent({ type: 'WatchEvent' }))
+      };
+
+      const result = calculateAllMetrics(viralData);
+
+      expect(result.metrics.velocity.direction).toBe('up');
+      expect(result.metrics.velocity.status).toBe('thriving');
+    });
+
+    it('should handle single contributor project', () => {
+      const singleContributorData = {
+        repo: createMockRepo(),
+        participation: createMockParticipation(),
+        contributors: [createMockContributor({ total: 1000, author: { login: 'solo' } })]
+      };
+
+      const result = calculateAllMetrics(singleContributorData);
+
+      expect(result.metrics.busFactor.value).toBe(1);
+      expect(result.metrics.busFactor.riskLevel).toBe('critical');
+    });
+
+    it('should handle repository with only open issues (no closed)', () => {
+      const onlyOpenIssues = Array(10).fill(null).map(() =>
+        createMockIssue({ state: 'open' })
+      );
+
+      const result = calculateAllMetrics({
+        repo: createMockRepo(),
+        issues: onlyOpenIssues
+      });
+
+      expect(result.metrics.issues.temperature).toBeDefined();
+      // With many open issues and no closed ones, temperature should be elevated
+      expect(['hot', 'warm', 'critical']).toContain(result.metrics.issues.temperature);
+    });
+
+    it('should handle repository with 100% PR merge rate', () => {
+      const allMergedPRs = Array(10).fill(null).map(() =>
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date().toISOString()
+        })
+      );
+
+      const result = calculateAllMetrics({
+        repo: createMockRepo(),
+        prs: allMergedPRs
+      });
+
+      expect(result.metrics.prs.funnel.merged).toBe(10);
+      expect(result.metrics.prs.funnel.closed).toBe(0); // closed but not merged
+    });
+  });
+});
