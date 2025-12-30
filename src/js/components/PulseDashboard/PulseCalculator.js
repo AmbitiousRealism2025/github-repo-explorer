@@ -1,0 +1,1811 @@
+/**
+ * PulseCalculator - Repository Pulse Metrics Calculation Engine
+ *
+ * Calculates six "vital signs" that answer the critical question "Is this repo dying?"
+ * through predictive trend analysis. Each calculator returns a MetricResult object
+ * with value, trend, direction, sparklineData, status, and label.
+ *
+ * @example
+ * import { calculateVelocityScore, calculateAllMetrics } from './PulseCalculator.js';
+ *
+ * // Calculate individual metric
+ * const velocity = calculateVelocityScore(participation);
+ * console.log(velocity.value, velocity.trend, velocity.status);
+ *
+ * // Calculate all metrics at once
+ * const pulse = calculateAllMetrics({ repo, participation, issues, prs, contributors });
+ * console.log(pulse.overall.status);
+ *
+ * @module components/PulseDashboard/PulseCalculator
+ */
+
+import {
+  STATUS_THRESHOLDS,
+  TREND_THRESHOLDS,
+  DEFAULTS,
+  DEFAULT_METRIC,
+  TIME_MS,
+  COMMUNITY,
+  ISSUES,
+  PR_HEALTH,
+  BUS_FACTOR,
+  FRESHNESS,
+  PULSE,
+  STATUS_LABELS
+} from './constants.js';
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Calculate the average of an array of numbers
+ * @param {number[]} arr - Array of numbers to average
+ * @returns {number} The average value, or 0 if array is empty/invalid
+ *
+ * @example
+ * average([1, 2, 3, 4, 5]) // returns 3
+ * average([]) // returns 0
+ * average(null) // returns 0
+ */
+export function average(arr) {
+  if (!arr?.length) return 0;
+  const sum = arr.reduce((a, b) => a + (Number(b) || 0), 0);
+  return sum / arr.length;
+}
+
+/**
+ * Calculate the number of days since a given date
+ * @param {string|Date} dateString - ISO date string or Date object
+ * @returns {number} Days since the date, or Infinity if invalid
+ *
+ * @example
+ * daysSince('2024-01-01') // returns days since Jan 1, 2024
+ * daysSince(new Date()) // returns 0
+ * daysSince(null) // returns Infinity
+ */
+export function daysSince(dateString) {
+  if (!dateString) return Infinity;
+
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return Infinity;
+
+    const diff = Date.now() - date.getTime();
+    return Math.floor(diff / TIME_MS.DAY);
+  } catch {
+    return Infinity;
+  }
+}
+
+/**
+ * Calculate the number of days between two dates
+ * @param {string|Date} startDate - Start date (ISO string or Date)
+ * @param {string|Date} endDate - End date (ISO string or Date)
+ * @returns {number} Days between dates (absolute value), or 0 if invalid
+ *
+ * @example
+ * daysBetween('2024-01-01', '2024-01-15') // returns 14
+ * daysBetween('2024-01-15', '2024-01-01') // returns 14 (absolute)
+ * daysBetween(null, '2024-01-01') // returns 0
+ */
+export function daysBetween(startDate, endDate) {
+  if (!startDate || !endDate) return 0;
+
+  try {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
+
+    const diff = Math.abs(end.getTime() - start.getTime());
+    return Math.floor(diff / TIME_MS.DAY);
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Determine trend direction based on percentage change
+ * @param {number} change - Percentage change value
+ * @param {number} [threshold=5] - Threshold for considering a change significant
+ * @returns {'up' | 'down' | 'stable'} The trend direction
+ *
+ * @example
+ * getTrendDirection(10) // returns 'up'
+ * getTrendDirection(-15) // returns 'down'
+ * getTrendDirection(3) // returns 'stable' (within default threshold)
+ * getTrendDirection(3, 2) // returns 'up' (with custom threshold)
+ */
+export function getTrendDirection(change, threshold = TREND_THRESHOLDS.SIGNIFICANT) {
+  if (typeof change !== 'number' || isNaN(change)) return 'stable';
+
+  if (change > threshold) return 'up';
+  if (change < -threshold) return 'down';
+  return 'stable';
+}
+
+/**
+ * Determine metric status based on a score (0-100)
+ * @param {number} score - Score value from 0 to 100
+ * @returns {'thriving' | 'stable' | 'cooling' | 'at_risk'} The status classification
+ *
+ * @example
+ * getMetricStatus(80) // returns 'thriving'
+ * getMetricStatus(60) // returns 'stable'
+ * getMetricStatus(30) // returns 'cooling'
+ * getMetricStatus(10) // returns 'at_risk'
+ */
+export function getMetricStatus(score) {
+  if (typeof score !== 'number' || isNaN(score)) return 'stable';
+
+  if (score >= STATUS_THRESHOLDS.THRIVING) return 'thriving';
+  if (score >= STATUS_THRESHOLDS.STABLE) return 'stable';
+  if (score >= STATUS_THRESHOLDS.COOLING) return 'cooling';
+  return 'at_risk';
+}
+
+/**
+ * Create a default MetricResult for missing or invalid data
+ * @param {string} type - The metric type (velocity, momentum, issues, prs, busFactor, freshness)
+ * @returns {Object} A default MetricResult object with appropriate defaults for the type
+ *
+ * @example
+ * getDefaultMetric('velocity') // returns { value: 0, trend: 0, direction: 'stable', ... }
+ * getDefaultMetric('issues') // returns { value: 'Cool', temperature: 'cool', ... }
+ * getDefaultMetric('unknown') // returns generic default metric
+ *
+ * @typedef {Object} MetricResult
+ * @property {number|string} value - Current metric value
+ * @property {number} trend - Change percentage (-100 to +100)
+ * @property {'up' | 'down' | 'stable'} direction - Trend direction
+ * @property {number[]} sparklineData - Data points for visualization
+ * @property {'thriving' | 'stable' | 'cooling' | 'at_risk'} status - Status classification
+ * @property {string} label - Human-readable summary
+ */
+export function getDefaultMetric(type) {
+  // Return type-specific default if available
+  if (type && DEFAULTS[type]) {
+    return { ...DEFAULTS[type] };
+  }
+
+  // Return generic default with type in label
+  return {
+    ...DEFAULT_METRIC,
+    label: type ? `${type} data unavailable` : 'Data unavailable'
+  };
+}
+
+/**
+ * Clamp a value between min and max bounds
+ * @param {number} value - The value to clamp
+ * @param {number} min - Minimum bound
+ * @param {number} max - Maximum bound
+ * @returns {number} The clamped value
+ *
+ * @example
+ * clamp(150, 0, 100) // returns 100
+ * clamp(-10, 0, 100) // returns 0
+ * clamp(50, 0, 100) // returns 50
+ */
+export function clamp(value, min, max) {
+  if (typeof value !== 'number' || isNaN(value)) return min;
+  return Math.max(min, Math.min(max, value));
+}
+
+/**
+ * Calculate percentage change between two values
+ * @param {number} current - Current value
+ * @param {number} previous - Previous value
+ * @returns {number} Percentage change (can be negative or Infinity for division by zero edge cases)
+ *
+ * @example
+ * percentageChange(120, 100) // returns 20
+ * percentageChange(80, 100) // returns -20
+ * percentageChange(100, 0) // returns 100 (from zero)
+ */
+export function percentageChange(current, previous) {
+  if (typeof current !== 'number' || typeof previous !== 'number') return 0;
+  if (isNaN(current) || isNaN(previous)) return 0;
+
+  // If previous is 0, return current as percentage (growth from nothing)
+  if (previous === 0) {
+    return current > 0 ? 100 : (current < 0 ? -100 : 0);
+  }
+
+  return ((current - previous) / Math.abs(previous)) * 100;
+}
+
+/**
+ * Safely parse a date string or Date object
+ * @param {string|Date} dateInput - Date string or Date object
+ * @returns {Date|null} Parsed Date object or null if invalid
+ *
+ * @example
+ * safeParseDate('2024-01-01') // returns Date object
+ * safeParseDate(new Date()) // returns the same Date
+ * safeParseDate('invalid') // returns null
+ */
+export function safeParseDate(dateInput) {
+  if (!dateInput) return null;
+
+  try {
+    const date = new Date(dateInput);
+    return isNaN(date.getTime()) ? null : date;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Generate an array of zeros for sparkline data placeholder
+ * @param {number} length - Length of the array
+ * @returns {number[]} Array of zeros
+ *
+ * @example
+ * emptySparkline(7) // returns [0, 0, 0, 0, 0, 0, 0]
+ */
+export function emptySparkline(length) {
+  if (typeof length !== 'number' || length < 0) return [];
+  return Array(Math.floor(length)).fill(0);
+}
+
+// =============================================================================
+// METRIC CALCULATORS
+// =============================================================================
+
+/**
+ * Calculate velocity score from participation data
+ * Compares last 4 weeks vs previous 12 weeks to determine commit velocity trend
+ *
+ * @param {Object} participation - GitHub stats participation data
+ * @param {number[]} participation.all - Array of weekly commit counts (52 weeks, oldest to newest)
+ * @returns {Object} MetricResult with velocity score data
+ *
+ * @example
+ * // Increasing velocity
+ * const participation = { all: [...12 weeks of 5 commits..., ...4 weeks of 10 commits...] };
+ * const result = calculateVelocityScore(participation);
+ * // result.direction === 'up'
+ * // result.status === 'thriving'
+ *
+ * @example
+ * // Handle missing data
+ * const result = calculateVelocityScore(null);
+ * // result.status === 'stable'
+ * // result.label === 'Commit data unavailable'
+ */
+export function calculateVelocityScore(participation) {
+  // Import velocity constants inline to avoid circular deps and keep function self-contained
+  const RECENT_WEEKS = 4;
+  const PREVIOUS_WEEKS = 12;
+  const SPARKLINE_WEEKS = 13;
+
+  // Velocity thresholds from constants.js
+  const COMMITS_EXCELLENT = 20;
+  const COMMITS_GOOD = 10;
+  const COMMITS_FAIR = 5;
+  const COMMITS_MINIMAL = 1;
+
+  // Growth thresholds (percentage)
+  const GROWTH_THRIVING = 25;   // >25% increase = thriving
+  const GROWTH_STABLE = -10;    // -10% to +25% = stable
+  const GROWTH_COOLING = -30;   // -30% to -10% = cooling
+  // Below -30% = at_risk
+
+  // Handle missing or invalid participation data
+  if (!participation || !participation.all || !Array.isArray(participation.all)) {
+    return getDefaultMetric('velocity');
+  }
+
+  const allWeeks = participation.all;
+
+  // Need at least enough weeks for comparison
+  if (allWeeks.length < RECENT_WEEKS) {
+    return {
+      ...getDefaultMetric('velocity'),
+      sparklineData: allWeeks.slice(-SPARKLINE_WEEKS),
+      label: 'Insufficient commit history'
+    };
+  }
+
+  // Extract recent weeks (last 4) and previous weeks (prior 12)
+  const recentWeeks = allWeeks.slice(-RECENT_WEEKS);
+  const previousStart = Math.max(0, allWeeks.length - RECENT_WEEKS - PREVIOUS_WEEKS);
+  const previousEnd = allWeeks.length - RECENT_WEEKS;
+  const previousWeeks = allWeeks.slice(previousStart, previousEnd);
+
+  // Calculate averages
+  const recentAvg = average(recentWeeks);
+  const previousAvg = average(previousWeeks);
+
+  // Calculate trend (percentage change)
+  const trend = percentageChange(recentAvg, previousAvg);
+
+  // Determine direction
+  const direction = getTrendDirection(trend);
+
+  // Generate sparkline data (last 13 weeks)
+  const sparklineData = allWeeks.slice(-SPARKLINE_WEEKS);
+
+  // Calculate score (0-100) based on recent commit activity and growth
+  let activityScore = 0;
+  if (recentAvg >= COMMITS_EXCELLENT) activityScore = 100;
+  else if (recentAvg >= COMMITS_GOOD) activityScore = 80;
+  else if (recentAvg >= COMMITS_FAIR) activityScore = 60;
+  else if (recentAvg >= COMMITS_MINIMAL) activityScore = 40;
+  else activityScore = 20;
+
+  // Adjust score based on growth trend
+  let growthModifier = 0;
+  if (trend >= GROWTH_THRIVING) growthModifier = 15;
+  else if (trend >= GROWTH_STABLE) growthModifier = 0;
+  else if (trend >= GROWTH_COOLING) growthModifier = -15;
+  else growthModifier = -25;
+
+  // Final score clamped to 0-100
+  const score = clamp(activityScore + growthModifier, 0, 100);
+
+  // Determine status based on growth rate (more important than raw activity)
+  let status;
+  if (trend >= GROWTH_THRIVING) status = 'thriving';
+  else if (trend >= GROWTH_STABLE) status = 'stable';
+  else if (trend >= GROWTH_COOLING) status = 'cooling';
+  else status = 'at_risk';
+
+  // Generate human-readable label
+  const roundedAvg = Math.round(recentAvg * 10) / 10;
+  const roundedTrend = Math.round(trend);
+  let label;
+
+  if (direction === 'up') {
+    label = `${roundedAvg} commits/week (+${roundedTrend}%)`;
+  } else if (direction === 'down') {
+    label = `${roundedAvg} commits/week (${roundedTrend}%)`;
+  } else {
+    label = `${roundedAvg} commits/week (stable)`;
+  }
+
+  return {
+    value: roundedAvg,
+    trend: roundedTrend,
+    direction,
+    sparklineData,
+    status,
+    label,
+    // Additional metadata for debugging/display
+    recentAvg,
+    previousAvg,
+    score
+  };
+}
+
+/**
+ * Calculate community momentum from repository data and events
+ * Analyzes star/fork growth rate over time with approximate sparkline
+ *
+ * @param {Object} repo - GitHub repository data
+ * @param {number} repo.stargazers_count - Current star count
+ * @param {number} repo.forks_count - Current fork count
+ * @param {string} repo.created_at - Repository creation date (ISO string)
+ * @param {Array} [events=[]] - Optional array of GitHub events (WatchEvent for stars)
+ * @returns {Object} MetricResult with community momentum data
+ *
+ * @example
+ * // Popular repo with good growth
+ * const repo = { stargazers_count: 5000, forks_count: 500, created_at: '2020-01-01' };
+ * const result = calculateCommunityMomentum(repo, []);
+ * // result.value === 5000
+ * // result.status === 'thriving' | 'stable' | etc.
+ *
+ * @example
+ * // Handle missing data
+ * const result = calculateCommunityMomentum(null, []);
+ * // result.status === 'stable'
+ * // result.label === 'Growth data unavailable'
+ */
+export function calculateCommunityMomentum(repo, events = []) {
+  // Handle missing or invalid repo data
+  if (!repo) {
+    return getDefaultMetric('momentum');
+  }
+
+  // Extract star and fork counts with defaults
+  const stars = Number(repo.stargazers_count) || 0;
+  const forks = Number(repo.forks_count) || 0;
+
+  // Calculate repo age in days
+  const repoAgeDays = daysSince(repo.created_at);
+
+  // If repo age is invalid or very old calculation can proceed
+  // but we need a minimum age for growth rate
+  const effectiveAgeDays = Math.max(1, Math.min(repoAgeDays, 365 * 10)); // Cap at 10 years
+
+  // Calculate daily star growth rate
+  const dailyStarRate = stars / effectiveAgeDays;
+
+  // Calculate fork ratio (engagement indicator)
+  const forkRatio = stars > 0 ? forks / stars : 0;
+
+  // Analyze recent events for more accurate recent growth
+  // WatchEvent = star, ForkEvent = fork
+  const recentDays = COMMUNITY.SPARKLINE_DAYS;
+  const recentCutoff = Date.now() - (recentDays * TIME_MS.DAY);
+
+  let recentStars = 0;
+  let recentForks = 0;
+
+  if (Array.isArray(events) && events.length > 0) {
+    for (const event of events) {
+      const eventDate = safeParseDate(event.created_at);
+      if (eventDate && eventDate.getTime() >= recentCutoff) {
+        if (event.type === 'WatchEvent') {
+          recentStars++;
+        } else if (event.type === 'ForkEvent') {
+          recentForks++;
+        }
+      }
+    }
+  }
+
+  // Calculate recent daily rate if we have event data
+  const recentDailyRate = recentStars / recentDays;
+
+  // Calculate growth trend (comparing recent vs historical rate)
+  // If no recent events, use overall rate as both (trend = 0)
+  let trend;
+  if (recentStars > 0 && dailyStarRate > 0) {
+    trend = percentageChange(recentDailyRate, dailyStarRate);
+  } else if (recentStars > 0) {
+    trend = 100; // Growth from zero
+  } else {
+    trend = 0; // No recent data to compare
+  }
+
+  // Clamp trend to reasonable range
+  trend = clamp(trend, -100, 100);
+
+  // Determine direction
+  const direction = getTrendDirection(trend);
+
+  // Generate approximate sparkline data (30 data points for 30 days)
+  // Since we don't have daily star history, we approximate based on:
+  // 1. Recent events if available
+  // 2. Linear distribution based on growth rate if not
+  const sparklineData = generateApproximateSparkline(
+    stars,
+    recentStars,
+    events,
+    COMMUNITY.SPARKLINE_DAYS
+  );
+
+  // Calculate score based on star count and growth rate
+  let starScore = 0;
+  if (stars >= COMMUNITY.STARS.EXCELLENT) starScore = 100;
+  else if (stars >= COMMUNITY.STARS.GOOD) starScore = 80;
+  else if (stars >= COMMUNITY.STARS.FAIR) starScore = 60;
+  else if (stars >= COMMUNITY.STARS.EMERGING) starScore = 40;
+  else starScore = 20;
+
+  // Growth rate modifier
+  let growthModifier = 0;
+  if (dailyStarRate >= COMMUNITY.GROWTH_RATE.THRIVING) growthModifier = 15;
+  else if (dailyStarRate >= COMMUNITY.GROWTH_RATE.STABLE) growthModifier = 5;
+  else if (dailyStarRate >= COMMUNITY.GROWTH_RATE.COOLING) growthModifier = 0;
+  else growthModifier = -10;
+
+  // Fork ratio bonus (high engagement)
+  let forkBonus = 0;
+  if (forkRatio >= COMMUNITY.FORK_RATIO.HIGH) forkBonus = 10;
+  else if (forkRatio >= COMMUNITY.FORK_RATIO.MEDIUM) forkBonus = 5;
+  else if (forkRatio >= COMMUNITY.FORK_RATIO.LOW) forkBonus = 0;
+  else forkBonus = -5;
+
+  // Final score
+  const score = clamp(starScore + growthModifier + forkBonus, 0, 100);
+
+  // Determine status based on combined metrics
+  const status = getMetricStatus(score);
+
+  // Generate human-readable label
+  const roundedTrend = Math.round(trend);
+  let label;
+
+  if (stars >= 1000) {
+    // Format large numbers with K suffix
+    const starsK = (stars / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    if (direction === 'up') {
+      label = `${starsK} stars (+${roundedTrend}%)`;
+    } else if (direction === 'down') {
+      label = `${starsK} stars (${roundedTrend}%)`;
+    } else {
+      label = `${starsK} stars (stable)`;
+    }
+  } else {
+    if (direction === 'up') {
+      label = `${stars} stars (+${roundedTrend}%)`;
+    } else if (direction === 'down') {
+      label = `${stars} stars (${roundedTrend}%)`;
+    } else {
+      label = `${stars} stars (stable)`;
+    }
+  }
+
+  return {
+    value: stars,
+    trend: roundedTrend,
+    direction,
+    sparklineData,
+    status,
+    label,
+    // Additional metadata
+    forks,
+    forkRatio: Math.round(forkRatio * 100) / 100,
+    dailyStarRate: Math.round(dailyStarRate * 100) / 100,
+    recentStars,
+    recentForks,
+    repoAgeDays: Math.floor(effectiveAgeDays),
+    score
+  };
+}
+
+/**
+ * Generate approximate sparkline data for community momentum
+ * Creates a 30-point array representing daily star activity
+ *
+ * @param {number} totalStars - Total star count
+ * @param {number} recentStars - Stars from recent events
+ * @param {Array} events - Array of GitHub events
+ * @param {number} days - Number of days to generate (default 30)
+ * @returns {number[]} Array of daily star approximations
+ */
+function generateApproximateSparkline(totalStars, recentStars, events, days) {
+  const sparkline = Array(days).fill(0);
+
+  // If we have events, use them to build actual daily counts
+  if (Array.isArray(events) && events.length > 0) {
+    const now = Date.now();
+    const dayMs = TIME_MS.DAY;
+
+    for (const event of events) {
+      if (event.type !== 'WatchEvent') continue;
+
+      const eventDate = safeParseDate(event.created_at);
+      if (!eventDate) continue;
+
+      const daysAgo = Math.floor((now - eventDate.getTime()) / dayMs);
+      if (daysAgo >= 0 && daysAgo < days) {
+        // Index 0 = oldest, index (days-1) = most recent
+        const index = days - 1 - daysAgo;
+        sparkline[index]++;
+      }
+    }
+
+    return sparkline;
+  }
+
+  // No events: generate a flat/gradual line based on daily rate
+  // This shows "approximate" growth pattern
+  if (totalStars > 0 && days > 0) {
+    // Use a slight random variation to make it look more natural
+    // Seed based on totalStars for determinism
+    const baseDaily = Math.max(0.1, totalStars / (days * 30)); // Very low base
+    const seed = totalStars % 100;
+
+    for (let i = 0; i < days; i++) {
+      // Create a gentle wave pattern using sine
+      const wave = Math.sin((i + seed) * 0.3) * 0.3 + 0.7;
+      sparkline[i] = Math.round(baseDaily * wave * 10) / 10;
+    }
+  }
+
+  return sparkline;
+}
+
+/**
+ * Calculate issue temperature from issue data
+ * Analyzes open vs close rate with Hot/Warm/Cool classification
+ *
+ * @param {Object[]} issues - Array of GitHub issue objects
+ * @param {string} issues[].created_at - Issue creation date (ISO string)
+ * @param {string} [issues[].closed_at] - Issue close date (ISO string, null if open)
+ * @param {string} issues[].state - Issue state ('open' or 'closed')
+ * @returns {Object} MetricResult with temperature classification
+ *
+ * @example
+ * // Healthy repo with issues being closed quickly
+ * const issues = [
+ *   { created_at: '2024-01-01', closed_at: '2024-01-02', state: 'closed' },
+ *   { created_at: '2024-01-05', closed_at: '2024-01-06', state: 'closed' },
+ *   { created_at: '2024-01-10', state: 'open' }
+ * ];
+ * const result = calculateIssueTemperature(issues);
+ * // result.temperature === 'cool'
+ * // result.status === 'thriving'
+ *
+ * @example
+ * // Handle no issues
+ * const result = calculateIssueTemperature([]);
+ * // result.temperature === 'cool'
+ * // result.label === 'No recent issues'
+ */
+export function calculateIssueTemperature(issues) {
+  // Handle missing or invalid issues data
+  if (!issues || !Array.isArray(issues)) {
+    return getDefaultMetric('issues');
+  }
+
+  // Filter to issues within the analysis window (last 30 days)
+  const windowDays = ISSUES.WINDOW_DAYS;
+  const windowCutoff = Date.now() - (windowDays * TIME_MS.DAY);
+
+  const recentIssues = issues.filter(issue => {
+    if (!issue?.created_at) return false;
+    const createdDate = safeParseDate(issue.created_at);
+    return createdDate && createdDate.getTime() >= windowCutoff;
+  });
+
+  // No recent issues = default "Cool" (healthy, no issues to worry about)
+  if (recentIssues.length === 0) {
+    return getDefaultMetric('issues');
+  }
+
+  // Categorize issues
+  const closedIssues = recentIssues.filter(issue => issue.state === 'closed');
+  const openIssues = recentIssues.filter(issue => issue.state === 'open');
+
+  const totalCount = recentIssues.length;
+  const closedCount = closedIssues.length;
+  const openCount = openIssues.length;
+
+  // Calculate close rate (percentage of issues that were closed)
+  const closeRate = (closedCount / totalCount) * 100;
+
+  // Calculate average response time for closed issues
+  let avgResponseDays = 0;
+  const responseTimes = [];
+
+  for (const issue of closedIssues) {
+    if (issue.created_at && issue.closed_at) {
+      const days = daysBetween(issue.created_at, issue.closed_at);
+      if (days >= 0) {
+        responseTimes.push(days);
+      }
+    }
+  }
+
+  if (responseTimes.length > 0) {
+    avgResponseDays = average(responseTimes);
+  }
+
+  // Determine temperature based on close rate
+  // Cool = healthy (issues getting resolved), Hot = problematic (piling up)
+  let temperature;
+  let temperatureLabel;
+
+  if (closeRate >= ISSUES.CLOSE_RATE.COOL) {
+    temperature = 'cool';
+    temperatureLabel = 'Cool';
+  } else if (closeRate >= ISSUES.CLOSE_RATE.WARM) {
+    temperature = 'warm';
+    temperatureLabel = 'Warm';
+  } else if (closeRate >= ISSUES.CLOSE_RATE.HOT) {
+    temperature = 'hot';
+    temperatureLabel = 'Hot';
+  } else {
+    temperature = 'critical';
+    temperatureLabel = 'Critical';
+  }
+
+  // Calculate score (0-100) based on close rate and response time
+  let closeRateScore = 0;
+  if (closeRate >= ISSUES.CLOSE_RATE.COOL) closeRateScore = 100;
+  else if (closeRate >= ISSUES.CLOSE_RATE.WARM) closeRateScore = 70;
+  else if (closeRate >= ISSUES.CLOSE_RATE.HOT) closeRateScore = 40;
+  else closeRateScore = 15;
+
+  // Response time modifier
+  let responseModifier = 0;
+  if (avgResponseDays <= ISSUES.RESPONSE_TIME.EXCELLENT) responseModifier = 10;
+  else if (avgResponseDays <= ISSUES.RESPONSE_TIME.GOOD) responseModifier = 5;
+  else if (avgResponseDays <= ISSUES.RESPONSE_TIME.FAIR) responseModifier = 0;
+  else if (avgResponseDays <= ISSUES.RESPONSE_TIME.SLOW) responseModifier = -10;
+  else responseModifier = -15;
+
+  // Final score
+  const score = clamp(closeRateScore + responseModifier, 0, 100);
+
+  // Determine status based on temperature (map to standard status)
+  let status;
+  if (temperature === 'cool') status = 'thriving';
+  else if (temperature === 'warm') status = 'stable';
+  else if (temperature === 'hot') status = 'cooling';
+  else status = 'at_risk';
+
+  // Calculate trend by comparing first half vs second half of window
+  // Split issues into older half and newer half
+  const halfWindow = windowCutoff + (windowDays * TIME_MS.DAY / 2);
+
+  const olderIssues = recentIssues.filter(issue => {
+    const date = safeParseDate(issue.created_at);
+    return date && date.getTime() < halfWindow;
+  });
+
+  const newerIssues = recentIssues.filter(issue => {
+    const date = safeParseDate(issue.created_at);
+    return date && date.getTime() >= halfWindow;
+  });
+
+  // Calculate close rates for each half
+  const olderClosed = olderIssues.filter(i => i.state === 'closed').length;
+  const newerClosed = newerIssues.filter(i => i.state === 'closed').length;
+
+  const olderCloseRate = olderIssues.length > 0 ? (olderClosed / olderIssues.length) * 100 : 0;
+  const newerCloseRate = newerIssues.length > 0 ? (newerClosed / newerIssues.length) * 100 : 0;
+
+  // Trend: positive = improving (higher close rate recently), negative = worsening
+  const trend = Math.round(percentageChange(newerCloseRate, olderCloseRate));
+  const direction = getTrendDirection(trend);
+
+  // Generate sparkline data (daily issue activity over window)
+  const sparklineData = generateIssueSparkline(recentIssues, windowDays);
+
+  // Generate human-readable label
+  const roundedCloseRate = Math.round(closeRate);
+  const roundedResponseDays = Math.round(avgResponseDays * 10) / 10;
+  let label;
+
+  if (closedCount === 0 && openCount > 0) {
+    label = `${temperatureLabel}: ${openCount} open (0% closed)`;
+  } else if (avgResponseDays > 0) {
+    label = `${temperatureLabel}: ${roundedCloseRate}% closed, ~${roundedResponseDays}d avg`;
+  } else {
+    label = `${temperatureLabel}: ${roundedCloseRate}% closed`;
+  }
+
+  return {
+    value: temperatureLabel,
+    temperature,
+    trend: clamp(trend, -100, 100),
+    direction,
+    sparklineData,
+    status,
+    label,
+    // Additional metadata
+    totalCount,
+    openCount,
+    closedCount,
+    closeRate: Math.round(closeRate * 10) / 10,
+    avgResponseDays: Math.round(avgResponseDays * 10) / 10,
+    score
+  };
+}
+
+/**
+ * Generate sparkline data for issue activity
+ * Creates an array representing daily issue counts over the window
+ *
+ * @param {Object[]} issues - Array of issue objects with created_at
+ * @param {number} days - Number of days in the window
+ * @returns {number[]} Array of daily issue counts (oldest to newest)
+ */
+function generateIssueSparkline(issues, days) {
+  const sparkline = Array(days).fill(0);
+  const now = Date.now();
+  const dayMs = TIME_MS.DAY;
+
+  for (const issue of issues) {
+    if (!issue?.created_at) continue;
+
+    const createdDate = safeParseDate(issue.created_at);
+    if (!createdDate) continue;
+
+    const daysAgo = Math.floor((now - createdDate.getTime()) / dayMs);
+    if (daysAgo >= 0 && daysAgo < days) {
+      // Index 0 = oldest, index (days-1) = most recent
+      const index = days - 1 - daysAgo;
+      sparkline[index]++;
+    }
+  }
+
+  return sparkline;
+}
+
+/**
+ * Calculate PR health from pull request data
+ * Analyzes merge rate, time-to-merge, and PR funnel metrics
+ *
+ * @param {Object[]} pullRequests - Array of GitHub pull request objects
+ * @param {string} pullRequests[].created_at - PR creation date (ISO string)
+ * @param {string} [pullRequests[].merged_at] - PR merge date (ISO string, null if not merged)
+ * @param {string} [pullRequests[].closed_at] - PR close date (ISO string, null if open)
+ * @param {string} pullRequests[].state - PR state ('open' or 'closed')
+ * @param {boolean} [pullRequests[].merged] - Whether the PR was merged
+ * @returns {Object} MetricResult with merge rate, time-to-merge, and funnel data
+ *
+ * @example
+ * // Healthy repo with PRs being merged quickly
+ * const prs = [
+ *   { created_at: '2024-01-01', merged_at: '2024-01-02', merged: true, state: 'closed' },
+ *   { created_at: '2024-01-05', merged_at: '2024-01-06', merged: true, state: 'closed' },
+ *   { created_at: '2024-01-10', state: 'open' }
+ * ];
+ * const result = calculatePRHealth(prs);
+ * // result.funnel.merged === 2
+ * // result.mergeRate >= 60
+ *
+ * @example
+ * // Handle no PRs
+ * const result = calculatePRHealth([]);
+ * // result.funnel === { opened: 0, merged: 0, closed: 0, open: 0 }
+ * // result.label === 'No recent pull requests'
+ */
+export function calculatePRHealth(pullRequests) {
+  // Handle missing or invalid PR data
+  if (!pullRequests || !Array.isArray(pullRequests)) {
+    return getDefaultMetric('prs');
+  }
+
+  // Filter to PRs within the analysis window (last 30 days)
+  const windowDays = PR_HEALTH.WINDOW_DAYS;
+  const windowCutoff = Date.now() - (windowDays * TIME_MS.DAY);
+
+  const recentPRs = pullRequests.filter(pr => {
+    if (!pr?.created_at) return false;
+    const createdDate = safeParseDate(pr.created_at);
+    return createdDate && createdDate.getTime() >= windowCutoff;
+  });
+
+  // No recent PRs = default state
+  if (recentPRs.length === 0) {
+    return getDefaultMetric('prs');
+  }
+
+  // Categorize PRs
+  const mergedPRs = recentPRs.filter(pr => pr.merged === true || pr.merged_at);
+  const closedPRs = recentPRs.filter(pr => pr.state === 'closed' && !pr.merged && !pr.merged_at);
+  const openPRs = recentPRs.filter(pr => pr.state === 'open');
+
+  const totalOpened = recentPRs.length;
+  const mergedCount = mergedPRs.length;
+  const closedCount = closedPRs.length; // Closed without merge
+  const openCount = openPRs.length;
+
+  // Build funnel data
+  const funnel = {
+    opened: totalOpened,
+    merged: mergedCount,
+    closed: closedCount,
+    open: openCount
+  };
+
+  // Calculate merge rate (percentage of PRs that were merged)
+  // We consider only closed PRs for rate calculation (merged / (merged + closed))
+  const completedPRs = mergedCount + closedCount;
+  const mergeRate = completedPRs > 0 ? (mergedCount / completedPRs) * 100 : 0;
+
+  // Calculate average time to merge for merged PRs
+  let avgTimeToMerge = 0;
+  const mergeTimes = [];
+
+  for (const pr of mergedPRs) {
+    if (pr.created_at && pr.merged_at) {
+      const days = daysBetween(pr.created_at, pr.merged_at);
+      if (days >= 0) {
+        mergeTimes.push(days);
+      }
+    }
+  }
+
+  if (mergeTimes.length > 0) {
+    avgTimeToMerge = average(mergeTimes);
+  }
+
+  // Calculate score based on merge rate
+  let mergeRateScore = 0;
+  if (mergeRate >= PR_HEALTH.MERGE_RATE.EXCELLENT) mergeRateScore = 100;
+  else if (mergeRate >= PR_HEALTH.MERGE_RATE.GOOD) mergeRateScore = 75;
+  else if (mergeRate >= PR_HEALTH.MERGE_RATE.FAIR) mergeRateScore = 50;
+  else if (mergeRate >= PR_HEALTH.MERGE_RATE.POOR) mergeRateScore = 25;
+  else mergeRateScore = 10;
+
+  // Time to merge modifier
+  let timeModifier = 0;
+  if (avgTimeToMerge <= PR_HEALTH.TIME_TO_MERGE.EXCELLENT) timeModifier = 15;
+  else if (avgTimeToMerge <= PR_HEALTH.TIME_TO_MERGE.GOOD) timeModifier = 10;
+  else if (avgTimeToMerge <= PR_HEALTH.TIME_TO_MERGE.FAIR) timeModifier = 0;
+  else if (avgTimeToMerge <= PR_HEALTH.TIME_TO_MERGE.SLOW) timeModifier = -10;
+  else timeModifier = -15;
+
+  // Volume bonus for active repositories
+  const weeklyVolume = totalOpened / (windowDays / 7);
+  let volumeModifier = 0;
+  if (weeklyVolume >= PR_HEALTH.VOLUME.HIGH) volumeModifier = 5;
+  else if (weeklyVolume >= PR_HEALTH.VOLUME.MEDIUM) volumeModifier = 0;
+  else if (weeklyVolume >= PR_HEALTH.VOLUME.LOW) volumeModifier = -5;
+  else volumeModifier = -10;
+
+  // Final score
+  const score = clamp(mergeRateScore + timeModifier + volumeModifier, 0, 100);
+
+  // Determine status based on score
+  const status = getMetricStatus(score);
+
+  // Calculate trend by comparing first half vs second half of window
+  const halfWindow = windowCutoff + (windowDays * TIME_MS.DAY / 2);
+
+  const olderPRs = recentPRs.filter(pr => {
+    const date = safeParseDate(pr.created_at);
+    return date && date.getTime() < halfWindow;
+  });
+
+  const newerPRs = recentPRs.filter(pr => {
+    const date = safeParseDate(pr.created_at);
+    return date && date.getTime() >= halfWindow;
+  });
+
+  // Calculate merge rates for each half
+  const olderMerged = olderPRs.filter(pr => pr.merged === true || pr.merged_at).length;
+  const olderClosed = olderPRs.filter(pr => pr.state === 'closed' && !pr.merged && !pr.merged_at).length;
+  const olderCompleted = olderMerged + olderClosed;
+
+  const newerMerged = newerPRs.filter(pr => pr.merged === true || pr.merged_at).length;
+  const newerClosed = newerPRs.filter(pr => pr.state === 'closed' && !pr.merged && !pr.merged_at).length;
+  const newerCompleted = newerMerged + newerClosed;
+
+  const olderMergeRate = olderCompleted > 0 ? (olderMerged / olderCompleted) * 100 : 0;
+  const newerMergeRate = newerCompleted > 0 ? (newerMerged / newerCompleted) * 100 : 0;
+
+  // Trend: positive = improving (higher merge rate recently), negative = worsening
+  const trend = Math.round(percentageChange(newerMergeRate, olderMergeRate));
+  const direction = getTrendDirection(trend);
+
+  // Generate sparkline data (daily PR activity over window)
+  const sparklineData = generatePRSparkline(recentPRs, windowDays);
+
+  // Generate human-readable label
+  const roundedMergeRate = Math.round(mergeRate);
+  const roundedTimeToMerge = Math.round(avgTimeToMerge * 10) / 10;
+  let label;
+
+  if (mergedCount === 0 && completedPRs === 0 && openCount > 0) {
+    label = `${openCount} open PRs`;
+  } else if (avgTimeToMerge > 0) {
+    label = `${roundedMergeRate}% merged, ~${roundedTimeToMerge}d avg`;
+  } else {
+    label = `${roundedMergeRate}% merge rate`;
+  }
+
+  return {
+    value: roundedMergeRate,
+    trend: clamp(trend, -100, 100),
+    direction,
+    sparklineData,
+    status,
+    label,
+    funnel,
+    // Additional metadata
+    mergeRate: Math.round(mergeRate * 10) / 10,
+    avgTimeToMerge: Math.round(avgTimeToMerge * 10) / 10,
+    totalOpened,
+    mergedCount,
+    closedCount,
+    openCount,
+    weeklyVolume: Math.round(weeklyVolume * 10) / 10,
+    score
+  };
+}
+
+/**
+ * Generate sparkline data for PR activity
+ * Creates an array representing daily PR counts over the window
+ *
+ * @param {Object[]} prs - Array of PR objects with created_at
+ * @param {number} days - Number of days in the window
+ * @returns {number[]} Array of daily PR counts (oldest to newest)
+ */
+function generatePRSparkline(prs, days) {
+  const sparkline = Array(days).fill(0);
+  const now = Date.now();
+  const dayMs = TIME_MS.DAY;
+
+  for (const pr of prs) {
+    if (!pr?.created_at) continue;
+
+    const createdDate = safeParseDate(pr.created_at);
+    if (!createdDate) continue;
+
+    const daysAgo = Math.floor((now - createdDate.getTime()) / dayMs);
+    if (daysAgo >= 0 && daysAgo < days) {
+      // Index 0 = oldest, index (days-1) = most recent
+      const index = days - 1 - daysAgo;
+      sparkline[index]++;
+    }
+  }
+
+  return sparkline;
+}
+
+/**
+ * Calculate bus factor from contributor data
+ * Analyzes contributor concentration risk on a 1-10 scale
+ * Lower bus factor = higher risk (1 = single point of failure)
+ *
+ * @param {Object[]} contributors - Array of GitHub contributor objects
+ * @param {number} contributors[].total - Total commit count for this contributor
+ * @param {Object} contributors[].author - Author info
+ * @param {string} contributors[].author.login - Author username
+ * @returns {Object} MetricResult with bus factor value and risk level
+ *
+ * @example
+ * // Well-distributed team
+ * const contributors = [
+ *   { total: 100, author: { login: 'dev1' } },
+ *   { total: 80, author: { login: 'dev2' } },
+ *   { total: 60, author: { login: 'dev3' } },
+ *   { total: 40, author: { login: 'dev4' } },
+ *   { total: 20, author: { login: 'dev5' } }
+ * ];
+ * const result = calculateBusFactor(contributors);
+ * // result.value >= 5
+ * // result.riskLevel === 'healthy'
+ *
+ * @example
+ * // Single contributor (critical risk)
+ * const contributors = [{ total: 500, author: { login: 'solo' } }];
+ * const result = calculateBusFactor(contributors);
+ * // result.value === 1
+ * // result.riskLevel === 'critical'
+ *
+ * @example
+ * // Handle missing data
+ * const result = calculateBusFactor(null);
+ * // result.riskLevel === 'critical'
+ * // result.label === 'Contributor data unavailable'
+ */
+export function calculateBusFactor(contributors) {
+  // Handle missing or invalid contributor data
+  if (!contributors || !Array.isArray(contributors) || contributors.length === 0) {
+    return getDefaultMetric('busFactor');
+  }
+
+  // Filter out contributors without valid data
+  const validContributors = contributors.filter(c =>
+    c && typeof c.total === 'number' && c.total > 0 && c.author?.login
+  );
+
+  // No valid contributors = critical risk
+  if (validContributors.length === 0) {
+    return getDefaultMetric('busFactor');
+  }
+
+  // Sort by contribution count (descending)
+  const sorted = [...validContributors].sort((a, b) => b.total - a.total);
+
+  // Calculate total commits across all contributors
+  const totalCommits = sorted.reduce((sum, c) => sum + c.total, 0);
+
+  // Calculate concentration percentage of top contributor
+  const topContributorCommits = sorted[0].total;
+  const topConcentration = (topContributorCommits / totalCommits) * 100;
+
+  // Count contributors with significant contributions (>5% of total)
+  const significantThreshold = totalCommits * 0.05;
+  const significantContributors = sorted.filter(c => c.total >= significantThreshold).length;
+
+  // Calculate how many contributors it takes to reach 80% of commits
+  // This is a key bus factor metric - lower number = higher concentration
+  let cumulativeCommits = 0;
+  let contributorsFor80Percent = 0;
+  const targetCommits = totalCommits * 0.8;
+
+  for (const contributor of sorted) {
+    cumulativeCommits += contributor.total;
+    contributorsFor80Percent++;
+    if (cumulativeCommits >= targetCommits) break;
+  }
+
+  // Calculate bus factor score (1-10)
+  // Based on both number of significant contributors and concentration
+  let busFactor;
+
+  // Primary factor: number of contributors to cover 80% of work
+  if (contributorsFor80Percent >= 5) {
+    busFactor = 10; // Excellent distribution
+  } else if (contributorsFor80Percent >= 4) {
+    busFactor = 8;
+  } else if (contributorsFor80Percent >= 3) {
+    busFactor = 6;
+  } else if (contributorsFor80Percent >= 2) {
+    busFactor = 4;
+  } else {
+    busFactor = 2; // Single contributor handles 80%+
+  }
+
+  // Adjust based on top contributor concentration
+  if (topConcentration >= BUS_FACTOR.CONCENTRATION.CRITICAL) {
+    busFactor = Math.max(BUS_FACTOR.MIN, busFactor - 3);
+  } else if (topConcentration >= BUS_FACTOR.CONCENTRATION.HIGH) {
+    busFactor = Math.max(BUS_FACTOR.MIN, busFactor - 2);
+  } else if (topConcentration >= BUS_FACTOR.CONCENTRATION.MODERATE) {
+    busFactor = Math.max(BUS_FACTOR.MIN, busFactor - 1);
+  } else if (topConcentration <= BUS_FACTOR.CONCENTRATION.DISTRIBUTED) {
+    busFactor = Math.min(BUS_FACTOR.MAX, busFactor + 1);
+  }
+
+  // Bonus for having many significant contributors
+  if (significantContributors >= 10) {
+    busFactor = Math.min(BUS_FACTOR.MAX, busFactor + 1);
+  }
+
+  // Clamp to valid range
+  busFactor = clamp(busFactor, BUS_FACTOR.MIN, BUS_FACTOR.MAX);
+
+  // Determine risk level based on bus factor
+  let riskLevel;
+  if (busFactor >= BUS_FACTOR.RISK.HEALTHY) {
+    riskLevel = 'healthy';
+  } else if (busFactor >= BUS_FACTOR.RISK.MODERATE) {
+    riskLevel = 'moderate';
+  } else if (busFactor >= BUS_FACTOR.RISK.HIGH) {
+    riskLevel = 'high';
+  } else {
+    riskLevel = 'critical';
+  }
+
+  // Map risk level to standard status
+  let status;
+  if (riskLevel === 'healthy') status = 'thriving';
+  else if (riskLevel === 'moderate') status = 'stable';
+  else if (riskLevel === 'high') status = 'cooling';
+  else status = 'at_risk';
+
+  // Calculate a normalized score (0-100) for aggregation
+  const score = ((busFactor - BUS_FACTOR.MIN) / (BUS_FACTOR.MAX - BUS_FACTOR.MIN)) * 100;
+
+  // Generate sparkline data showing contribution distribution
+  // Top 10 contributors' relative contribution percentages
+  const sparklineData = generateContributorSparkline(sorted, totalCommits);
+
+  // Calculate trend (not applicable for bus factor - it's a snapshot metric)
+  // We use 0 as trend since we can't compare historical contributor data
+  const trend = 0;
+  const direction = 'stable';
+
+  // Generate human-readable label
+  const contributorCount = validContributors.length;
+  const roundedConcentration = Math.round(topConcentration);
+  const riskLabelInfo = BUS_FACTOR.RISK_LABELS[riskLevel];
+  let label;
+
+  if (contributorCount === 1) {
+    label = `${riskLabelInfo.label}: Single contributor`;
+  } else if (riskLevel === 'healthy') {
+    label = `${riskLabelInfo.label}: ${significantContributors} active contributors`;
+  } else {
+    label = `${riskLabelInfo.label}: Top contributor ${roundedConcentration}%`;
+  }
+
+  return {
+    value: busFactor,
+    trend,
+    direction,
+    sparklineData,
+    status,
+    label,
+    riskLevel,
+    // Additional metadata
+    contributorCount,
+    significantContributors,
+    topConcentration: Math.round(topConcentration * 10) / 10,
+    contributorsFor80Percent,
+    topContributor: sorted[0]?.author?.login || 'unknown',
+    score: Math.round(score)
+  };
+}
+
+/**
+ * Generate sparkline data for contributor distribution
+ * Shows relative contribution percentages of top contributors
+ *
+ * @param {Object[]} sortedContributors - Contributors sorted by commits (desc)
+ * @param {number} totalCommits - Total commits across all contributors
+ * @returns {number[]} Array of contribution percentages (top 10 or fewer)
+ */
+function generateContributorSparkline(sortedContributors, totalCommits) {
+  const maxPoints = 10;
+  const count = Math.min(sortedContributors.length, maxPoints);
+  const sparkline = [];
+
+  for (let i = 0; i < count; i++) {
+    const percentage = (sortedContributors[i].total / totalCommits) * 100;
+    sparkline.push(Math.round(percentage * 10) / 10);
+  }
+
+  // Pad with zeros if fewer than maxPoints contributors
+  while (sparkline.length < maxPoints) {
+    sparkline.push(0);
+  }
+
+  return sparkline;
+}
+
+/**
+ * Calculate freshness index from repository data and releases
+ * Analyzes days since push, last release, and computes a freshness score
+ *
+ * @param {Object} repo - GitHub repository data
+ * @param {string} repo.pushed_at - Last push date (ISO string)
+ * @param {string} repo.updated_at - Last update date (ISO string)
+ * @param {Object[]} releases - Array of GitHub release objects
+ * @param {string} releases[].published_at - Release publish date (ISO string)
+ * @param {string} releases[].tag_name - Release tag name
+ * @returns {Object} MetricResult with freshness classification and days since push
+ *
+ * @example
+ * // Fresh repository with recent activity
+ * const repo = { pushed_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+ * const releases = [{ published_at: new Date().toISOString(), tag_name: 'v1.0.0' }];
+ * const result = calculateFreshnessIndex(repo, releases);
+ * // result.freshness === 'fresh'
+ * // result.status === 'thriving'
+ *
+ * @example
+ * // Aging repository with no recent activity
+ * const oldDate = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString();
+ * const repo = { pushed_at: oldDate, updated_at: oldDate };
+ * const result = calculateFreshnessIndex(repo, []);
+ * // result.freshness === 'aging'
+ * // result.status === 'cooling'
+ *
+ * @example
+ * // Handle missing data
+ * const result = calculateFreshnessIndex(null, []);
+ * // result.freshness === 'stale'
+ * // result.label === 'Update data unavailable'
+ */
+export function calculateFreshnessIndex(repo, releases = []) {
+  // Handle missing or invalid repo data
+  if (!repo) {
+    return getDefaultMetric('freshness');
+  }
+
+  // Calculate days since last push
+  const daysSincePush = daysSince(repo.pushed_at);
+
+  // Calculate days since last update (metadata update)
+  const daysSinceUpdate = daysSince(repo.updated_at);
+
+  // Handle case where dates are invalid
+  if (daysSincePush === Infinity && daysSinceUpdate === Infinity) {
+    return getDefaultMetric('freshness');
+  }
+
+  // Find the most recent release
+  let daysSinceRelease = Infinity;
+  let lastRelease = 'None';
+
+  if (Array.isArray(releases) && releases.length > 0) {
+    // Sort releases by published_at (descending) to get most recent
+    const sortedReleases = [...releases]
+      .filter(r => r && r.published_at)
+      .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
+
+    if (sortedReleases.length > 0) {
+      const mostRecent = sortedReleases[0];
+      daysSinceRelease = daysSince(mostRecent.published_at);
+      lastRelease = mostRecent.tag_name || 'Unknown';
+    }
+  }
+
+  // Calculate individual freshness scores (0-100)
+
+  // Push freshness (most important - 60% weight)
+  let pushScore;
+  let pushFreshness;
+  if (daysSincePush <= FRESHNESS.PUSH_DAYS.FRESH) {
+    pushScore = FRESHNESS.SCORES.FRESH;
+    pushFreshness = 'fresh';
+  } else if (daysSincePush <= FRESHNESS.PUSH_DAYS.RECENT) {
+    pushScore = FRESHNESS.SCORES.RECENT;
+    pushFreshness = 'recent';
+  } else if (daysSincePush <= FRESHNESS.PUSH_DAYS.AGING) {
+    pushScore = FRESHNESS.SCORES.AGING;
+    pushFreshness = 'aging';
+  } else if (daysSincePush <= FRESHNESS.PUSH_DAYS.STALE) {
+    pushScore = FRESHNESS.SCORES.STALE;
+    pushFreshness = 'stale';
+  } else {
+    pushScore = FRESHNESS.SCORES.DORMANT;
+    pushFreshness = 'dormant';
+  }
+
+  // Release freshness (25% weight)
+  let releaseScore;
+  if (daysSinceRelease === Infinity) {
+    // No releases - neutral impact (use middle score)
+    releaseScore = FRESHNESS.SCORES.AGING;
+  } else if (daysSinceRelease <= FRESHNESS.RELEASE_DAYS.FRESH) {
+    releaseScore = FRESHNESS.SCORES.FRESH;
+  } else if (daysSinceRelease <= FRESHNESS.RELEASE_DAYS.RECENT) {
+    releaseScore = FRESHNESS.SCORES.RECENT;
+  } else if (daysSinceRelease <= FRESHNESS.RELEASE_DAYS.AGING) {
+    releaseScore = FRESHNESS.SCORES.AGING;
+  } else if (daysSinceRelease <= FRESHNESS.RELEASE_DAYS.STALE) {
+    releaseScore = FRESHNESS.SCORES.STALE;
+  } else {
+    releaseScore = FRESHNESS.SCORES.DORMANT;
+  }
+
+  // Update freshness (15% weight) - uses the general updated_at timestamp
+  let updateScore;
+  const effectiveUpdateDays = Math.min(daysSinceUpdate, daysSincePush);
+  if (effectiveUpdateDays <= FRESHNESS.PUSH_DAYS.FRESH) {
+    updateScore = FRESHNESS.SCORES.FRESH;
+  } else if (effectiveUpdateDays <= FRESHNESS.PUSH_DAYS.RECENT) {
+    updateScore = FRESHNESS.SCORES.RECENT;
+  } else if (effectiveUpdateDays <= FRESHNESS.PUSH_DAYS.AGING) {
+    updateScore = FRESHNESS.SCORES.AGING;
+  } else if (effectiveUpdateDays <= FRESHNESS.PUSH_DAYS.STALE) {
+    updateScore = FRESHNESS.SCORES.STALE;
+  } else {
+    updateScore = FRESHNESS.SCORES.DORMANT;
+  }
+
+  // Calculate weighted average score
+  const weightedScore = Math.round(
+    (pushScore * FRESHNESS.WEIGHTS.PUSH +
+     releaseScore * FRESHNESS.WEIGHTS.RELEASE +
+     updateScore * FRESHNESS.WEIGHTS.UPDATE) / 100
+  );
+
+  // Determine overall freshness classification based on weighted score
+  let freshness;
+  if (weightedScore >= FRESHNESS.SCORES.FRESH - 10) {
+    freshness = 'fresh';
+  } else if (weightedScore >= FRESHNESS.SCORES.RECENT - 10) {
+    freshness = 'recent';
+  } else if (weightedScore >= FRESHNESS.SCORES.AGING - 10) {
+    freshness = 'aging';
+  } else if (weightedScore >= FRESHNESS.SCORES.STALE - 5) {
+    freshness = 'stale';
+  } else {
+    freshness = 'dormant';
+  }
+
+  // Map freshness to standard status
+  let status;
+  if (freshness === 'fresh') status = 'thriving';
+  else if (freshness === 'recent') status = 'stable';
+  else if (freshness === 'aging') status = 'cooling';
+  else status = 'at_risk';
+
+  // Trend calculation - not applicable for freshness (snapshot metric)
+  // We could compare pushed_at vs updated_at but it's not meaningful
+  const trend = 0;
+  const direction = 'stable';
+
+  // Generate sparkline data - show recency of different activity types
+  // Points: [push age bucket, release age bucket, update age bucket]
+  // Normalize to 0-100 scale where 100 = fresh, 0 = very old
+  const sparklineData = generateFreshnessSparkline(daysSincePush, daysSinceRelease, daysSinceUpdate);
+
+  // Get freshness label info
+  const freshnessInfo = FRESHNESS.LABELS[freshness] || FRESHNESS.LABELS.stale;
+
+  // Generate human-readable label
+  let label;
+  const pushDays = Math.floor(daysSincePush);
+
+  if (pushDays === 0) {
+    label = `${freshnessInfo.label}: Updated today`;
+  } else if (pushDays === 1) {
+    label = `${freshnessInfo.label}: Updated yesterday`;
+  } else if (pushDays < 7) {
+    label = `${freshnessInfo.label}: Updated ${pushDays} days ago`;
+  } else if (pushDays < 30) {
+    const weeks = Math.floor(pushDays / 7);
+    label = `${freshnessInfo.label}: Updated ${weeks}w ago`;
+  } else if (pushDays < 365) {
+    const months = Math.floor(pushDays / 30);
+    label = `${freshnessInfo.label}: Updated ${months}mo ago`;
+  } else {
+    const years = Math.floor(pushDays / 365);
+    label = `${freshnessInfo.label}: Updated ${years}y ago`;
+  }
+
+  return {
+    value: weightedScore,
+    trend,
+    direction,
+    sparklineData,
+    status,
+    label,
+    freshness,
+    // Additional metadata
+    daysSincePush: Math.floor(daysSincePush),
+    daysSinceRelease: daysSinceRelease === Infinity ? null : Math.floor(daysSinceRelease),
+    daysSinceUpdate: Math.floor(daysSinceUpdate),
+    lastRelease,
+    pushScore,
+    releaseScore,
+    updateScore,
+    score: weightedScore
+  };
+}
+
+/**
+ * Generate sparkline data for freshness visualization
+ * Shows the relative recency of push, release, and update activity
+ *
+ * @param {number} daysSincePush - Days since last push
+ * @param {number} daysSinceRelease - Days since last release
+ * @param {number} daysSinceUpdate - Days since last update
+ * @returns {number[]} Array of freshness values (0-100, higher = fresher)
+ */
+function generateFreshnessSparkline(daysSincePush, daysSinceRelease, daysSinceUpdate) {
+  // Convert days to freshness score (0-100)
+  // Uses a decay function: 100 for 0 days, decaying towards 0 for older dates
+  const maxDays = 365; // Beyond this, treat as 0 freshness
+
+  const normalize = (days) => {
+    if (days === Infinity || days > maxDays) return 0;
+    if (days <= 0) return 100;
+    // Exponential decay for more visual impact
+    return Math.round(100 * Math.exp(-days / 60));
+  };
+
+  // Generate 10 data points showing freshness trend
+  // We'll show a simple decay curve based on days since push
+  const sparkline = [];
+
+  // Simulate how freshness might have looked over past 10 weeks
+  // Assuming steady decay from 100 to current value
+  for (let i = 9; i >= 0; i--) {
+    // Assume we were fresher in the past (if we're old now)
+    const pastDays = Math.max(0, daysSincePush - (i * 7));
+    sparkline.push(normalize(pastDays));
+  }
+
+  return sparkline;
+}
+
+// =============================================================================
+// OVERALL PULSE AGGREGATOR
+// =============================================================================
+
+/**
+ * Calculate overall repository pulse by aggregating all 6 metrics
+ * Determines single status, pulse speed, and concerns count for dashboard display
+ *
+ * @param {Object} metrics - Object containing all 6 metric results
+ * @param {Object} metrics.velocity - Velocity score metric result
+ * @param {Object} metrics.momentum - Community momentum metric result
+ * @param {Object} metrics.issues - Issue temperature metric result
+ * @param {Object} metrics.prs - PR health metric result
+ * @param {Object} metrics.busFactor - Bus factor metric result
+ * @param {Object} metrics.freshness - Freshness index metric result
+ * @returns {Object} Overall pulse result with status, score, pulseSpeed, concerns
+ *
+ * @example
+ * // Calculate overall pulse from individual metrics
+ * const metrics = {
+ *   velocity: calculateVelocityScore(participation),
+ *   momentum: calculateCommunityMomentum(repo, events),
+ *   issues: calculateIssueTemperature(issues),
+ *   prs: calculatePRHealth(pullRequests),
+ *   busFactor: calculateBusFactor(contributors),
+ *   freshness: calculateFreshnessIndex(repo, releases)
+ * };
+ * const pulse = calculateOverallPulse(metrics);
+ * // pulse.status === 'thriving' | 'stable' | 'cooling' | 'at_risk'
+ * // pulse.score === 0-100
+ * // pulse.pulseSpeed === 800-2500 (milliseconds)
+ * // pulse.concerns === { count: 0, metrics: [] }
+ *
+ * @example
+ * // Handle partial or missing data
+ * const pulse = calculateOverallPulse({ velocity: null, momentum: { status: 'stable' } });
+ * // Uses defaults for missing metrics, calculates from available data
+ */
+export function calculateOverallPulse(metrics) {
+  // Handle missing or invalid metrics object
+  if (!metrics || typeof metrics !== 'object') {
+    return getDefaultOverallPulse();
+  }
+
+  // Define metric keys and their weights
+  const metricKeys = ['velocity', 'momentum', 'issues', 'prs', 'busFactor', 'freshness'];
+
+  // Collect valid metrics and identify concerns
+  const validMetrics = [];
+  const concerns = [];
+  let weightedScoreSum = 0;
+  let totalWeight = 0;
+
+  for (const key of metricKeys) {
+    const metric = metrics[key];
+    const weight = PULSE.WEIGHTS[key] || 0;
+
+    // Skip metrics with no weight
+    if (weight === 0) continue;
+
+    // Handle missing or invalid metric
+    if (!metric || typeof metric !== 'object') {
+      // Use default status 'stable' for missing metrics
+      const defaultScore = PULSE.STATUS_SCORES.stable;
+      weightedScoreSum += defaultScore * weight;
+      totalWeight += weight;
+      continue;
+    }
+
+    // Get the metric's status
+    const status = metric.status || 'stable';
+
+    // Map status to score
+    const statusScore = PULSE.STATUS_SCORES[status] ?? PULSE.STATUS_SCORES.stable;
+
+    // Accumulate weighted score
+    weightedScoreSum += statusScore * weight;
+    totalWeight += weight;
+
+    // Track valid metrics
+    validMetrics.push({ key, status, score: statusScore });
+
+    // Identify concerns (cooling or at_risk metrics)
+    if (status === 'cooling' || status === 'at_risk') {
+      const labelInfo = STATUS_LABELS[status] || { label: status };
+      concerns.push({
+        metric: key,
+        status,
+        label: formatMetricKey(key),
+        statusLabel: labelInfo.label,
+        severity: status === 'at_risk' ? 'high' : 'medium'
+      });
+    }
+  }
+
+  // Calculate weighted average score
+  const score = totalWeight > 0 ? Math.round(weightedScoreSum / totalWeight) : 50;
+
+  // Determine overall status from weighted score
+  const status = getMetricStatus(score);
+
+  // Get pulse animation speed based on status
+  const pulseSpeed = PULSE.ANIMATION_SPEED[status] || PULSE.ANIMATION_SPEED.stable;
+
+  // Get status label info
+  const statusInfo = STATUS_LABELS[status] || STATUS_LABELS.stable;
+
+  // Calculate trend (average of all metric trends)
+  let trendSum = 0;
+  let trendCount = 0;
+
+  for (const key of metricKeys) {
+    const metric = metrics[key];
+    if (metric && typeof metric.trend === 'number' && !isNaN(metric.trend)) {
+      trendSum += metric.trend;
+      trendCount++;
+    }
+  }
+
+  const averageTrend = trendCount > 0 ? Math.round(trendSum / trendCount) : 0;
+  const direction = getTrendDirection(averageTrend);
+
+  // Determine concern level based on count
+  let concernLevel;
+  if (concerns.length === 0) {
+    concernLevel = 'none';
+  } else if (concerns.length <= PULSE.CONCERNS.FEW) {
+    concernLevel = 'few';
+  } else if (concerns.length <= PULSE.CONCERNS.SOME) {
+    concernLevel = 'some';
+  } else {
+    concernLevel = 'many';
+  }
+
+  // Generate summary label
+  const label = generatePulseSummary(status, concerns.length, validMetrics.length);
+
+  // Sort concerns by severity (high first)
+  concerns.sort((a, b) => {
+    if (a.severity === 'high' && b.severity !== 'high') return -1;
+    if (a.severity !== 'high' && b.severity === 'high') return 1;
+    return 0;
+  });
+
+  return {
+    status,
+    score,
+    pulseSpeed,
+    trend: averageTrend,
+    direction,
+    label,
+    statusLabel: statusInfo.label,
+    statusDescription: statusInfo.description,
+    concerns: {
+      count: concerns.length,
+      level: concernLevel,
+      metrics: concerns
+    },
+    // Breakdown of individual metric statuses
+    breakdown: Object.fromEntries(
+      metricKeys.map(key => [
+        key,
+        metrics[key]?.status || 'stable'
+      ])
+    ),
+    // Count of valid metrics used in calculation
+    metricsUsed: validMetrics.length
+  };
+}
+
+/**
+ * Generate a human-readable summary for the pulse status
+ *
+ * @param {string} status - Overall status (thriving, stable, cooling, at_risk)
+ * @param {number} concernCount - Number of concerning metrics
+ * @param {number} validCount - Number of valid metrics used
+ * @returns {string} Human-readable summary
+ */
+function generatePulseSummary(status, concernCount, validCount) {
+  if (validCount === 0) {
+    return 'Insufficient data for analysis';
+  }
+
+  switch (status) {
+    case 'thriving':
+      return concernCount === 0
+        ? 'Excellent health across all metrics'
+        : 'Strong overall health with minor concerns';
+    case 'stable':
+      return concernCount === 0
+        ? 'Healthy and well-maintained'
+        : `Stable with ${concernCount} area${concernCount > 1 ? 's' : ''} to watch`;
+    case 'cooling':
+      return `Declining activity in ${concernCount} area${concernCount > 1 ? 's' : ''}`;
+    case 'at_risk':
+      return `Needs attention: ${concernCount} critical concern${concernCount > 1 ? 's' : ''}`;
+    default:
+      return 'Repository pulse status unknown';
+  }
+}
+
+/**
+ * Format a metric key to a human-readable label
+ *
+ * @param {string} key - Metric key (e.g., 'velocity', 'busFactor')
+ * @returns {string} Formatted label (e.g., 'Velocity', 'Bus Factor')
+ */
+function formatMetricKey(key) {
+  const labels = {
+    velocity: 'Velocity',
+    momentum: 'Momentum',
+    issues: 'Issues',
+    prs: 'Pull Requests',
+    busFactor: 'Bus Factor',
+    freshness: 'Freshness'
+  };
+  return labels[key] || key;
+}
+
+/**
+ * Get default overall pulse for missing or invalid data
+ *
+ * @returns {Object} Default pulse object with stable status
+ */
+function getDefaultOverallPulse() {
+  return {
+    status: 'stable',
+    score: 50,
+    pulseSpeed: PULSE.ANIMATION_SPEED.stable,
+    trend: 0,
+    direction: 'stable',
+    label: 'Insufficient data for analysis',
+    statusLabel: STATUS_LABELS.stable.label,
+    statusDescription: STATUS_LABELS.stable.description,
+    concerns: {
+      count: 0,
+      level: 'none',
+      metrics: []
+    },
+    breakdown: {
+      velocity: 'stable',
+      momentum: 'stable',
+      issues: 'stable',
+      prs: 'stable',
+      busFactor: 'stable',
+      freshness: 'stable'
+    },
+    metricsUsed: 0
+  };
+}
+
+/**
+ * Calculate all metrics from pulse data and return complete metrics object
+ * Wrapper function that calls all 6 calculators and aggregates into overall pulse
+ *
+ * @param {Object} pulseData - Object containing all data needed for calculations
+ * @param {Object} [pulseData.repo] - GitHub repository data
+ * @param {Object} [pulseData.participation] - GitHub stats participation data with weekly commits
+ * @param {Object[]} [pulseData.issues] - Array of GitHub issue objects
+ * @param {Object[]} [pulseData.prs] - Array of GitHub pull request objects
+ * @param {Object[]} [pulseData.contributors] - Array of GitHub contributor objects
+ * @param {Object[]} [pulseData.events] - Array of GitHub events (for community momentum)
+ * @param {Object[]} [pulseData.releases] - Array of GitHub release objects (for freshness)
+ * @returns {Object} Complete metrics object with metrics (6) and overall pulse
+ *
+ * @example
+ * // Calculate all metrics from repository data
+ * const pulseData = {
+ *   repo: { stargazers_count: 1000, forks_count: 100, created_at: '2020-01-01', pushed_at: '2024-01-15' },
+ *   participation: { all: [5, 10, 8, 12, 15, 20, 18, 22, ...] },
+ *   issues: [{ created_at: '2024-01-01', state: 'open' }, ...],
+ *   prs: [{ created_at: '2024-01-01', merged_at: '2024-01-02', merged: true }, ...],
+ *   contributors: [{ total: 100, author: { login: 'dev1' } }, ...],
+ *   events: [{ type: 'WatchEvent', created_at: '2024-01-10' }, ...],
+ *   releases: [{ published_at: '2024-01-01', tag_name: 'v1.0.0' }, ...]
+ * };
+ * const result = calculateAllMetrics(pulseData);
+ * // result.metrics.velocity, result.metrics.momentum, etc.
+ * // result.overall.status, result.overall.score, etc.
+ *
+ * @example
+ * // Handle minimal data
+ * const result = calculateAllMetrics({ repo: { stargazers_count: 100 } });
+ * // Returns metrics with defaults for missing data
+ */
+export function calculateAllMetrics(pulseData) {
+  // Handle missing or invalid input
+  if (!pulseData || typeof pulseData !== 'object') {
+    return getDefaultAllMetrics();
+  }
+
+  // Extract data from pulseData with defaults
+  const {
+    repo = null,
+    participation = null,
+    issues = [],
+    prs = [],
+    contributors = [],
+    events = [],
+    releases = []
+  } = pulseData;
+
+  // Calculate all 6 individual metrics
+  const metrics = {
+    velocity: calculateVelocityScore(participation),
+    momentum: calculateCommunityMomentum(repo, events),
+    issues: calculateIssueTemperature(issues),
+    prs: calculatePRHealth(prs),
+    busFactor: calculateBusFactor(contributors),
+    freshness: calculateFreshnessIndex(repo, releases)
+  };
+
+  // Calculate overall pulse from individual metrics
+  const overall = calculateOverallPulse(metrics);
+
+  return {
+    metrics,
+    overall
+  };
+}
+
+/**
+ * Get default all metrics result for missing or invalid data
+ *
+ * @returns {Object} Default metrics object with all metrics set to defaults
+ */
+function getDefaultAllMetrics() {
+  return {
+    metrics: {
+      velocity: getDefaultMetric('velocity'),
+      momentum: getDefaultMetric('momentum'),
+      issues: getDefaultMetric('issues'),
+      prs: getDefaultMetric('prs'),
+      busFactor: getDefaultMetric('busFactor'),
+      freshness: getDefaultMetric('freshness')
+    },
+    overall: getDefaultOverallPulse()
+  };
+}
