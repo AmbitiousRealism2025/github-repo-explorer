@@ -12,6 +12,7 @@ import {
   getContributorStats,
   getIssueTimeline,
   getPullRequestTimeline,
+  getReleaseHistory,
   clearCache
 } from '../api.js';
 
@@ -574,6 +575,30 @@ describe('API', () => {
       // Overridden params should be used
       expect(calledUrl).toContain('state=open');
       expect(calledUrl).toContain('per_page=50');
+    });
+  });
+
+  describe('getReleaseHistory', () => {
+    it('should fetch release history', async () => {
+      const mockData = [
+        { id: 1, tag_name: 'v1.0.0', name: 'Release 1.0.0', published_at: '2024-01-01T00:00:00Z' },
+        { id: 2, tag_name: 'v0.9.0', name: 'Release 0.9.0', published_at: '2023-12-01T00:00:00Z' }
+      ];
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+        headers: {
+          get: () => '59'
+        }
+      });
+
+      const result = await getReleaseHistory('owner', 'repo');
+      expect(result.data).toEqual(mockData);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('repos/owner/repo/releases'),
+        expect.any(Object)
+      );
     });
   });
 

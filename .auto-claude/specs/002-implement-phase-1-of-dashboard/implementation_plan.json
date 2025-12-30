@@ -274,7 +274,9 @@
             "command": "npm test -- --grep 'getPullRequestTimeline' 2>&1 | tail -10",
             "expected": "pass"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added two tests for getPullRequestTimeline: 1) success with default params, 2) params override. All 293 tests passing.",
+          "updated_at": "2025-12-30T17:22:38.583516+00:00"
         },
         {
           "id": "subtask-5-5",
@@ -460,5 +462,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T17:20:54.026503+00:00"
+  "last_updated": "2025-12-30T17:22:38.583526+00:00"
 }
