@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createSparkline, createMiniSparkline, calculateTrend } from '../components/PulseDashboard/Sparkline.js';
+import { createTrendArrow, createMiniTrendArrow, getTrendDirection, formatPercentage } from '../components/PulseDashboard/TrendArrow.js';
 
 describe('Sparkline', () => {
   describe('createSparkline', () => {
@@ -211,6 +212,234 @@ describe('Sparkline', () => {
     it('should handle starting from zero', () => {
       const data = [0, 0, 0, 0, 10, 20, 30, 40];
       expect(calculateTrend(data)).toBe('up');
+    });
+  });
+});
+
+describe('TrendArrow', () => {
+  describe('createTrendArrow', () => {
+    it('should create trend arrow container', () => {
+      const element = createTrendArrow(15);
+
+      expect(element.tagName.toLowerCase()).toBe('span');
+      expect(element.className).toContain('trend-arrow');
+    });
+
+    it('should apply up modifier for positive values', () => {
+      const element = createTrendArrow(15.2);
+
+      expect(element.className).toContain('trend-arrow--up');
+    });
+
+    it('should apply down modifier for negative values', () => {
+      const element = createTrendArrow(-8.5);
+
+      expect(element.className).toContain('trend-arrow--down');
+    });
+
+    it('should apply stable modifier for near-zero values', () => {
+      const element = createTrendArrow(0.5);
+
+      expect(element.className).toContain('trend-arrow--stable');
+    });
+
+    it('should display percentage value with plus sign for up', () => {
+      const element = createTrendArrow(15.2);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('+15.2%');
+    });
+
+    it('should display percentage value with minus sign for down', () => {
+      const element = createTrendArrow(-8.5);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('-8.5%');
+    });
+
+    it('should display percentage without sign for stable', () => {
+      const element = createTrendArrow(0.3);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('0.3%');
+    });
+
+    it('should include arrow icon', () => {
+      const element = createTrendArrow(10);
+      const icon = element.querySelector('.trend-arrow__icon');
+
+      expect(icon).not.toBeNull();
+      expect(icon.tagName.toLowerCase()).toBe('svg');
+    });
+
+    it('should set aria-hidden on icon wrapper', () => {
+      const element = createTrendArrow(10);
+      const iconWrapper = element.querySelector('.trend-arrow__icon-wrapper');
+
+      expect(iconWrapper.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should have role="img" for accessibility', () => {
+      const element = createTrendArrow(15);
+
+      expect(element.getAttribute('role')).toBe('img');
+    });
+
+    it('should have aria-label for screen readers', () => {
+      const element = createTrendArrow(15.5);
+
+      expect(element.getAttribute('aria-label')).toContain('Trending up');
+      expect(element.getAttribute('aria-label')).toContain('percent');
+    });
+
+    it('should clamp large positive values to 999%', () => {
+      const element = createTrendArrow(1500);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('+999%');
+    });
+
+    it('should clamp large negative values to -999%', () => {
+      const element = createTrendArrow(-2000);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('-999%');
+    });
+
+    it('should handle null value as stable', () => {
+      const element = createTrendArrow(null);
+
+      expect(element.className).toContain('trend-arrow--stable');
+    });
+
+    it('should handle undefined value as stable', () => {
+      const element = createTrendArrow(undefined);
+
+      expect(element.className).toContain('trend-arrow--stable');
+    });
+
+    it('should handle NaN value as stable', () => {
+      const element = createTrendArrow(NaN);
+
+      expect(element.className).toContain('trend-arrow--stable');
+    });
+
+    it('should respect showPercentage=false option', () => {
+      const element = createTrendArrow(15, { showPercentage: false });
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan).toBeNull();
+    });
+
+    it('should remove trailing .0 from whole numbers', () => {
+      const element = createTrendArrow(25);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan.textContent).toBe('+25%');
+    });
+
+    it('should handle zero exactly as stable', () => {
+      const element = createTrendArrow(0);
+
+      expect(element.className).toContain('trend-arrow--stable');
+    });
+
+    it('should treat values within threshold as stable', () => {
+      // 1% threshold
+      expect(createTrendArrow(0.9).className).toContain('trend-arrow--stable');
+      expect(createTrendArrow(-0.9).className).toContain('trend-arrow--stable');
+      expect(createTrendArrow(1).className).toContain('trend-arrow--stable');
+      expect(createTrendArrow(-1).className).toContain('trend-arrow--stable');
+    });
+
+    it('should treat values beyond threshold as up/down', () => {
+      expect(createTrendArrow(1.1).className).toContain('trend-arrow--up');
+      expect(createTrendArrow(-1.1).className).toContain('trend-arrow--down');
+    });
+  });
+
+  describe('createMiniTrendArrow', () => {
+    it('should create arrow without percentage text', () => {
+      const element = createMiniTrendArrow(15);
+      const valueSpan = element.querySelector('.trend-arrow__value');
+
+      expect(valueSpan).toBeNull();
+    });
+
+    it('should still include icon', () => {
+      const element = createMiniTrendArrow(15);
+      const icon = element.querySelector('.trend-arrow__icon');
+
+      expect(icon).not.toBeNull();
+    });
+
+    it('should apply correct modifier class', () => {
+      expect(createMiniTrendArrow(10).className).toContain('trend-arrow--up');
+      expect(createMiniTrendArrow(-10).className).toContain('trend-arrow--down');
+      expect(createMiniTrendArrow(0).className).toContain('trend-arrow--stable');
+    });
+  });
+
+  describe('getTrendDirection', () => {
+    it('should return up for positive values above threshold', () => {
+      expect(getTrendDirection(5)).toBe('up');
+      expect(getTrendDirection(100)).toBe('up');
+    });
+
+    it('should return down for negative values below threshold', () => {
+      expect(getTrendDirection(-5)).toBe('down');
+      expect(getTrendDirection(-100)).toBe('down');
+    });
+
+    it('should return stable for values near zero', () => {
+      expect(getTrendDirection(0)).toBe('stable');
+      expect(getTrendDirection(0.5)).toBe('stable');
+      expect(getTrendDirection(-0.5)).toBe('stable');
+      expect(getTrendDirection(1)).toBe('stable');
+      expect(getTrendDirection(-1)).toBe('stable');
+    });
+
+    it('should return stable for NaN', () => {
+      expect(getTrendDirection(NaN)).toBe('stable');
+    });
+
+    it('should return stable for non-number types', () => {
+      expect(getTrendDirection('15')).toBe('stable');
+      expect(getTrendDirection(null)).toBe('stable');
+      expect(getTrendDirection(undefined)).toBe('stable');
+    });
+  });
+
+  describe('formatPercentage', () => {
+    it('should format positive values with plus sign', () => {
+      expect(formatPercentage(15.2, 'up')).toBe('+15.2%');
+    });
+
+    it('should format negative values with minus sign', () => {
+      expect(formatPercentage(-8.5, 'down')).toBe('-8.5%');
+    });
+
+    it('should format stable values without sign', () => {
+      expect(formatPercentage(0.5, 'stable')).toBe('0.5%');
+    });
+
+    it('should clamp to 999%', () => {
+      expect(formatPercentage(1500, 'up')).toBe('+999%');
+      expect(formatPercentage(-2000, 'down')).toBe('-999%');
+    });
+
+    it('should remove trailing .0', () => {
+      expect(formatPercentage(25, 'up')).toBe('+25%');
+      expect(formatPercentage(10, 'down')).toBe('-10%');
+    });
+
+    it('should handle NaN gracefully', () => {
+      expect(formatPercentage(NaN, 'stable')).toBe('0%');
+    });
+
+    it('should handle non-numbers gracefully', () => {
+      expect(formatPercentage('invalid', 'stable')).toBe('0%');
+      expect(formatPercentage(null, 'stable')).toBe('0%');
     });
   });
 });
