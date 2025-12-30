@@ -114,7 +114,7 @@ export const searchRepositories = async (query, options = {}) => {
   } = options;
   
   let q = query;
-  if (language) q += `+language:${encodeURIComponent(language)}`;
+  if (language) q += `+language:${language}`;
   if (minStars > 0) q += `+stars:>=${minStars}`;
   
   const url = `${API_BASE}/search/repositories?q=${encodeURIComponent(q)}&sort=${sort}&order=${order}&page=${page}&per_page=${perPage}`;
@@ -163,13 +163,22 @@ export const getRepository = async (owner, repo) => {
   return fetchWithRetry(url);
 };
 
+const decodeBase64Utf8 = (base64) => {
+  const binary = atob(base64.replace(/\n/g, ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new TextDecoder().decode(bytes);
+};
+
 export const getRepositoryReadme = async (owner, repo) => {
   try {
     const url = `${API_BASE}/repos/${owner}/${repo}/readme`;
     const response = await fetchWithRetry(url);
     
     if (response.data.content) {
-      const decoded = atob(response.data.content);
+      const decoded = decodeBase64Utf8(response.data.content);
       return { ...response, data: { ...response.data, decodedContent: decoded } };
     }
     
@@ -197,7 +206,34 @@ export const checkRateLimit = async () => {
   return fetchWithRetry(url);
 };
 
-export const getCommitActivity = async (owner, repo) => {
+export const getCommitActivity = async (owner, repo, retryOnce = true) => {
   const url = `${API_BASE}/repos/${owner}/${repo}/stats/commit_activity`;
-  return fetchWithRetry(url);
+  
+  try {
+    const response = await fetch(url, { headers: getHeaders() });
+    
+    if (response.status === 202) {
+      if (retryOnce) {
+        await sleep(2000);
+        return getCommitActivity(owner, repo, false);
+      }
+      return { data: null, processing: true, rateLimit: null };
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return {
+      data: await response.json(),
+      processing: false,
+      rateLimit: {
+        remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),
+        limit: parseInt(response.headers.get('x-ratelimit-limit') || '0'),
+        reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')
+      }
+    };
+  } catch (error) {
+    throw error;
+  }
 };

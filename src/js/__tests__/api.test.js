@@ -100,6 +100,40 @@ describe('API', () => {
         expect.any(Object)
       );
     });
+
+    it('should correctly encode C++ language (single encoding)', async () => {
+      const mockData = { items: [], total_count: 0 };
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+        headers: {
+          get: () => '59'
+        }
+      });
+
+      await searchRepositories('game', { language: 'C++' });
+      const calledUrl = global.fetch.mock.calls[0][0];
+      expect(calledUrl).toContain('language%3AC%2B%2B');
+      expect(calledUrl).not.toContain('language%3AC%252B%252B');
+    });
+
+    it('should correctly encode C# language (single encoding)', async () => {
+      const mockData = { items: [], total_count: 0 };
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+        headers: {
+          get: () => '59'
+        }
+      });
+
+      await searchRepositories('dotnet', { language: 'C#' });
+      const calledUrl = global.fetch.mock.calls[0][0];
+      expect(calledUrl).toContain('language%3AC%23');
+      expect(calledUrl).not.toContain('language%3AC%2523');
+    });
   });
 
   describe('getTrendingRepositories', () => {
@@ -248,6 +282,27 @@ describe('API', () => {
       const result = await getRepositoryReadme('owner', 'repo');
       expect(result.data).toBeNull();
     });
+
+    it('should correctly decode UTF-8 characters in README', async () => {
+      const originalText = '# 日本語 README 🎉';
+      const encoder = new TextEncoder();
+      const bytes = encoder.encode(originalText);
+      const binaryString = Array.from(bytes).map(b => String.fromCharCode(b)).join('');
+      const content = btoa(binaryString);
+      
+      const mockData = { content, encoding: 'base64' };
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+        headers: {
+          get: () => '59'
+        }
+      });
+
+      const result = await getRepositoryReadme('owner', 'repo');
+      expect(result.data.decodedContent).toBe(originalText);
+    });
   });
 
   describe('getRepositoryLanguages', () => {
@@ -298,6 +353,30 @@ describe('API', () => {
 
       const result = await getCommitActivity('owner', 'repo');
       expect(result.data).toEqual(mockData);
+    });
+
+    it('should retry once on 202 status and return processing flag on second 202', async () => {
+      global.fetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 202,
+          json: () => Promise.resolve(null),
+          headers: {
+            get: () => '59'
+          }
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 202,
+          json: () => Promise.resolve(null),
+          headers: {
+            get: () => '59'
+          }
+        });
+
+      const result = await getCommitActivity('owner', 'repo');
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(result).toEqual({ data: null, processing: true, rateLimit: null });
     });
   });
 
