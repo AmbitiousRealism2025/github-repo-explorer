@@ -1,7 +1,7 @@
 {
   "spec_id": "002-implement-phase-1-of-dashboard",
   "created_at": "2025-12-30T16:58:17.662536+00:00",
-  "updated_at": "2025-12-30T17:11:11.584078+00:00",
+  "updated_at": "2025-12-30T17:12:32.068893+00:00",
   "phases": {
     "planning": {
       "phase": "planning",
@@ -1108,6 +1108,168 @@
           "tool_input": "git add . && git commit -m \"$(cat <<'EOF'\nauto-...",
           "subtask_id": "subtask-2-2",
           "session": 3
+        },
+        {
+          "timestamp": "2025-12-30T17:11:12.688991+00:00",
+          "type": "tool_end",
+          "content": "[Bash] Done",
+          "phase": "coding",
+          "tool_name": "Bash",
+          "subtask_id": "subtask-2-2",
+          "session": 3,
+          "detail": "[auto-claude/002-implement-phase-1-of-dashboard 79eb7dd] auto-claude: subtask-2-2 - Add getContributorStats function with 202 retry handling\n 7 files changed, 286 insertions(+), 10 deletions(-)\n create mode 100644 .auto-claude/specs/002-implement-phase-1-of-dashboard/memory/session_insights/session_002.json",
+          "collapsed": true
+        },
+        {
+          "timestamp": "2025-12-30T17:11:16.196179+00:00",
+          "type": "text",
+          "content": "Now let me update the subtask status to completed:",
+          "phase": "coding",
+          "subtask_id": "subtask-2-2",
+          "session": 3
+        },
+        {
+          "timestamp": "2025-12-30T17:11:17.781239+00:00",
+          "type": "tool_start",
+          "content": "[mcp__auto-claude__update_subtask_status]",
+          "phase": "coding",
+          "tool_name": "mcp__auto-claude__update_subtask_status",
+          "subtask_id": "subtask-2-2",
+          "session": 3
+        },
+        {
+          "timestamp": "2025-12-30T17:11:17.795947+00:00",
+          "type": "tool_end",
+          "content": "[mcp__auto-claude__update_subtask_status] Done",
+          "phase": "coding",
+          "tool_name": "mcp__auto-claude__update_subtask_status",
+          "subtask_id": "subtask-2-2",
+          "session": 3,
+          "collapsed": true
+        },
+        {
+          "timestamp": "2025-12-30T17:11:25.159701+00:00",
+          "type": "text",
+          "content": "## Subtask 2-2 Completed ✅\n\nSuccessfully implemented `getContributorStats` function with 202 retry handling:\n\n### What was done:\n1. **Added `getContributorStats` function** to `src/js/api.js` (lines 346-384)\n   - Fetches from `/repos/{owner}/{repo}/stats/contributors`\n   - Handles 202 \"computing\" responses with single retry after 2s delay\n   - Returns `{ data, processing, rateLimit }` structure\n   - Follows exact same pattern as `getCommitActivity` and `getParticipationStats`\n\n2. **Verification passed**: `getContributorStats: function`\n\n3. **Committed changes** with descriptive message\n\n4. **Updated subtask status** to completed",
+          "phase": "coding",
+          "subtask_id": "subtask-2-2",
+          "session": 3
+        },
+        {
+          "timestamp": "2025-12-30T17:11:38.104520+00:00",
+          "type": "tool_start",
+          "content": "[Read] ./src/js/api.js",
+          "phase": "coding",
+          "tool_name": "Read",
+          "tool_input": "./src/js/api.js",
+          "subtask_id": "subtask-3-1",
+          "session": 4
+        },
+        {
+          "timestamp": "2025-12-30T17:11:38.589420+00:00",
+          "type": "tool_start",
+          "content": "[Read] ...pecs/002-implement-phase-1-of-dashboard/spec.md",
+          "phase": "coding",
+          "tool_name": "Read",
+          "tool_input": "...pecs/002-implement-phase-1-of-dashboard/spec.md",
+          "subtask_id": "subtask-3-1",
+          "session": 4
+        },
+        {
+          "timestamp": "2025-12-30T17:11:38.608170+00:00",
+          "type": "tool_end",
+          "content": "[Read] Done",
+          "phase": "coding",
+          "tool_name": "Read",
+          "subtask_id": "subtask-3-1",
+          "session": 4,
+          "detail": "     1→import { API_BASE, API_VERSION, CACHE_TTL_MS, CACHE_MAX_ENTRIES, TRENDING_DAYS_BACK, TRENDING_CATEGORIES } from './constants.js';\n     2→\n     3→const RETRY_CONFIG = { MAX_RETRIES: 3, INITIAL_BACKOFF_MS: 1000, BACKOFF_MULTIPLIER: 2 };\n     4→\n     5→const getHeaders = () => {\n     6→  const headers = {\n     7→    'Accept': 'application/vnd.github+json',\n     8→    'X-GitHub-Api-Version': API_VERSION\n     9→  };\n    10→  \n    11→  const token = localStorage.getItem('gh-token');\n    12→  if (token) {\n    13→    headers['Authorization'] = `Bearer ${token}`;\n    14→  }\n    15→  \n    16→  return headers;\n    17→};\n    18→\n    19→const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));\n    20→\n    21→const cache = new Map();\n    22→\n    23→const getCachedResponse = (url) => {\n    24→  const cached = cache.get(url);\n    25→  if (!cached) return null;\n    26→  \n    27→  if (Date.now() - cached.timestamp > CACHE_TTL_MS) {\n    28→    cache.delete(url);\n    29→    return null;\n    30→  }\n    31→  \n    32→  console.log(`[Cache] HIT: ${url.substring(0, 60)}...`);\n    33→  return cached.data;\n    34→};\n    35→\n    36→const setCachedResponse = (url, data) => {\n    37→  cache.set(url, { data, timestamp: Date.now() });\n    38→  \n    39→  if (cache.size > CACHE_MAX_ENTRIES) {\n    40→    const firstKey = cache.keys().next().value;\n    41→    cache.delete(firstKey);\n    42→  }\n    43→};\n    44→\n    45→/**\n    46→ * Clears the internal API response cache\n    47→ * @returns {void}\n    48→ */\n    49→export const clearCache = () => {\n    50→  cache.clear();\n    51→  console.log('[Cache] Cleared');\n    52→};\n    53→\n    54→const fetchWithRetry = async (url, retries = RETRY_CONFIG.MAX_RETRIES, backoff = RETRY_CONFIG.INITIAL_BACKOFF_MS, useCache = true) => {\n    55→  if (useCache) {\n    56→    const cached = getCachedResponse(url);\n    57→    if (cached) return cached;\n    58→  }\n    59→\n    60→  try {\n    61→    const response = await fetch(url, { headers: getHeaders() });\n    62→    \n    63→    if (response.status === 403) {\n    64→      const remaining = response.headers.get('x-ratelimit-remaining');\n    65→      const resetTime = response.headers.get('x-ratelimit-reset');\n    66→      \n    67→      if (remaining === '0') {\n    68→        const resetDate = new Date(parseInt(resetTime) * 1000);\n    69→        throw new Error(`Rate limit exceeded. Resets at ${resetDate.toLocaleTimeString()}`);\n    70→      }\n    71→      \n    72→      throw new Error('Forbidden: Check your access token');\n    73→    }\n    74→    \n    75→    if (response.status === 404) {\n    76→      throw new Error('Resource not found');\n    77→    }\n    78→    \n    79→    if (!response.ok) {\n    80→      throw new Error(`HTTP ${response.status}: ${response.statusText}`);\n    81→    }\n    82→    \n    83→    const result = {\n    84→      data: await response.json(),\n    85→      rateLimit: {\n    86→        remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),\n    87→        limit: parseInt(response.headers.get('x-ratelimit-limit') || '0'),\n    88→        reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')\n    89→      }\n    90→    };\n    91→\n    92→    if (useCache) {\n    93→      setCachedResponse(url, result);\n    94→    }\n    95→\n    96→    return result;\n    97→  } catch (error) {\n    98→    const isHttpError = error.message.startsWith('HTTP ') ||\n    99→      error.message.includes('Rate limit') ||\n   100→      error.message.includes('Resource not found') ||\n   101→      error.message.includes('Forbidden');\n   102→    \n   103→    if (retries > 0 && !isHttpError) {\n   104→      const jitter = Math.random() * 100;\n   105→      await sleep(backoff + jitter);\n   106→      return fetchWithRetry(url, retries - 1, backoff * RETRY_CONFIG.BACKOFF_MULTIPLIER, useCache);\n   107→    }\n   108→    throw error;\n   109→  }\n   110→};\n   111→\n   112→/**\n   113→ * Searches GitHub repositories with optional filters\n   114→ * @param {string} query - Search query string\n   115→ * @param {Object} [options={}] - Search options\n   116→ * @param {string} [options.language=''] - Filter by programming language\n   117→ * @param {number} [options.minStars=0] - Minimum star count filter\n   118→ * @param {string} [options.sort='stars'] - Sort field (stars, forks, updated)\n   119→ * @param {string} [options.order='desc'] - Sort order (asc, desc)\n   120→ * @param {number} [options.page=1] - Page number for pagination\n   121→ * @param {number} [options.perPage=30] - Results per page (max 100)\n   122→ * @returns {Promise<{data: {items: Array, total_count: number}, rateLimit: {remaining: number, limit: number, reset: number}}>}\n   123→ * @throws {Error} When API request fails after retries or rate limit exceeded\n   124→ */\n   125→export const searchRepositories = async (query, options = {}) => {\n   126→  const {\n   127→    language = '',\n   128→    minStars = 0,\n   129→    sort = 'stars',\n   130→    order = 'desc',\n   131→    page = 1,\n   132→    perPage = 30\n   133→  } = options;\n   134→  \n   135→  let q = query;\n   136→  if (language) q += `+language:${language}`;\n   137→  if (minStars > 0) q += `+stars:>=${minStars}`;\n   138→  \n   139→  const url = `${API_BASE}/search/repositories?q=${encodeURIComponent(q)}&sort=${sort}&order=${order}&page=${page}&per_page=${perPage}`;\n   140→  \n   141→  return fetchWithRetry(url);\n   142→};\n   143→\n   144→/**\n   145→ * Fetches trending repositories created within the last 7 days\n   146→ * @param {Object} [options={}] - Filter options\n   147→ * @param {string} [options.language=''] - Filter by programming language\n   148→ * @param {string} [options.category='all'] - Filter by category (matches TRENDING_CATEGORIES keys)\n   149→ * @param {number} [options.page=1] - Page number for pagination\n   150→ * @param {number} [options.perPage=30] - Results per page (max 100)\n   151→ * @returns {Promise<{data: {items: Array, total_count: number}, rateLimit: {remaining: number, limit: number, reset: number}}>}\n   152→ * @throws {Error} When API request fails after retries\n   153→ */\n   154→export const getTrendingRepositories = async (options = {}) => {\n   155→  const {\n   156→    language = '',\n   157→    category = 'all',\n   158→    page = 1,\n   159→    perPage = 30\n   160→  } = options;\n   161→  \n   162→  const date = new Date();\n   163→  date.setDate(date.getDate() - TRENDING_DAYS_BACK);\n   164→  const dateStr = date.toISOString().split('T')[0];\n   165→  \n   166→  let q = `created:>${dateStr}`;\n   167→  \n   168→  if (language) {\n   169→    q += ` language:${language}`;\n   170→  }\n   171→  \n   172→  if (category && category !== 'all') {\n   173→    const categoryConfig = TRENDING_CATEGORIES[category];\n   174→    if (categoryConfig && categoryConfig.topics.length > 0) {\n   175→      const topicFilters = categoryConfig.topics.map(t => `topic:${t}`);\n   176→      q += ` (${topicFilters.join(' OR ')})`;\n   177→    }\n   178→  }\n   179→  \n   180→  const url = `${API_BASE}/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&page=${page}&per_page=${perPage}`;\n   181→  \n   182→  return fetchWithRetry(url);\n   183→};\n   184→\n   185→/**\n   186→ * Fetches detailed information for a single repository\n   187→ * @param {string} owner - Repository owner's username\n   188→ * @param {string} repo - Repository name\n   189→ * @returns {Promise<{data: Object, rateLimit: {remaining: number, limit: number, reset: number}}>}\n   190→ * @throws {Error} When repository not found or API request fails\n   191→ */\n   192→export const getRepository = async (owner, repo) => {\n   193→  const url = `${API_BASE}/repos/${owner}/${repo}`;\n   194→  return fetchWithRetry(url);\n   195→};\n   196→\n   197→const decodeBase64Utf8 = (base64) => {\n   198→  const binary = atob(base64.replace(/\\n/g, ''));\n   199→  const bytes = new Uint8Array(binary.length);\n   200→  for (let i = 0; i < binary.length; i++) {\n   201→    bytes[i] = binary.charCodeAt(i);\n   202→  }\n   203→  return new TextDecoder().decode(bytes);\n   204→};\n   205→\n   206→/**\n   207→ * Fetches and decodes the README file for a repository\n   208→ * @param {string} owner - Repository owner's username\n   209→ * @param {string} repo - Repository name\n   210→ * @returns {Promise<{data: {content: string, decodedContent: string, ...} | null, rateLimit: Object | null}>}\n   211→ */\n   212→export const getRepositoryReadme = async (owner, repo) => {\n   213→  try {\n   214→    const url = `${API_BASE}/repos/${owner}/${repo}/readme`;\n   215→    const response = await fetchWithRetry(url);\n   216→    \n   217→    if (response.data.content) {\n   218→      const decoded = decodeBase64Utf8(response.data.content);\n   219→      return { ...response, data: { ...response.data, decodedContent: decoded } };\n   220→    }\n   221→    \n   222→    return response;\n   223→  } catch (error) {\n   224→    if (error.message.includes('not found')) {\n   225→      return { data: null, rateLimit: null };\n   226→    }\n   227→    throw error;\n   228→  }\n   229→};\n   230→\n   231→/**\n   232→ * Fetches programming language breakdown for a repository\n   233→ * @param {string} owner - Repository owner's username\n   234→ * @param {string} repo - Repository name\n   235→ * @returns {Promise<{data: Object<string, number>, rateLimit: {remaining: number, limit: number, reset: number}}>} Language names as keys, byte counts as values\n   236→ * @throws {Error} When API request fails\n   237→ */\n   238→export const getRepositoryLanguages = async (owner, repo) => {\n   239→  const url = `${API_BASE}/repos/${owner}/${repo}/languages`;\n   240→  return fetchWithRetry(url);\n   241→};\n   242→\n   243→/**\n   244→ * Fetches recent events/activity for a repository\n   245→ * @param {string} owner - Repository owner's username\n   246→ * @param {string} repo - Repository name\n   247→ * @param {number} [perPage=10] - Number of events to fetch (max 100)\n   248→ * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}\n   249→ * @throws {Error} When API request fails\n   250→ */\n   251→export const getRepositoryEvents = async (owner, repo, perPage = 10) => {\n   252→  const url = `${API_BASE}/repos/${owner}/${repo}/events?per_page=${perPage}`;\n   253→  return \n\n... [truncated - full output was 15990 chars]",
+          "collapsed": true
+        },
+        {
+          "timestamp": "2025-12-30T17:11:55.034900+00:00",
+          "type": "text",
+          "content": "Now I understand the task. I need to add the `getIssueTimeline` function to `api.js`. Looking at:\n\n1. **Pattern file (lines 251-254)**: Shows `getRepositoryEvents` which uses simple `fetchWithRetry` with query params\n2. **Spec**: Shows template for list endpoints with URLSearchParams and sensible defaults\n\nLet me add the `getIssueTimeline` function after the existing functions:",
+          "phase": "coding",
+          "subtask_id": "subtask-3-1",
+          "session": 4
+        },
+        {
+          "timestamp": "2025-12-30T17:12:11.698674+00:00",
+          "type": "tool_start",
+          "content": "[Edit] ./src/js/api.js",
+          "phase": "coding",
+          "tool_name": "Edit",
+          "tool_input": "./src/js/api.js",
+          "subtask_id": "subtask-3-1",
+          "session": 4
+        },
+        {
+          "timestamp": "2025-12-30T17:12:11.712379+00:00",
+          "type": "tool_end",
+          "content": "[Edit] Done",
+          "phase": "coding",
+          "tool_name": "Edit",
+          "subtask_id": "subtask-3-1",
+          "session": 4,
+          "detail": "The file ./src/js/api.js has been updated. Here's the result of running `cat -n` on a snippet of the edited file:\n   342→    throw error;\n   343→  }\n   344→};\n   345→\n   346→/**\n   347→ * Fetches contributor commit activity for a repository\n   348→ * @param {string} owner - Repository owner's username\n   349→ * @param {string} repo - Repository name\n   350→ * @param {boolean} [retryOnce=true] - Whether to retry once if GitHub returns 202 (processing)\n   351→ * @returns {Promise<{data: Array<{author: Object, total: number, weeks: Array}> | null, processing: boolean, rateLimit: Object | null}>}\n   352→ * @throws {Error} When API request fails\n   353→ */\n   354→export const getContributorStats = async (owner, repo, retryOnce = true) => {\n   355→  const url = `${API_BASE}/repos/${owner}/${repo}/stats/contributors`;\n   356→\n   357→  try {\n   358→    const response = await fetch(url, { headers: getHeaders() });\n   359→\n   360→    if (response.status === 202) {\n   361→      if (retryOnce) {\n   362→        await sleep(2000);\n   363→        return getContributorStats(owner, repo, false);\n   364→      }\n   365→      return { data: null, processing: true, rateLimit: null };\n   366→    }\n   367→\n   368→    if (!response.ok) {\n   369→      throw new Error(`HTTP ${response.status}: ${response.statusText}`);\n   370→    }\n   371→\n   372→    return {\n   373→      data: await response.json(),\n   374→      processing: false,\n   375→      rateLimit: {\n   376→        remaining: parseInt(response.headers.get('x-ratelimit-remaining') || '0'),\n   377→        limit: parseInt(response.headers.get('x-ratelimit-limit') || '0'),\n   378→        reset: parseInt(response.headers.get('x-ratelimit-reset') || '0')\n   379→      }\n   380→    };\n   381→  } catch (error) {\n   382→    throw error;\n   383→  }\n   384→};\n   385→\n   386→/**\n   387→ * Fetches issues with created/closed timestamps for a repository\n   388→ * @param {string} owner - Repository owner's username\n   389→ * @param {string} repo - Repository name\n   390→ * @param {Object} [params={}] - Optional query parameters to override defaults\n   391→ * @param {string} [params.state='all'] - Issue state filter (open, closed, all)\n   392→ * @param {string} [params.sort='created'] - Sort field (created, updated, comments)\n   393→ * @param {string} [params.direction='desc'] - Sort direction (asc, desc)\n   394→ * @param {number} [params.per_page=100] - Results per page (max 100)\n   395→ * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}\n   396→ * @throws {Error} When API request fails\n   397→ */\n   398→export const getIssueTimeline = async (owner, repo, params = {}) => {\n   399→  const query = new URLSearchParams({\n   400→    state: 'all',\n   401→    per_page: '100',\n   402→    sort: 'created',\n   403→    direction: 'desc',\n   404→    ...params\n   405→  });\n   406→  const url = `${API_BASE}/repos/${owner}/${repo}/issues?${query}`;\n   407→  return fetchWithRetry(url);\n   408→};\n   409→",
+          "collapsed": true
+        },
+        {
+          "timestamp": "2025-12-30T17:12:15.779738+00:00",
+          "type": "text",
+          "content": "Now let me run the verification command to confirm the function is properly exported:",
+          "phase": "coding",
+          "subtask_id": "subtask-3-1",
+          "session": 4
+        },
+        {
+          "timestamp": "2025-12-30T17:12:18.530364+00:00",
+          "type": "tool_start",
+          "content": "[Bash] node -e \"import('./src/js/api.js').then(m => co...",
+          "phase": "coding",
+          "tool_name": "Bash",
+          "tool_input": "node -e \"import('./src/js/api.js').then(m => co...",
+          "subtask_id": "subtask-3-1",
+          "session": 4
+        },
+        {
+          "timestamp": "2025-12-30T17:12:19.424192+00:00",
+          "type": "tool_end",
+          "content": "[Bash] Done",
+          "phase": "coding",
+          "tool_name": "Bash",
+          "subtask_id": "subtask-3-1",
+          "session": 4,
+          "detail": "getIssueTimeline: function",
+          "collapsed": true
+        },
+        {
+          "timestamp": "2025-12-30T17:12:23.406317+00:00",
+          "type": "text",
+          "content": "Verification passed. Now let me commit the changes and update the plan:",
+          "phase": "coding",
+          "subtask_id": "subtask-3-1",
+          "session": 4
+        },
+        {
+          "timestamp": "2025-12-30T17:12:30.237482+00:00",
+          "type": "tool_start",
+          "content": "[Bash] git add . && git commit -m \"$(cat <<'EOF'\nauto-...",
+          "phase": "coding",
+          "tool_name": "Bash",
+          "tool_input": "git add . && git commit -m \"$(cat <<'EOF'\nauto-...",
+          "subtask_id": "subtask-3-1",
+          "session": 4
+        },
+        {
+          "timestamp": "2025-12-30T17:12:32.068865+00:00",
+          "type": "tool_start",
+          "content": "[mcp__auto-claude__update_subtask_status]",
+          "phase": "coding",
+          "tool_name": "mcp__auto-claude__update_subtask_status",
+          "subtask_id": "subtask-3-1",
+          "session": 4
         }
       ]
     },
