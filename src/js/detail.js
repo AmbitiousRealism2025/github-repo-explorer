@@ -66,12 +66,13 @@ let currentRepo = null;
 const loadPulseDashboard = async () => {
   if (!currentRepo) return;
 
+  const container = pulseDashboardContainer;
   const owner = currentRepo.owner.login;
   const repo = currentRepo.name;
 
   // Show skeleton loading state
-  pulseDashboardContainer.innerHTML = '';
-  pulseDashboardContainer.appendChild(createPulseDashboardSkeleton());
+  container.innerHTML = '';
+  container.appendChild(createPulseDashboardSkeleton());
 
   try {
     // Fetch pulse data from the API
@@ -79,18 +80,30 @@ const loadPulseDashboard = async () => {
     const rawPulseData = pulseResult.data;
 
     // Calculate all metrics from the raw data
-    const pulseMetrics = calculateAllMetrics(rawPulseData, currentRepo);
+    const calculatedMetrics = calculateAllMetrics(rawPulseData);
 
-    // Add repo name for display in dashboard header
-    pulseMetrics.repoName = currentRepo.full_name;
+    // Transform calculator output to dashboard format
+    // Map: velocity → commitVelocity, momentum → communityHealth,
+    //      issues → issueHealth, prs → prHealth,
+    //      busFactor → busFactor, freshness → releaseFreshness
+    const dashboardData = {
+      commitVelocity: calculatedMetrics.metrics.velocity,
+      issueHealth: calculatedMetrics.metrics.issues,
+      prHealth: calculatedMetrics.metrics.prs,
+      busFactor: calculatedMetrics.metrics.busFactor,
+      releaseFreshness: calculatedMetrics.metrics.freshness,
+      communityHealth: calculatedMetrics.metrics.momentum,
+      overallStatus: calculatedMetrics.overall.status,
+      repoName: currentRepo.full_name
+    };
 
     // Render the dashboard with calculated metrics
-    pulseDashboardContainer.innerHTML = '';
-    pulseDashboardContainer.appendChild(createPulseDashboard(pulseMetrics));
+    container.innerHTML = '';
+    container.appendChild(createPulseDashboard(dashboardData));
   } catch (error) {
     // Render error state with retry functionality
-    pulseDashboardContainer.innerHTML = '';
-    pulseDashboardContainer.appendChild(
+    container.innerHTML = '';
+    container.appendChild(
       createPulseDashboardError(() => loadPulseDashboard())
     );
   }
