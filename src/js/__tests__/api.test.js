@@ -10,6 +10,7 @@ import {
   getCommitActivity,
   getParticipationStats,
   getContributorStats,
+  getIssueTimeline,
   clearCache
 } from '../api.js';
 
@@ -476,6 +477,54 @@ describe('API', () => {
       });
 
       await expect(getContributorStats('owner', 'repo')).rejects.toThrow('HTTP 500');
+    });
+  });
+
+  describe('getIssueTimeline', () => {
+    it('should fetch issues with default params', async () => {
+      const mockData = [
+        { id: 1, title: 'Issue 1', state: 'open', created_at: '2024-01-01T00:00:00Z' },
+        { id: 2, title: 'Issue 2', state: 'closed', created_at: '2024-01-02T00:00:00Z' }
+      ];
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+        headers: {
+          get: () => '59'
+        }
+      });
+
+      const result = await getIssueTimeline('owner', 'repo');
+      expect(result.data).toEqual(mockData);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('repos/owner/repo/issues'),
+        expect.any(Object)
+      );
+      // Verify default params are in URL
+      const calledUrl = global.fetch.mock.calls[0][0];
+      expect(calledUrl).toContain('state=all');
+      expect(calledUrl).toContain('per_page=100');
+      expect(calledUrl).toContain('sort=created');
+      expect(calledUrl).toContain('direction=desc');
+    });
+
+    it('should allow params override', async () => {
+      const mockData = [{ id: 1, title: 'Open Issue', state: 'open' }];
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(mockData),
+        headers: {
+          get: () => '59'
+        }
+      });
+
+      await getIssueTimeline('owner', 'repo', { state: 'open', per_page: '50' });
+      const calledUrl = global.fetch.mock.calls[0][0];
+      // Overridden params should be used
+      expect(calledUrl).toContain('state=open');
+      expect(calledUrl).toContain('per_page=50');
     });
   });
 
