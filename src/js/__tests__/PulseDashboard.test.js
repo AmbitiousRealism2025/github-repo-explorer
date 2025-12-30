@@ -11,6 +11,11 @@ import {
   getFreshnessLevel,
   calculateFreshnessScore
 } from '../components/PulseDashboard/visualizations.js';
+import {
+  createMetricCard,
+  createCompactMetricCard,
+  createMetricCardSkeleton
+} from '../components/PulseDashboard/MetricCard.js';
 
 describe('Sparkline', () => {
   describe('createSparkline', () => {
@@ -1022,6 +1027,514 @@ describe('visualizations', () => {
 
     it('should never return negative values', () => {
       expect(calculateFreshnessScore(10000)).toBeGreaterThanOrEqual(0);
+    });
+  });
+});
+
+// =============================================================================
+// MetricCard Tests
+// =============================================================================
+
+describe('MetricCard', () => {
+  describe('createMetricCard', () => {
+    it('should create metric card container', () => {
+      const element = createMetricCard({ title: 'Test Metric' });
+
+      expect(element.tagName.toLowerCase()).toBe('article');
+      expect(element.className).toContain('pulse-card');
+    });
+
+    it('should set role="region" for accessibility', () => {
+      const element = createMetricCard({ title: 'Test Metric' });
+
+      expect(element.getAttribute('role')).toBe('region');
+    });
+
+    it('should set aria-label with title and status', () => {
+      const element = createMetricCard({ title: 'Commit Velocity', status: 'thriving' });
+
+      expect(element.getAttribute('aria-label')).toContain('Commit Velocity');
+      expect(element.getAttribute('aria-label')).toContain('Thriving');
+    });
+
+    it('should create header with title', () => {
+      const element = createMetricCard({ title: 'Test Metric' });
+      const title = element.querySelector('.pulse-card__title');
+
+      expect(title).not.toBeNull();
+      expect(title.textContent).toBe('Test Metric');
+    });
+
+    it('should create status icon in header', () => {
+      const element = createMetricCard({ title: 'Test', status: 'thriving' });
+      const icon = element.querySelector('.pulse-card__status-icon');
+
+      expect(icon).not.toBeNull();
+      expect(icon.textContent).toBe('🟢');
+    });
+
+    it('should apply thriving status modifier', () => {
+      const element = createMetricCard({ title: 'Test', status: 'thriving' });
+
+      expect(element.className).toContain('pulse-card--thriving');
+    });
+
+    it('should apply stable status modifier', () => {
+      const element = createMetricCard({ title: 'Test', status: 'stable' });
+
+      expect(element.className).toContain('pulse-card--stable');
+    });
+
+    it('should apply cooling status modifier', () => {
+      const element = createMetricCard({ title: 'Test', status: 'cooling' });
+
+      expect(element.className).toContain('pulse-card--cooling');
+    });
+
+    it('should apply at_risk status modifier', () => {
+      const element = createMetricCard({ title: 'Test', status: 'at_risk' });
+
+      expect(element.className).toContain('pulse-card--at_risk');
+    });
+
+    it('should handle unknown status gracefully', () => {
+      const element = createMetricCard({ title: 'Test', status: 'unknown' });
+
+      // Should not throw and should render
+      expect(element.className).toContain('pulse-card');
+    });
+
+    it('should create footer with label', () => {
+      const element = createMetricCard({ title: 'Test', label: 'Last 90 days' });
+      const label = element.querySelector('.pulse-card__label');
+
+      expect(label).not.toBeNull();
+      expect(label.textContent).toBe('Last 90 days');
+    });
+
+    it('should handle null metric gracefully', () => {
+      const element = createMetricCard(null);
+
+      expect(element.className).toContain('pulse-card');
+      expect(element.querySelector('.pulse-card__title').textContent).toBe('Metric');
+    });
+
+    it('should handle undefined metric gracefully', () => {
+      const element = createMetricCard(undefined);
+
+      expect(element.className).toContain('pulse-card');
+    });
+
+    // Standard type tests
+    describe('standard type', () => {
+      it('should apply standard type modifier', () => {
+        const element = createMetricCard({ title: 'Test' }, 'standard');
+
+        expect(element.className).toContain('pulse-card--standard');
+      });
+
+      it('should create body with value container', () => {
+        const element = createMetricCard({
+          title: 'Commits',
+          value: 45
+        }, 'standard');
+        const valueContainer = element.querySelector('.pulse-card__value-container');
+
+        expect(valueContainer).not.toBeNull();
+      });
+
+      it('should display metric value', () => {
+        const element = createMetricCard({
+          title: 'Commits',
+          value: 45
+        }, 'standard');
+        const value = element.querySelector('.pulse-card__value');
+
+        expect(value.textContent).toBe('45');
+      });
+
+      it('should format large values with abbreviations', () => {
+        const element = createMetricCard({
+          title: 'Stars',
+          value: 15000
+        }, 'standard');
+        const value = element.querySelector('.pulse-card__value');
+
+        expect(value.textContent).toBe('15.0k');
+      });
+
+      it('should display value unit', () => {
+        const element = createMetricCard({
+          title: 'Velocity',
+          value: 45,
+          unit: 'commits/week'
+        }, 'standard');
+        const unit = element.querySelector('.pulse-card__unit');
+
+        expect(unit).not.toBeNull();
+        expect(unit.textContent).toBe('commits/week');
+      });
+
+      it('should include trend arrow', () => {
+        const element = createMetricCard({
+          title: 'Commits',
+          value: 45,
+          trend: 12.5
+        }, 'standard');
+        const trend = element.querySelector('.pulse-card__trend');
+        const arrow = trend.querySelector('.trend-arrow');
+
+        expect(arrow).not.toBeNull();
+      });
+
+      it('should include sparkline', () => {
+        const element = createMetricCard({
+          title: 'Commits',
+          value: 45,
+          sparklineData: [10, 15, 20, 25, 30, 35, 40, 45]
+        }, 'standard');
+        const sparkline = element.querySelector('.pulse-card__sparkline');
+
+        expect(sparkline).not.toBeNull();
+        expect(sparkline.querySelector('.sparkline')).not.toBeNull();
+      });
+
+      it('should show unavailable state for missing data', () => {
+        const element = createMetricCard({
+          title: 'Empty Metric'
+        }, 'standard');
+        const unavailable = element.querySelector('.pulse-card__unavailable-message');
+
+        expect(unavailable).not.toBeNull();
+        expect(unavailable.textContent).toContain('Data unavailable');
+      });
+
+      it('should handle null value with placeholder', () => {
+        const element = createMetricCard({
+          title: 'Test',
+          value: null,
+          sparklineData: [1, 2, 3]
+        }, 'standard');
+        const value = element.querySelector('.pulse-card__value');
+
+        expect(value.textContent).toBe('--');
+      });
+    });
+
+    // Temperature type tests
+    describe('temperature type', () => {
+      it('should apply temperature type modifier', () => {
+        const element = createMetricCard({ title: 'Issue Health', temperature: 'hot' }, 'temperature');
+
+        expect(element.className).toContain('pulse-card--temperature');
+      });
+
+      it('should create temperature indicator', () => {
+        const element = createMetricCard({
+          title: 'Issue Health',
+          temperature: 'hot'
+        }, 'temperature');
+        const indicator = element.querySelector('.temperature-indicator');
+
+        expect(indicator).not.toBeNull();
+      });
+
+      it('should show hot temperature', () => {
+        const element = createMetricCard({
+          title: 'Issue Health',
+          temperature: 'hot'
+        }, 'temperature');
+        const indicator = element.querySelector('.temperature-indicator');
+
+        expect(indicator.className).toContain('temperature-indicator--hot');
+      });
+
+      it('should show warm temperature', () => {
+        const element = createMetricCard({
+          title: 'Issue Health',
+          temperature: 'warm'
+        }, 'temperature');
+        const indicator = element.querySelector('.temperature-indicator');
+
+        expect(indicator.className).toContain('temperature-indicator--warm');
+      });
+
+      it('should show cool temperature', () => {
+        const element = createMetricCard({
+          title: 'Issue Health',
+          temperature: 'cool'
+        }, 'temperature');
+        const indicator = element.querySelector('.temperature-indicator');
+
+        expect(indicator.className).toContain('temperature-indicator--cool');
+      });
+
+      it('should include optional trend arrow', () => {
+        const element = createMetricCard({
+          title: 'Issue Health',
+          temperature: 'warm',
+          trend: -5
+        }, 'temperature');
+        const trend = element.querySelector('.pulse-card__trend');
+
+        expect(trend).not.toBeNull();
+      });
+
+      it('should show unavailable state when temperature is undefined', () => {
+        const element = createMetricCard({
+          title: 'Issue Health'
+        }, 'temperature');
+        const unavailable = element.querySelector('.pulse-card__unavailable-message');
+
+        expect(unavailable).not.toBeNull();
+      });
+    });
+
+    // Funnel type tests
+    describe('funnel type', () => {
+      it('should apply funnel type modifier', () => {
+        const element = createMetricCard({
+          title: 'PR Health',
+          funnel: { opened: 25, merged: 18, closed: 5 }
+        }, 'funnel');
+
+        expect(element.className).toContain('pulse-card--funnel');
+      });
+
+      it('should create PR funnel visualization', () => {
+        const element = createMetricCard({
+          title: 'PR Health',
+          funnel: { opened: 25, merged: 18, closed: 5 }
+        }, 'funnel');
+        const funnel = element.querySelector('.pr-funnel');
+
+        expect(funnel).not.toBeNull();
+      });
+
+      it('should display all funnel stages', () => {
+        const element = createMetricCard({
+          title: 'PR Health',
+          funnel: { opened: 25, merged: 18, closed: 5 }
+        }, 'funnel');
+        const stages = element.querySelectorAll('.pr-funnel__stage');
+
+        expect(stages.length).toBe(3);
+      });
+
+      it('should show unavailable state for missing funnel', () => {
+        const element = createMetricCard({
+          title: 'PR Health'
+        }, 'funnel');
+        const unavailable = element.querySelector('.pulse-card__unavailable-message');
+
+        expect(unavailable).not.toBeNull();
+      });
+    });
+
+    // Bus Factor type tests
+    describe('busFactor type', () => {
+      it('should apply busFactor type modifier', () => {
+        const element = createMetricCard({
+          title: 'Bus Factor',
+          distribution: [{ login: 'user1', percentage: 45 }]
+        }, 'busFactor');
+
+        expect(element.className).toContain('pulse-card--busFactor');
+      });
+
+      it('should create contributor bars visualization', () => {
+        const element = createMetricCard({
+          title: 'Bus Factor',
+          distribution: [
+            { login: 'user1', percentage: 45 },
+            { login: 'user2', percentage: 30 }
+          ]
+        }, 'busFactor');
+        const bars = element.querySelector('.contributor-bars');
+
+        expect(bars).not.toBeNull();
+      });
+
+      it('should display contributor rows', () => {
+        const element = createMetricCard({
+          title: 'Bus Factor',
+          distribution: [
+            { login: 'user1', percentage: 45 },
+            { login: 'user2', percentage: 30 }
+          ]
+        }, 'busFactor');
+        const rows = element.querySelectorAll('.contributor-bars__row');
+
+        expect(rows.length).toBe(2);
+      });
+
+      it('should show unavailable state for missing distribution', () => {
+        const element = createMetricCard({
+          title: 'Bus Factor'
+        }, 'busFactor');
+        const unavailable = element.querySelector('.pulse-card__unavailable-message');
+
+        expect(unavailable).not.toBeNull();
+      });
+    });
+
+    // Freshness type tests
+    describe('freshness type', () => {
+      it('should apply freshness type modifier', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          score: 85,
+          daysSincePush: 3
+        }, 'freshness');
+
+        expect(element.className).toContain('pulse-card--freshness');
+      });
+
+      it('should create freshness gauge visualization', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          score: 85,
+          daysSincePush: 3
+        }, 'freshness');
+        const gauge = element.querySelector('.freshness-gauge');
+
+        expect(gauge).not.toBeNull();
+      });
+
+      it('should display score in gauge', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          score: 85,
+          daysSincePush: 3
+        }, 'freshness');
+        const score = element.querySelector('.freshness-gauge__score');
+
+        expect(score.textContent).toBe('85');
+      });
+
+      it('should display days since push', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          score: 85,
+          daysSincePush: 5
+        }, 'freshness');
+        const days = element.querySelector('.freshness-gauge__days-value');
+
+        expect(days.textContent).toBe('5 days');
+      });
+
+      it('should show unavailable state for missing score and days', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness'
+        }, 'freshness');
+        const unavailable = element.querySelector('.pulse-card__unavailable-message');
+
+        expect(unavailable).not.toBeNull();
+      });
+
+      it('should render with only score', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          score: 75
+        }, 'freshness');
+        const gauge = element.querySelector('.freshness-gauge');
+
+        expect(gauge).not.toBeNull();
+      });
+
+      it('should render with only daysSincePush', () => {
+        const element = createMetricCard({
+          title: 'Release Freshness',
+          daysSincePush: 10
+        }, 'freshness');
+        const gauge = element.querySelector('.freshness-gauge');
+
+        expect(gauge).not.toBeNull();
+      });
+    });
+
+    // Default type fallback
+    describe('type fallback', () => {
+      it('should default to standard type when type is omitted', () => {
+        const element = createMetricCard({
+          title: 'Test',
+          value: 100,
+          sparklineData: [1, 2, 3]
+        });
+
+        expect(element.className).toContain('pulse-card--standard');
+      });
+
+      it('should fallback to standard for unknown type', () => {
+        const element = createMetricCard({
+          title: 'Test',
+          value: 100
+        }, 'unknown');
+
+        expect(element.className).toContain('pulse-card--unknown');
+        // Should still try to render standard body
+        expect(element.querySelector('.pulse-card__body')).not.toBeNull();
+      });
+    });
+  });
+
+  describe('createCompactMetricCard', () => {
+    it('should create compact card with modifier class', () => {
+      const element = createCompactMetricCard({ title: 'Test' });
+
+      expect(element.className).toContain('pulse-card--compact');
+    });
+
+    it('should support all card types', () => {
+      const standardCard = createCompactMetricCard({ title: 'Test', value: 10 }, 'standard');
+      const tempCard = createCompactMetricCard({ title: 'Test', temperature: 'hot' }, 'temperature');
+      const funnelCard = createCompactMetricCard({ title: 'Test', funnel: { opened: 5 } }, 'funnel');
+
+      expect(standardCard.className).toContain('pulse-card--compact');
+      expect(tempCard.className).toContain('pulse-card--compact');
+      expect(funnelCard.className).toContain('pulse-card--compact');
+    });
+  });
+
+  describe('createMetricCardSkeleton', () => {
+    it('should create skeleton card', () => {
+      const element = createMetricCardSkeleton();
+
+      expect(element.className).toContain('pulse-card');
+      expect(element.className).toContain('pulse-card--skeleton');
+    });
+
+    it('should set aria-hidden for accessibility', () => {
+      const element = createMetricCardSkeleton();
+
+      expect(element.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should include skeleton header elements', () => {
+      const element = createMetricCardSkeleton();
+      const header = element.querySelector('.pulse-card__header');
+
+      expect(header).not.toBeNull();
+      expect(header.querySelector('.pulse-card__skeleton-line--title')).not.toBeNull();
+      expect(header.querySelector('.pulse-card__skeleton-circle')).not.toBeNull();
+    });
+
+    it('should include skeleton body elements', () => {
+      const element = createMetricCardSkeleton();
+      const body = element.querySelector('.pulse-card__body');
+
+      expect(body).not.toBeNull();
+      expect(body.querySelector('.pulse-card__skeleton-line--value')).not.toBeNull();
+      expect(body.querySelector('.pulse-card__skeleton-line--trend')).not.toBeNull();
+      expect(body.querySelector('.pulse-card__skeleton-line--sparkline')).not.toBeNull();
+    });
+
+    it('should include skeleton footer elements', () => {
+      const element = createMetricCardSkeleton();
+      const footer = element.querySelector('.pulse-card__footer');
+
+      expect(footer).not.toBeNull();
+      expect(footer.querySelector('.pulse-card__skeleton-line--label')).not.toBeNull();
     });
   });
 });
