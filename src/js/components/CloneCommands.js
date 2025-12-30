@@ -53,9 +53,7 @@ export const createCloneCommands = (fullName, hasDevContainer = false) => {
       await navigator.clipboard.writeText(input.value);
       showToast('Copied to clipboard', 'success');
     } catch {
-      input.select();
-      document.execCommand('copy');
-      showToast('Copied to clipboard', 'success');
+      showToast('Failed to copy - please copy manually', 'error');
     }
   });
 

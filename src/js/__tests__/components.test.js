@@ -58,9 +58,8 @@ describe('CloneCommands', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalled();
   });
 
-  it('should fallback to execCommand when clipboard API fails', async () => {
+  it('should show error toast when clipboard API fails', async () => {
     navigator.clipboard.writeText = vi.fn().mockRejectedValue(new Error('fail'));
-    document.execCommand = vi.fn();
     
     const element = createCloneCommands('owner/repo');
     document.body.appendChild(element);
@@ -69,7 +68,9 @@ describe('CloneCommands', () => {
     copyBtn.click();
     await new Promise(resolve => setTimeout(resolve, 0));
     
-    expect(document.execCommand).toHaveBeenCalledWith('copy');
+    const toast = document.querySelector('.toast');
+    expect(toast).not.toBeNull();
+    expect(toast.textContent).toContain('Failed to copy');
   });
 });
 
