@@ -368,7 +368,9 @@
             "command": "npm test -- --run src/js/__tests__/PulseDashboard.test.js 2>&1 | grep -E '(PASS|FAIL|momentum|temperature|PRHealth)' | head -10",
             "expected": "Momentum, temperature, PR health tests pass"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added comprehensive tests for calculateCommunityMomentum (8 describe blocks with ~35 tests), calculateIssueTemperature (10 describe blocks with ~40 tests), and calculatePRHealth (11 describe blocks with ~45 tests). All 286 tests in PulseDashboard.test.js pass.",
+          "updated_at": "2025-12-30T18:26:44.232421+00:00"
         },
         {
           "id": "subtask-7-4",
@@ -537,5 +539,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T18:16:23.999786+00:00"
+  "last_updated": "2025-12-30T18:26:44.232430+00:00"
 }

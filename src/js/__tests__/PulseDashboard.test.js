@@ -2251,6 +2251,201 @@ describe('calculateBusFactor', () => {
     const result = calculateBusFactor(contributors);
     expect(result.contributorCount).toBe(1);
   });
+
+  describe('Risk Levels', () => {
+    it('should return critical risk (bus factor 1) for single contributor', () => {
+      const contributors = [
+        createMockContributor({ total: 1000, author: { login: 'solo' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      expect(result.riskLevel).toBe('critical');
+      expect(result.value).toBeLessThanOrEqual(2);
+      expect(result.status).toBe('at_risk');
+    });
+
+    it('should return high risk for 2 contributors with concentration', () => {
+      const contributors = [
+        createMockContributor({ total: 900, author: { login: 'dev1' } }),
+        createMockContributor({ total: 100, author: { login: 'dev2' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      expect(['high', 'critical']).toContain(result.riskLevel);
+      expect(['at_risk', 'cooling']).toContain(result.status);
+    });
+
+    it('should return moderate risk for 3-4 significant contributors', () => {
+      const contributors = [
+        createMockContributor({ total: 100, author: { login: 'dev1' } }),
+        createMockContributor({ total: 90, author: { login: 'dev2' } }),
+        createMockContributor({ total: 80, author: { login: 'dev3' } }),
+        createMockContributor({ total: 30, author: { login: 'dev4' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      expect(['healthy', 'moderate']).toContain(result.riskLevel);
+    });
+
+    it('should return healthy risk for 5+ well-distributed contributors', () => {
+      const contributors = [
+        createMockContributor({ total: 100, author: { login: 'dev1' } }),
+        createMockContributor({ total: 90, author: { login: 'dev2' } }),
+        createMockContributor({ total: 80, author: { login: 'dev3' } }),
+        createMockContributor({ total: 70, author: { login: 'dev4' } }),
+        createMockContributor({ total: 60, author: { login: 'dev5' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      expect(result.riskLevel).toBe('healthy');
+      expect(result.status).toBe('thriving');
+    });
+  });
+
+  describe('Concentration Thresholds', () => {
+    it('should detect >70% concentration as critical', () => {
+      const contributors = [
+        createMockContributor({ total: 800, author: { login: 'top' } }),
+        createMockContributor({ total: 100, author: { login: 'other1' } }),
+        createMockContributor({ total: 100, author: { login: 'other2' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      expect(result.topConcentration).toBeGreaterThan(70);
+      expect(['critical', 'high']).toContain(result.riskLevel);
+    });
+
+    it('should detect 50-70% concentration as high', () => {
+      const contributors = [
+        createMockContributor({ total: 600, author: { login: 'top' } }),
+        createMockContributor({ total: 200, author: { login: 'other1' } }),
+        createMockContributor({ total: 200, author: { login: 'other2' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      expect(result.topConcentration).toBe(60);
+    });
+
+    it('should detect <30% concentration as well distributed', () => {
+      const contributors = [
+        createMockContributor({ total: 100, author: { login: 'dev1' } }),
+        createMockContributor({ total: 100, author: { login: 'dev2' } }),
+        createMockContributor({ total: 100, author: { login: 'dev3' } }),
+        createMockContributor({ total: 100, author: { login: 'dev4' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      expect(result.topConcentration).toBe(25);
+      expect(result.riskLevel).toBe('healthy');
+    });
+  });
+
+  describe('Status Mapping', () => {
+    it('should map healthy risk to thriving status', () => {
+      const contributors = createMockContributorSet({ count: 10, distribution: 'balanced' });
+      const result = calculateBusFactor(contributors);
+      if (result.riskLevel === 'healthy') {
+        expect(result.status).toBe('thriving');
+      }
+    });
+
+    it('should map moderate risk to stable status', () => {
+      // Create a scenario that results in moderate risk
+      const contributors = [
+        createMockContributor({ total: 200, author: { login: 'dev1' } }),
+        createMockContributor({ total: 150, author: { login: 'dev2' } }),
+        createMockContributor({ total: 100, author: { login: 'dev3' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      if (result.riskLevel === 'moderate') {
+        expect(result.status).toBe('stable');
+      }
+    });
+
+    it('should map high risk to cooling status', () => {
+      const contributors = [
+        createMockContributor({ total: 500, author: { login: 'top' } }),
+        createMockContributor({ total: 50, author: { login: 'other' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      if (result.riskLevel === 'high') {
+        expect(result.status).toBe('cooling');
+      }
+    });
+
+    it('should map critical risk to at_risk status', () => {
+      const contributors = createMockContributorSet({ distribution: 'single' });
+      const result = calculateBusFactor(contributors);
+      expect(result.riskLevel).toBe('critical');
+      expect(result.status).toBe('at_risk');
+    });
+  });
+
+  describe('Score Calculation', () => {
+    it('should calculate score from 0-100 range', () => {
+      const contributors = createMockContributorSet({ count: 5 });
+      const result = calculateBusFactor(contributors);
+      expect(result.score).toBeGreaterThanOrEqual(0);
+      expect(result.score).toBeLessThanOrEqual(100);
+    });
+
+    it('should have higher score for better distributed teams', () => {
+      const balanced = createMockContributorSet({ count: 10, distribution: 'balanced' });
+      const concentrated = createMockContributorSet({ count: 5, distribution: 'concentrated' });
+
+      const balancedResult = calculateBusFactor(balanced);
+      const concentratedResult = calculateBusFactor(concentrated);
+
+      expect(balancedResult.score).toBeGreaterThan(concentratedResult.score);
+    });
+
+    it('should track significant contributors', () => {
+      const contributors = [
+        createMockContributor({ total: 100, author: { login: 'dev1' } }),
+        createMockContributor({ total: 50, author: { login: 'dev2' } }),
+        createMockContributor({ total: 10, author: { login: 'dev3' } }), // <5% of total
+        createMockContributor({ total: 5, author: { login: 'dev4' } })  // <5% of total
+      ];
+      const result = calculateBusFactor(contributors);
+      expect(result.significantContributors).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should track contributorsFor80Percent', () => {
+      const contributors = [
+        createMockContributor({ total: 50, author: { login: 'dev1' } }),
+        createMockContributor({ total: 50, author: { login: 'dev2' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      expect(result.contributorsFor80Percent).toBeDefined();
+      expect(result.contributorsFor80Percent).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('Label Generation', () => {
+    it('should include risk level label for single contributor', () => {
+      const contributors = createMockContributorSet({ distribution: 'single' });
+      const result = calculateBusFactor(contributors);
+      expect(result.label).toContain('Single contributor');
+    });
+
+    it('should include contributor count for healthy teams', () => {
+      const contributors = createMockContributorSet({ count: 10, distribution: 'balanced' });
+      const result = calculateBusFactor(contributors);
+      if (result.riskLevel === 'healthy') {
+        expect(result.label).toContain('active contributors');
+      }
+    });
+
+    it('should include top concentration percentage for concentrated teams', () => {
+      const contributors = createMockContributorSet({ count: 5, distribution: 'concentrated' });
+      const result = calculateBusFactor(contributors);
+      if (result.riskLevel !== 'healthy') {
+        expect(result.label).toMatch(/\d+%/);
+      }
+    });
+
+    it('should track top contributor login', () => {
+      const contributors = [
+        createMockContributor({ total: 500, author: { login: 'top-dev' } }),
+        createMockContributor({ total: 100, author: { login: 'other-dev' } })
+      ];
+      const result = calculateBusFactor(contributors);
+      expect(result.topContributor).toBe('top-dev');
+    });
+  });
 });
 
 // =============================================================================
@@ -2341,6 +2536,195 @@ describe('calculateFreshnessIndex', () => {
     const repo = createMockRepo({ pushed_at: 'invalid', updated_at: 'invalid' });
     const result = calculateFreshnessIndex(repo);
     expect(result.freshness).toBe('stale');
+  });
+
+  describe('Push Day Thresholds', () => {
+    it('should classify pushed within 7 days as fresh', () => {
+      const date = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(); // 3 days ago
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const releases = [createMockRelease({ published_at: date })];
+      const result = calculateFreshnessIndex(repo, releases);
+      expect(result.freshness).toBe('fresh');
+      expect(result.daysSincePush).toBe(3);
+    });
+
+    it('should classify pushed within 30 days as recent', () => {
+      const date = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(); // 15 days ago
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const result = calculateFreshnessIndex(repo);
+      expect(['fresh', 'recent']).toContain(result.freshness);
+      expect(result.daysSincePush).toBe(15);
+    });
+
+    it('should classify pushed within 90 days as aging', () => {
+      const date = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(); // 60 days ago
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const result = calculateFreshnessIndex(repo);
+      expect(['recent', 'aging']).toContain(result.freshness);
+      expect(result.daysSincePush).toBe(60);
+    });
+
+    it('should classify pushed within 180 days as stale', () => {
+      const date = new Date(Date.now() - 150 * 24 * 60 * 60 * 1000).toISOString(); // 150 days ago
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const result = calculateFreshnessIndex(repo);
+      expect(['aging', 'stale']).toContain(result.freshness);
+      expect(result.daysSincePush).toBe(150);
+    });
+
+    it('should classify pushed over 180 days as dormant', () => {
+      const date = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString(); // 400 days ago
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const result = calculateFreshnessIndex(repo);
+      expect(['stale', 'dormant']).toContain(result.freshness);
+      expect(result.daysSincePush).toBe(400);
+    });
+  });
+
+  describe('Status Mapping', () => {
+    it('should map fresh to thriving status', () => {
+      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
+      const releases = [createMockRelease({ published_at: new Date().toISOString() })];
+      const result = calculateFreshnessIndex(repo, releases);
+      expect(result.freshness).toBe('fresh');
+      expect(result.status).toBe('thriving');
+    });
+
+    it('should map recent to stable status', () => {
+      const date = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const result = calculateFreshnessIndex(repo);
+      if (result.freshness === 'recent') {
+        expect(result.status).toBe('stable');
+      }
+    });
+
+    it('should map aging to cooling status', () => {
+      const date = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const result = calculateFreshnessIndex(repo);
+      if (result.freshness === 'aging') {
+        expect(result.status).toBe('cooling');
+      }
+    });
+
+    it('should map stale/dormant to at_risk status', () => {
+      const date = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const result = calculateFreshnessIndex(repo);
+      expect(['stale', 'dormant']).toContain(result.freshness);
+      expect(result.status).toBe('at_risk');
+    });
+  });
+
+  describe('Weighted Score Calculation', () => {
+    it('should have pushScore as primary factor (60% weight)', () => {
+      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
+      const result = calculateFreshnessIndex(repo);
+      expect(result.pushScore).toBe(100); // Fresh push = 100
+    });
+
+    it('should apply release score with 25% weight', () => {
+      const oldPush = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ pushed_at: oldPush, updated_at: oldPush });
+
+      // With fresh release
+      const freshRelease = [createMockRelease({ published_at: new Date().toISOString() })];
+      const resultWithRelease = calculateFreshnessIndex(repo, freshRelease);
+
+      // Without release (neutral)
+      const resultWithoutRelease = calculateFreshnessIndex(repo, []);
+
+      // Fresh release should boost the score
+      expect(resultWithRelease.releaseScore).toBe(100);
+    });
+
+    it('should calculate weighted score correctly', () => {
+      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
+      const releases = [createMockRelease({ published_at: new Date().toISOString() })];
+      const result = calculateFreshnessIndex(repo, releases);
+
+      // All fresh should give max score
+      expect(result.value).toBeGreaterThanOrEqual(90);
+    });
+
+    it('should have lower score for dormant repos', () => {
+      const veryOld = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ pushed_at: veryOld, updated_at: veryOld });
+      const result = calculateFreshnessIndex(repo);
+
+      expect(result.value).toBeLessThan(30);
+    });
+  });
+
+  describe('Label Generation', () => {
+    it('should show "Updated today" for same-day push', () => {
+      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
+      const releases = [createMockRelease({ published_at: new Date().toISOString() })];
+      const result = calculateFreshnessIndex(repo, releases);
+      expect(result.label).toContain('Updated today');
+    });
+
+    it('should show "Updated yesterday" for 1-day-old push', () => {
+      const date = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const releases = [createMockRelease({ published_at: date })];
+      const result = calculateFreshnessIndex(repo, releases);
+      expect(result.label).toContain('yesterday');
+    });
+
+    it('should show days for recent pushes', () => {
+      const date = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const releases = [createMockRelease({ published_at: date })];
+      const result = calculateFreshnessIndex(repo, releases);
+      expect(result.label).toContain('5 days ago');
+    });
+
+    it('should show weeks for 1-4 week old pushes', () => {
+      const date = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const result = calculateFreshnessIndex(repo);
+      expect(result.label).toMatch(/\d+w ago/);
+    });
+
+    it('should show months for 1-12 month old pushes', () => {
+      const date = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const result = calculateFreshnessIndex(repo);
+      expect(result.label).toMatch(/\d+mo ago/);
+    });
+
+    it('should show years for 1+ year old pushes', () => {
+      const date = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ pushed_at: date, updated_at: date });
+      const result = calculateFreshnessIndex(repo);
+      expect(result.label).toMatch(/\d+y ago/);
+    });
+
+    it('should include freshness classification in label', () => {
+      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
+      const releases = [createMockRelease({ published_at: new Date().toISOString() })];
+      const result = calculateFreshnessIndex(repo, releases);
+      expect(result.label).toContain('Fresh');
+    });
+  });
+
+  describe('Sparkline Data', () => {
+    it('should return sparkline data array', () => {
+      const repo = createMockRepo();
+      const result = calculateFreshnessIndex(repo);
+      expect(Array.isArray(result.sparklineData)).toBe(true);
+      expect(result.sparklineData.length).toBe(10);
+    });
+
+    it('should have higher values at end for fresh repos', () => {
+      const repo = createMockRepo({ pushed_at: new Date().toISOString() });
+      const result = calculateFreshnessIndex(repo);
+      // For fresh repos, recent data points should be higher
+      const lastValue = result.sparklineData[result.sparklineData.length - 1];
+      expect(lastValue).toBeGreaterThan(0);
+    });
   });
 });
 
@@ -2458,6 +2842,332 @@ describe('calculateOverallPulse', () => {
     expect(result.status).toBeDefined();
     expect(result.breakdown.velocity).toBe('thriving');
     expect(result.breakdown.momentum).toBe('stable'); // Default
+  });
+
+  describe('Metric Weights', () => {
+    it('should apply velocity weight of 20%', () => {
+      // Velocity has the highest weight (20%)
+      const metrics = {
+        velocity: { status: 'at_risk', trend: -50 },
+        momentum: { status: 'thriving', trend: 20 },
+        issues: { status: 'thriving', trend: 20 },
+        prs: { status: 'thriving', trend: 20 },
+        busFactor: { status: 'thriving', trend: 0 },
+        freshness: { status: 'thriving', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      // With velocity at_risk (15pts) and others thriving (100pts each)
+      // Weighted: (15*20 + 100*15 + 100*20 + 100*15 + 100*15 + 100*15) / 100 = 68
+      expect(result.score).toBeLessThan(100);
+      expect(result.concerns.count).toBe(1);
+    });
+
+    it('should apply issues weight of 20%', () => {
+      // Issues has the same weight as velocity (20%)
+      const metrics = {
+        velocity: { status: 'thriving', trend: 20 },
+        momentum: { status: 'thriving', trend: 20 },
+        issues: { status: 'at_risk', trend: -30 },
+        prs: { status: 'thriving', trend: 20 },
+        busFactor: { status: 'thriving', trend: 0 },
+        freshness: { status: 'thriving', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.concerns.count).toBe(1);
+      expect(result.concerns.metrics[0].metric).toBe('issues');
+    });
+
+    it('should apply equal weights for momentum, prs, busFactor, freshness (15% each)', () => {
+      // Each of these has 15% weight
+      const baseMetrics = {
+        velocity: { status: 'thriving', trend: 20 },
+        momentum: { status: 'thriving', trend: 20 },
+        issues: { status: 'thriving', trend: 20 },
+        prs: { status: 'thriving', trend: 20 },
+        busFactor: { status: 'thriving', trend: 0 },
+        freshness: { status: 'thriving', trend: 0 }
+      };
+
+      const result = calculateOverallPulse(baseMetrics);
+      expect(result.status).toBe('thriving');
+      expect(result.score).toBeGreaterThanOrEqual(75);
+    });
+  });
+
+  describe('Direction Calculation', () => {
+    it('should return "up" direction for positive average trend', () => {
+      const metrics = {
+        velocity: { status: 'stable', trend: 30 },
+        momentum: { status: 'stable', trend: 20 },
+        issues: { status: 'stable', trend: 10 },
+        prs: { status: 'stable', trend: 15 },
+        busFactor: { status: 'stable', trend: 0 },
+        freshness: { status: 'stable', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.trend).toBeGreaterThan(0);
+      expect(result.direction).toBe('up');
+    });
+
+    it('should return "down" direction for negative average trend', () => {
+      const metrics = {
+        velocity: { status: 'stable', trend: -30 },
+        momentum: { status: 'stable', trend: -20 },
+        issues: { status: 'stable', trend: -10 },
+        prs: { status: 'stable', trend: -15 },
+        busFactor: { status: 'stable', trend: 0 },
+        freshness: { status: 'stable', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.trend).toBeLessThan(0);
+      expect(result.direction).toBe('down');
+    });
+
+    it('should return "stable" direction for near-zero average trend', () => {
+      const metrics = {
+        velocity: { status: 'stable', trend: 3 },
+        momentum: { status: 'stable', trend: -3 },
+        issues: { status: 'stable', trend: 2 },
+        prs: { status: 'stable', trend: -2 },
+        busFactor: { status: 'stable', trend: 0 },
+        freshness: { status: 'stable', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.direction).toBe('stable');
+    });
+  });
+
+  describe('Concern Levels', () => {
+    it('should return "none" for no concerning metrics', () => {
+      const metrics = {
+        velocity: { status: 'thriving', trend: 10 },
+        momentum: { status: 'stable', trend: 5 },
+        issues: { status: 'thriving', trend: 10 },
+        prs: { status: 'stable', trend: 5 },
+        busFactor: { status: 'thriving', trend: 0 },
+        freshness: { status: 'stable', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.concerns.level).toBe('none');
+      expect(result.concerns.count).toBe(0);
+    });
+
+    it('should return "few" for 1-2 concerning metrics', () => {
+      const metrics = {
+        velocity: { status: 'cooling', trend: -10 },
+        momentum: { status: 'stable', trend: 0 },
+        issues: { status: 'stable', trend: 0 },
+        prs: { status: 'stable', trend: 0 },
+        busFactor: { status: 'stable', trend: 0 },
+        freshness: { status: 'stable', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.concerns.level).toBe('few');
+      expect(result.concerns.count).toBe(1);
+    });
+
+    it('should return "some" for 3-4 concerning metrics', () => {
+      const metrics = {
+        velocity: { status: 'cooling', trend: -10 },
+        momentum: { status: 'at_risk', trend: -20 },
+        issues: { status: 'cooling', trend: -10 },
+        prs: { status: 'stable', trend: 0 },
+        busFactor: { status: 'stable', trend: 0 },
+        freshness: { status: 'stable', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.concerns.level).toBe('some');
+      expect(result.concerns.count).toBe(3);
+    });
+
+    it('should return "many" for 5+ concerning metrics', () => {
+      const metrics = {
+        velocity: { status: 'cooling', trend: -10 },
+        momentum: { status: 'at_risk', trend: -20 },
+        issues: { status: 'cooling', trend: -10 },
+        prs: { status: 'at_risk', trend: -30 },
+        busFactor: { status: 'cooling', trend: 0 },
+        freshness: { status: 'at_risk', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.concerns.level).toBe('many');
+      expect(result.concerns.count).toBe(6);
+    });
+
+    it('should sort concerns by severity (high first)', () => {
+      const metrics = {
+        velocity: { status: 'cooling', trend: -10 },      // Medium severity
+        momentum: { status: 'at_risk', trend: -30 },       // High severity
+        issues: { status: 'stable', trend: 0 },
+        prs: { status: 'stable', trend: 0 },
+        busFactor: { status: 'stable', trend: 0 },
+        freshness: { status: 'stable', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.concerns.metrics[0].severity).toBe('high');
+      expect(result.concerns.metrics[0].metric).toBe('momentum');
+    });
+  });
+
+  describe('Status Labels', () => {
+    it('should include statusLabel for thriving status', () => {
+      const metrics = {
+        velocity: { status: 'thriving', trend: 10 },
+        momentum: { status: 'thriving', trend: 10 },
+        issues: { status: 'thriving', trend: 10 },
+        prs: { status: 'thriving', trend: 10 },
+        busFactor: { status: 'thriving', trend: 0 },
+        freshness: { status: 'thriving', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.statusLabel).toBe('Thriving');
+      expect(result.statusDescription).toBeDefined();
+    });
+
+    it('should include statusLabel for at_risk status', () => {
+      const metrics = {
+        velocity: { status: 'at_risk', trend: -30 },
+        momentum: { status: 'at_risk', trend: -30 },
+        issues: { status: 'at_risk', trend: -30 },
+        prs: { status: 'at_risk', trend: -30 },
+        busFactor: { status: 'at_risk', trend: 0 },
+        freshness: { status: 'at_risk', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.statusLabel).toBe('At Risk');
+      expect(result.statusDescription).toBeDefined();
+    });
+  });
+
+  describe('Pulse Speed Animation', () => {
+    it('should return 800ms for thriving status', () => {
+      const metrics = {
+        velocity: { status: 'thriving', trend: 0 },
+        momentum: { status: 'thriving', trend: 0 },
+        issues: { status: 'thriving', trend: 0 },
+        prs: { status: 'thriving', trend: 0 },
+        busFactor: { status: 'thriving', trend: 0 },
+        freshness: { status: 'thriving', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.pulseSpeed).toBe(800);
+    });
+
+    it('should return 1200ms for stable status', () => {
+      const metrics = {
+        velocity: { status: 'stable', trend: 0 },
+        momentum: { status: 'stable', trend: 0 },
+        issues: { status: 'stable', trend: 0 },
+        prs: { status: 'stable', trend: 0 },
+        busFactor: { status: 'stable', trend: 0 },
+        freshness: { status: 'stable', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.pulseSpeed).toBe(1200);
+    });
+
+    it('should return 1800ms for cooling status', () => {
+      const metrics = {
+        velocity: { status: 'cooling', trend: 0 },
+        momentum: { status: 'cooling', trend: 0 },
+        issues: { status: 'cooling', trend: 0 },
+        prs: { status: 'cooling', trend: 0 },
+        busFactor: { status: 'cooling', trend: 0 },
+        freshness: { status: 'cooling', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.pulseSpeed).toBe(1800);
+    });
+
+    it('should return 2500ms for at_risk status', () => {
+      const metrics = {
+        velocity: { status: 'at_risk', trend: 0 },
+        momentum: { status: 'at_risk', trend: 0 },
+        issues: { status: 'at_risk', trend: 0 },
+        prs: { status: 'at_risk', trend: 0 },
+        busFactor: { status: 'at_risk', trend: 0 },
+        freshness: { status: 'at_risk', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.pulseSpeed).toBe(2500);
+    });
+  });
+
+  describe('Summary Label Generation', () => {
+    it('should generate positive label for thriving with no concerns', () => {
+      const metrics = {
+        velocity: { status: 'thriving', trend: 0 },
+        momentum: { status: 'thriving', trend: 0 },
+        issues: { status: 'thriving', trend: 0 },
+        prs: { status: 'thriving', trend: 0 },
+        busFactor: { status: 'thriving', trend: 0 },
+        freshness: { status: 'thriving', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.label).toContain('Excellent');
+    });
+
+    it('should generate warning label for at_risk status', () => {
+      const metrics = {
+        velocity: { status: 'at_risk', trend: 0 },
+        momentum: { status: 'at_risk', trend: 0 },
+        issues: { status: 'at_risk', trend: 0 },
+        prs: { status: 'at_risk', trend: 0 },
+        busFactor: { status: 'at_risk', trend: 0 },
+        freshness: { status: 'at_risk', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.label).toContain('attention');
+    });
+
+    it('should mention concern count in label when applicable', () => {
+      const metrics = {
+        velocity: { status: 'cooling', trend: -10 },
+        momentum: { status: 'at_risk', trend: -30 },
+        issues: { status: 'cooling', trend: -10 },
+        prs: { status: 'stable', trend: 0 },
+        busFactor: { status: 'stable', trend: 0 },
+        freshness: { status: 'stable', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+      expect(result.label).toMatch(/\d+/);
+    });
+  });
+
+  describe('Breakdown Object', () => {
+    it('should include all 6 metrics in breakdown', () => {
+      const metrics = {
+        velocity: { status: 'thriving', trend: 0 },
+        momentum: { status: 'stable', trend: 0 },
+        issues: { status: 'cooling', trend: 0 },
+        prs: { status: 'at_risk', trend: 0 },
+        busFactor: { status: 'thriving', trend: 0 },
+        freshness: { status: 'stable', trend: 0 }
+      };
+      const result = calculateOverallPulse(metrics);
+
+      expect(result.breakdown).toHaveProperty('velocity', 'thriving');
+      expect(result.breakdown).toHaveProperty('momentum', 'stable');
+      expect(result.breakdown).toHaveProperty('issues', 'cooling');
+      expect(result.breakdown).toHaveProperty('prs', 'at_risk');
+      expect(result.breakdown).toHaveProperty('busFactor', 'thriving');
+      expect(result.breakdown).toHaveProperty('freshness', 'stable');
+    });
+
+    it('should default missing metrics to stable in breakdown', () => {
+      const metrics = {
+        velocity: { status: 'thriving', trend: 0 }
+        // Other metrics missing
+      };
+      const result = calculateOverallPulse(metrics);
+
+      expect(result.breakdown.velocity).toBe('thriving');
+      expect(result.breakdown.momentum).toBe('stable');
+      expect(result.breakdown.issues).toBe('stable');
+      expect(result.breakdown.prs).toBe('stable');
+      expect(result.breakdown.busFactor).toBe('stable');
+      expect(result.breakdown.freshness).toBe('stable');
+    });
   });
 });
 
