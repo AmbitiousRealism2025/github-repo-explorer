@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pulse Animation Test</title>
+  <link rel="stylesheet" href="/src/css/main.css">
+  <style>
+    /* Demo layout styles */
+    .test-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    .section {
+      margin-bottom: 3rem;
+      padding: 1.5rem;
+      background: var(--color-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+    }
+    .section h2 {
+      color: var(--color-text);
+      margin-bottom: 1rem;
+      font-size: 1.25rem;
+    }
+    .section h3 {
+      color: var(--color-text-secondary);
+      margin-bottom: 0.75rem;
+      font-size: 1rem;
+    }
+    .demo-row {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .demo-item {
+      text-align: center;
+    }
+    .demo-label {
+      color: var(--color-text-secondary);
+      font-size: 0.75rem;
+      margin-top: 0.5rem;
+    }
+
+    /* Pulse demo container */
+    .pulse-demo {
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--color-bg);
+      border-radius: 50%;
+      position: relative;
+    }
+
+    /* Card demo grid */
+    .pulse-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    /* Card base for demo */
+    .pulse-card {
+      padding: 1rem;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+    }
+
+    /* Sparkline container */
+    .sparkline {
+      width: 100%;
+      max-width: 200px;
+      height: 40px;
+    }
+    .sparkline path {
+      fill: none;
+      stroke: var(--color-accent);
+      stroke-width: 2;
+    }
+    .sparkline path.sparkline__fill {
+      fill: rgba(20, 184, 166, 0.2);
+      stroke: none;
+    }
+
+    /* Trend arrow icons */
+    .trend-arrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-weight: 500;
+    }
+    .trend-arrow__icon {
+      width: 16px;
+      height: 16px;
+    }
+    .trend-arrow--up {
+      color: var(--color-success);
+    }
+    .trend-arrow--down {
+      color: var(--color-danger);
+    }
+    .trend-arrow--stable {
+      color: var(--color-warning);
+    }
+
+    /* Reload button */
+    .reload-btn {
+      background: var(--color-accent);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .reload-btn:hover {
+      background: var(--color-accent-hover, #10a89c);
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="test-container">
+    <h1 style="color: var(--color-text); margin-bottom: 2rem;">Pulse Dashboard Animation Test</h1>
+
+    <div class="controls">
+      <button class="reload-btn" onclick="location.reload()">Reload to Replay Animations</button>
+      <button class="reload-btn" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'">Toggle Theme</button>
+    </div>
+
+    <!-- Section 1: Pulse Heartbeat Animation with Speeds -->
+    <div class="section">
+      <h2>1. Pulse Heartbeat Animation with Speed Variants</h2>
+      <p style="color: var(--color-text-secondary); margin-bottom: 1rem;">The pulse dot should animate with a heartbeat rhythm. Speed varies by status.</p>
+
+      <div class="demo-row">
+        <!-- Fast (Thriving) -->
+        <div class="demo-item">
+          <div class="pulse-demo pulse-dashboard__header pulse-dashboard__header--thriving" data-speed="fast">
+            <div class="pulse-dashboard__pulse">
+              <div class="pulse-dashboard__pulse-dot"></div>
+              <div class="pulse-dashboard__pulse-ripple"></div>
+              <div class="pulse-dashboard__pulse-ripple"></div>
+            </div>
+          </div>
+          <div class="demo-label">Thriving (0.8s - Fast)</div>
+        </div>
+
+        <!-- Normal (Stable) -->
+        <div class="demo-item">
+          <div class="pulse-demo pulse-dashboard__header pulse-dashboard__header--stable" data-speed="normal">
+            <div class="pulse-dashboard__pulse">
+              <div class="pulse-dashboard__pulse-dot"></div>
+              <div class="pulse-dashboard__pulse-ripple"></div>
+              <div class="pulse-dashboard__pulse-ripple"></div>
+            </div>
+          </div>
+          <div class="demo-label">Stable (1.2s - Normal)</div>
+        </div>
+
+        <!-- Slow (Cooling) -->
+        <div class="demo-item">
+          <div class="pulse-demo pulse-dashboard__header pulse-dashboard__header--cooling" data-speed="slow">
+            <div class="pulse-dashboard__pulse">
+              <div class="pulse-dashboard__pulse-dot"></div>
+              <div class="pulse-dashboard__pulse-ripple"></div>
+              <div class="pulse-dashboard__pulse-ripple"></div>
+            </div>
+          </div>
+          <div class="demo-label">Cooling (1.8s - Slow)</div>
+        </div>
+
+        <!-- At Risk -->
+        <div class="demo-item">
+          <div class="pulse-demo pulse-dashboard__header pulse-dashboard__header--at_risk" data-speed="slow" style="--pulse-duration: 2.5s;">
+            <div class="pulse-dashboard__pulse">
+              <div class="pulse-dashboard__pulse-dot"></div>
+              <div class="pulse-dashboard__pulse-ripple"></div>
+              <div class="pulse-dashboard__pulse-ripple"></div>
+            </div>
+          </div>
+          <div class="demo-label">At Risk (2.5s - Very Slow)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 2: Status Colors -->
+    <div class="section">
+      <h2>2. Status Colors</h2>
+      <p style="color: var(--color-text-secondary); margin-bottom: 1rem;">Colors should match: Green (thriving), Yellow (stable), Orange (cooling), Red (at_risk)</p>
+
+      <div class="demo-row">
+        <div class="demo-item">
+          <div style="width: 30px; height: 30px; border-radius: 50%; background: var(--color-success);"></div>
+          <div class="demo-label">Thriving (Green)</div>
+        </div>
+        <div class="demo-item">
+          <div style="width: 30px; height: 30px; border-radius: 50%; background: var(--color-warning);"></div>
+          <div class="demo-label">Stable (Yellow)</div>
+        </div>
+        <div class="demo-item">
+          <div style="width: 30px; height: 30px; border-radius: 50%; background: #f97316;"></div>
+          <div class="demo-label">Cooling (Orange)</div>
+        </div>
+        <div class="demo-item">
+          <div style="width: 30px; height: 30px; border-radius: 50%; background: var(--color-danger);"></div>
+          <div class="demo-label">At Risk (Red)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 3: Card Entrance Animation with Stagger -->
+    <div class="section">
+      <h2>3. Card Entrance Animation (Staggered Fade-in)</h2>
+      <p style="color: var(--color-text-secondary); margin-bottom: 1rem;">Cards should fade in sequentially with 50ms delays between each.</p>
+
+      <div class="pulse-cards-grid" id="card-container">
+        <div class="pulse-card">
+          <strong style="color: var(--color-text);">Card 1</strong>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem;">Delay: 50ms</p>
+        </div>
+        <div class="pulse-card">
+          <strong style="color: var(--color-text);">Card 2</strong>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem;">Delay: 100ms</p>
+        </div>
+        <div class="pulse-card">
+          <strong style="color: var(--color-text);">Card 3</strong>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem;">Delay: 150ms</p>
+        </div>
+        <div class="pulse-card">
+          <strong style="color: var(--color-text);">Card 4</strong>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem;">Delay: 200ms</p>
+        </div>
+        <div class="pulse-card">
+          <strong style="color: var(--color-text);">Card 5</strong>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem;">Delay: 250ms</p>
+        </div>
+        <div class="pulse-card">
+          <strong style="color: var(--color-text);">Card 6</strong>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem;">Delay: 300ms</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 4: Card Status Glow Effects -->
+    <div class="section">
+      <h2>4. Card Status Glow Effects</h2>
+      <p style="color: var(--color-text-secondary); margin-bottom: 1rem;">Cards should have subtle glows matching their status. At-risk cards should have pulsing attention glow.</p>
+
+      <div class="pulse-cards-grid">
+        <div class="pulse-card pulse-card--thriving">
+          <strong style="color: var(--color-text);">Thriving Card</strong>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem;">Subtle green glow</p>
+        </div>
+        <div class="pulse-card pulse-card--stable">
+          <strong style="color: var(--color-text);">Stable Card</strong>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem;">Subtle yellow glow</p>
+        </div>
+        <div class="pulse-card pulse-card--cooling">
+          <strong style="color: var(--color-text);">Cooling Card</strong>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem;">Subtle orange glow</p>
+        </div>
+        <div class="pulse-card pulse-card--at_risk">
+          <strong style="color: var(--color-text);">At Risk Card</strong>
+          <p style="color: var(--color-text-secondary); font-size: 0.875rem;">Pulsing red attention glow</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 5: Sparkline Draw Animation -->
+    <div class="section">
+      <h2>5. Sparkline Draw Animation</h2>
+      <p style="color: var(--color-text-secondary); margin-bottom: 1rem;">SVG sparkline paths should draw progressively from left to right over 1 second.</p>
+
+      <div class="demo-row">
+        <div class="demo-item">
+          <svg class="sparkline" viewBox="0 0 200 40">
+            <path d="M0,35 L25,30 L50,20 L75,25 L100,15 L125,18 L150,8 L175,12 L200,5"></path>
+          </svg>
+          <div class="demo-label">Sparkline (stroke animation)</div>
+        </div>
+        <div class="demo-item">
+          <svg class="sparkline" viewBox="0 0 200 40">
+            <path class="sparkline__fill" d="M0,35 L25,30 L50,20 L75,25 L100,15 L125,18 L150,8 L175,12 L200,5 L200,40 L0,40 Z"></path>
+            <path d="M0,35 L25,30 L50,20 L75,25 L100,15 L125,18 L150,8 L175,12 L200,5"></path>
+          </svg>
+          <div class="demo-label">Sparkline with fill (delayed)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 6: Trend Arrow Animations -->
+    <div class="section">
+      <h2>6. Trend Arrow Bounce Animations</h2>
+      <p style="color: var(--color-text-secondary); margin-bottom: 1rem;">Arrows should bounce on load - up arrow bounces up, down arrow bounces down, stable pulses.</p>
+
+      <div class="demo-row">
+        <div class="demo-item">
+          <div class="trend-arrow trend-arrow--up">
+            <svg class="trend-arrow__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 19V5M5 12l7-7 7 7"></path>
+            </svg>
+            <span>+15%</span>
+          </div>
+          <div class="demo-label">Trend Up (bounces up)</div>
+        </div>
+        <div class="demo-item">
+          <div class="trend-arrow trend-arrow--down">
+            <svg class="trend-arrow__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12l7 7 7-7"></path>
+            </svg>
+            <span>-8%</span>
+          </div>
+          <div class="demo-label">Trend Down (bounces down)</div>
+        </div>
+        <div class="demo-item">
+          <div class="trend-arrow trend-arrow--stable">
+            <svg class="trend-arrow__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14"></path>
+            </svg>
+            <span>0%</span>
+          </div>
+          <div class="demo-label">Stable (subtle pulse)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section 7: Verification Checklist -->
+    <div class="section">
+      <h2>Verification Checklist</h2>
+      <div style="color: var(--color-text);">
+        <p><input type="checkbox" id="c1"> <label for="c1">Pulse dot animates with heartbeat rhythm</label></p>
+        <p><input type="checkbox" id="c2"> <label for="c2">Cards fade in sequentially with stagger (50ms increments)</label></p>
+        <p><input type="checkbox" id="c3"> <label for="c3">Status colors are correct (green/yellow/orange/red)</label></p>
+        <p><input type="checkbox" id="c4"> <label for="c4">Sparkline paths draw progressively (left to right)</label></p>
+        <p><input type="checkbox" id="c5"> <label for="c5">Trend arrows bounce on load (up/down/stable)</label></p>
+        <p><input type="checkbox" id="c6"> <label for="c6">Ripple effect radiates from pulse dot</label></p>
+        <p><input type="checkbox" id="c7"> <label for="c7">At-risk card has pulsing red glow</label></p>
+        <p><input type="checkbox" id="c8"> <label for="c8">No console errors (check DevTools)</label></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Log any errors to console for verification
+    window.onerror = function(msg, url, line, col, error) {
+      console.error('Error:', msg, 'at', url, 'line', line);
+      return false;
+    };
+    console.log('Pulse Animation Test Page loaded successfully');
+  </script>
+</body>
+</html>
