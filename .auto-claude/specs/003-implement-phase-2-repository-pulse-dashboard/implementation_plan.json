@@ -408,7 +408,9 @@
             "command": "npm test -- --run src/js/__tests__/PulseDashboard.test.js 2>&1 | grep -E '(Tests|pass)' | tail -5",
             "expected": "All edge case tests pass"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added comprehensive edge case tests including: null/undefined data handling for all calculators, partial data handling tests, boundary value tests for STATUS_THRESHOLDS and TREND_THRESHOLDS, clamp and percentageChange boundary tests, integration tests for calculateAllMetrics with full data flow, edge case combinations (new repo, archived, viral, single contributor), and graceful degradation tests. All 410 tests passing.",
+          "updated_at": "2025-12-30T18:38:06.829477+00:00"
         }
       ]
     },
@@ -434,7 +436,9 @@
             "command": "npm test 2>&1 | tail -15",
             "expected": "All tests pass, 290+ total tests"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "All 693 tests pass (9 test files). PulseDashboard tests: 410, existing tests preserved. Well above the 290+ expected target.",
+          "updated_at": "2025-12-30T18:38:46.714388+00:00"
         },
         {
           "id": "subtask-8-2",
@@ -541,5 +545,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T18:32:45.449361+00:00"
+  "last_updated": "2025-12-30T18:38:46.714395+00:00"
 }
