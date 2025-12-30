@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createSparkline, createMiniSparkline, calculateTrend } from '../components/PulseDashboard/Sparkline.js';
 import { createTrendArrow, createMiniTrendArrow, getTrendDirection, formatPercentage } from '../components/PulseDashboard/TrendArrow.js';
 import {
@@ -16,6 +16,11 @@ import {
   createCompactMetricCard,
   createMetricCardSkeleton
 } from '../components/PulseDashboard/MetricCard.js';
+import {
+  createPulseDashboard,
+  createPulseDashboardSkeleton,
+  createPulseDashboardError
+} from '../components/PulseDashboard/index.js';
 
 describe('Sparkline', () => {
   describe('createSparkline', () => {
@@ -1535,6 +1540,551 @@ describe('MetricCard', () => {
 
       expect(footer).not.toBeNull();
       expect(footer.querySelector('.pulse-card__skeleton-line--label')).not.toBeNull();
+    });
+  });
+});
+
+// =============================================================================
+// PulseDashboard Main Component Tests
+// =============================================================================
+
+describe('PulseDashboard', () => {
+  // Helper to create mock pulse data
+  const createMockPulseData = (overrides = {}) => ({
+    commitVelocity: {
+      value: 25,
+      trend: 12.5,
+      status: 'thriving',
+      sparklineData: [15, 18, 20, 22, 25, 23, 28, 25]
+    },
+    issueHealth: {
+      temperature: 'warm',
+      trend: -3.2,
+      status: 'stable'
+    },
+    prHealth: {
+      funnel: { opened: 30, merged: 22, closed: 5 },
+      status: 'thriving'
+    },
+    busFactor: {
+      distribution: [
+        { login: 'user1', percentage: 35 },
+        { login: 'user2', percentage: 25 },
+        { login: 'user3', percentage: 20 }
+      ],
+      status: 'stable'
+    },
+    releaseFreshness: {
+      score: 85,
+      daysSincePush: 5,
+      status: 'thriving'
+    },
+    communityHealth: {
+      value: 850,
+      trend: 8.3,
+      status: 'thriving',
+      sparklineData: [700, 720, 750, 780, 800, 820, 840, 850]
+    },
+    ...overrides
+  });
+
+  describe('createPulseDashboard', () => {
+    it('should create dashboard container', () => {
+      const element = createPulseDashboard(createMockPulseData());
+
+      expect(element.tagName.toLowerCase()).toBe('section');
+      expect(element.className).toContain('pulse-dashboard');
+    });
+
+    it('should set aria-label for accessibility', () => {
+      const element = createPulseDashboard(createMockPulseData());
+
+      expect(element.getAttribute('aria-label')).toBe('Repository Pulse Dashboard');
+    });
+
+    it('should create header element', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const header = element.querySelector('.pulse-dashboard__header');
+
+      expect(header).not.toBeNull();
+    });
+
+    it('should display "Repository Pulse" title', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const title = element.querySelector('.pulse-dashboard__title');
+
+      expect(title).not.toBeNull();
+      expect(title.textContent).toBe('Repository Pulse');
+    });
+
+    it('should display repository name when provided', () => {
+      const element = createPulseDashboard(createMockPulseData({ repoName: 'owner/repo' }));
+      const subtitle = element.querySelector('.pulse-dashboard__subtitle');
+
+      expect(subtitle).not.toBeNull();
+      expect(subtitle.textContent).toBe('owner/repo');
+    });
+
+    it('should not display subtitle when repoName is not provided', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const subtitle = element.querySelector('.pulse-dashboard__subtitle');
+
+      expect(subtitle).toBeNull();
+    });
+
+    it('should create status section with role="status"', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const status = element.querySelector('.pulse-dashboard__status');
+
+      expect(status).not.toBeNull();
+      expect(status.getAttribute('role')).toBe('status');
+      expect(status.getAttribute('aria-live')).toBe('polite');
+    });
+
+    it('should display thriving status icon', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const icon = element.querySelector('.pulse-dashboard__status-icon');
+
+      expect(icon).not.toBeNull();
+      expect(icon.textContent).toBe('🟢');
+    });
+
+    it('should create metric cards grid', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const grid = element.querySelector('.pulse-dashboard__grid');
+
+      expect(grid).not.toBeNull();
+      expect(grid.getAttribute('role')).toBe('list');
+      expect(grid.getAttribute('aria-label')).toBe('Repository vital signs');
+    });
+
+    it('should create 6 metric cards', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const cards = element.querySelectorAll('.pulse-card');
+
+      expect(cards.length).toBe(6);
+    });
+
+    it('should assign listitem role to each card', () => {
+      const element = createPulseDashboard(createMockPulseData());
+      const cards = element.querySelectorAll('.pulse-card');
+
+      cards.forEach(card => {
+        expect(card.getAttribute('role')).toBe('listitem');
+      });
+    });
+
+    it('should set data-status attribute on container', () => {
+      const element = createPulseDashboard(createMockPulseData());
+
+      expect(element.dataset.status).toBeDefined();
+    });
+
+    it('should handle null pulseData gracefully', () => {
+      const element = createPulseDashboard(null);
+
+      expect(element.className).toContain('pulse-dashboard');
+      expect(element.querySelectorAll('.pulse-card').length).toBe(6);
+    });
+
+    it('should handle undefined pulseData gracefully', () => {
+      const element = createPulseDashboard(undefined);
+
+      expect(element.className).toContain('pulse-dashboard');
+    });
+
+    it('should handle empty object pulseData', () => {
+      const element = createPulseDashboard({});
+
+      expect(element.className).toContain('pulse-dashboard');
+      expect(element.querySelectorAll('.pulse-card').length).toBe(6);
+    });
+
+    // Status calculation tests
+    describe('overall status calculation', () => {
+      it('should use overallStatus when explicitly provided', () => {
+        const element = createPulseDashboard(createMockPulseData({ overallStatus: 'cooling' }));
+
+        expect(element.dataset.status).toBe('cooling');
+      });
+
+      it('should calculate thriving when 4+ metrics are thriving', () => {
+        const data = createMockPulseData({
+          commitVelocity: { value: 50, status: 'thriving' },
+          issueHealth: { temperature: 'hot', status: 'thriving' },
+          prHealth: { funnel: { opened: 30 }, status: 'thriving' },
+          busFactor: { distribution: [], status: 'thriving' },
+          releaseFreshness: { score: 95, status: 'thriving' },
+          communityHealth: { value: 1000, status: 'stable' }
+        });
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('thriving');
+      });
+
+      it('should calculate at_risk when 2+ metrics are at_risk', () => {
+        const data = createMockPulseData({
+          commitVelocity: { value: 0, status: 'at_risk' },
+          issueHealth: { temperature: 'cool', status: 'at_risk' },
+          prHealth: { funnel: { opened: 0 }, status: 'stable' }
+        });
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('at_risk');
+      });
+
+      it('should calculate cooling when 3+ metrics are cooling', () => {
+        const data = createMockPulseData({
+          commitVelocity: { value: 5, status: 'cooling' },
+          issueHealth: { temperature: 'cool', status: 'cooling' },
+          prHealth: { funnel: { opened: 5 }, status: 'cooling' },
+          busFactor: { distribution: [], status: 'stable' }
+        });
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('cooling');
+      });
+
+      it('should calculate cooling when 1 metric is at_risk', () => {
+        const data = createMockPulseData({
+          commitVelocity: { value: 0, status: 'at_risk' },
+          issueHealth: { temperature: 'warm', status: 'stable' },
+          prHealth: { funnel: { opened: 10 }, status: 'stable' },
+          busFactor: { distribution: [], status: 'stable' }
+        });
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('cooling');
+      });
+
+      it('should default to stable when no clear pattern', () => {
+        const data = createMockPulseData({
+          commitVelocity: { value: 15, status: 'stable' },
+          issueHealth: { temperature: 'warm', status: 'stable' },
+          prHealth: { funnel: { opened: 10 }, status: 'stable' }
+        });
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('stable');
+      });
+
+      it('should default to stable for empty statuses', () => {
+        const data = {
+          commitVelocity: { value: 10 },
+          issueHealth: { temperature: 'warm' }
+        };
+        const element = createPulseDashboard(data);
+
+        expect(element.dataset.status).toBe('stable');
+      });
+    });
+
+    // Status display tests
+    describe('status display', () => {
+      it('should display thriving label and description', () => {
+        const element = createPulseDashboard(createMockPulseData({ overallStatus: 'thriving' }));
+        const label = element.querySelector('.pulse-dashboard__status-label');
+        const desc = element.querySelector('.pulse-dashboard__status-description');
+
+        expect(label.textContent).toBe('Thriving');
+        expect(desc.textContent).toContain('highly active');
+      });
+
+      it('should display stable label and description', () => {
+        const element = createPulseDashboard(createMockPulseData({ overallStatus: 'stable' }));
+        const label = element.querySelector('.pulse-dashboard__status-label');
+        const desc = element.querySelector('.pulse-dashboard__status-description');
+
+        expect(label.textContent).toBe('Stable');
+        expect(desc.textContent).toContain('consistent activity');
+      });
+
+      it('should display cooling label and description', () => {
+        const element = createPulseDashboard(createMockPulseData({ overallStatus: 'cooling' }));
+        const label = element.querySelector('.pulse-dashboard__status-label');
+        const desc = element.querySelector('.pulse-dashboard__status-description');
+
+        expect(label.textContent).toBe('Cooling');
+        expect(desc.textContent).toContain('declining');
+      });
+
+      it('should display at_risk label and description', () => {
+        const element = createPulseDashboard(createMockPulseData({ overallStatus: 'at_risk' }));
+        const label = element.querySelector('.pulse-dashboard__status-label');
+        const desc = element.querySelector('.pulse-dashboard__status-description');
+
+        expect(label.textContent).toBe('At Risk');
+        expect(desc.textContent).toContain('dying or unmaintained');
+      });
+
+      it('should fall back to calculated status for invalid status value', () => {
+        // When overallStatus is invalid, it falls back to calculating from metrics
+        const data = createMockPulseData();
+        data.overallStatus = 'invalid_status';
+        const element = createPulseDashboard(data);
+        const label = element.querySelector('.pulse-dashboard__status-label');
+
+        // Mock data has 4 thriving metrics, so calculated status is 'thriving'
+        expect(label.textContent).toBe('Thriving');
+      });
+
+      it('should display correct status icons', () => {
+        const testCases = [
+          { status: 'thriving', icon: '🟢' },
+          { status: 'stable', icon: '🟡' },
+          { status: 'cooling', icon: '🟠' },
+          { status: 'at_risk', icon: '🔴' }
+        ];
+
+        testCases.forEach(({ status, icon }) => {
+          const element = createPulseDashboard(createMockPulseData({ overallStatus: status }));
+          const iconElement = element.querySelector('.pulse-dashboard__status-icon');
+          expect(iconElement.textContent).toBe(icon);
+        });
+      });
+
+      it('should set aria-hidden on status icon', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const icon = element.querySelector('.pulse-dashboard__status-icon');
+
+        expect(icon.getAttribute('aria-hidden')).toBe('true');
+      });
+    });
+
+    // Metric card content tests
+    describe('metric cards content', () => {
+      it('should render commit velocity card with sparkline', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const cards = element.querySelectorAll('.pulse-card');
+        const velocityCard = cards[0];
+
+        expect(velocityCard.textContent).toContain('Commit Velocity');
+        expect(velocityCard.querySelector('.sparkline')).not.toBeNull();
+      });
+
+      it('should render issue health card with temperature indicator', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const tempIndicator = element.querySelector('.temperature-indicator');
+
+        expect(tempIndicator).not.toBeNull();
+      });
+
+      it('should render PR health card with funnel', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const funnel = element.querySelector('.pr-funnel');
+
+        expect(funnel).not.toBeNull();
+      });
+
+      it('should render bus factor card with contributor bars', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const bars = element.querySelector('.contributor-bars');
+
+        expect(bars).not.toBeNull();
+      });
+
+      it('should render freshness card with gauge', () => {
+        const element = createPulseDashboard(createMockPulseData());
+        const gauge = element.querySelector('.freshness-gauge');
+
+        expect(gauge).not.toBeNull();
+      });
+
+      it('should handle missing metric data gracefully', () => {
+        const partialData = {
+          commitVelocity: { value: 25, status: 'thriving' }
+          // Other metrics are missing
+        };
+        const element = createPulseDashboard(partialData);
+        const cards = element.querySelectorAll('.pulse-card');
+
+        // Should still render all 6 cards
+        expect(cards.length).toBe(6);
+      });
+    });
+  });
+
+  describe('createPulseDashboardSkeleton', () => {
+    it('should create skeleton dashboard container', () => {
+      const element = createPulseDashboardSkeleton();
+
+      expect(element.tagName.toLowerCase()).toBe('section');
+      expect(element.className).toContain('pulse-dashboard');
+      expect(element.className).toContain('pulse-dashboard--loading');
+    });
+
+    it('should set aria-label for loading state', () => {
+      const element = createPulseDashboardSkeleton();
+
+      expect(element.getAttribute('aria-label')).toBe('Loading Repository Pulse Dashboard');
+    });
+
+    it('should set aria-busy to true', () => {
+      const element = createPulseDashboardSkeleton();
+
+      expect(element.getAttribute('aria-busy')).toBe('true');
+    });
+
+    it('should create skeleton header', () => {
+      const element = createPulseDashboardSkeleton();
+      const header = element.querySelector('.pulse-dashboard__header--skeleton');
+
+      expect(header).not.toBeNull();
+      expect(header.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should create title skeleton line', () => {
+      const element = createPulseDashboardSkeleton();
+      const titleSkeleton = element.querySelector('.pulse-dashboard__skeleton-line--title');
+
+      expect(titleSkeleton).not.toBeNull();
+    });
+
+    it('should create status skeleton line', () => {
+      const element = createPulseDashboardSkeleton();
+      const statusSkeleton = element.querySelector('.pulse-dashboard__skeleton-line--status');
+
+      expect(statusSkeleton).not.toBeNull();
+    });
+
+    it('should create skeleton grid', () => {
+      const element = createPulseDashboardSkeleton();
+      const grid = element.querySelector('.pulse-dashboard__grid');
+
+      expect(grid).not.toBeNull();
+      expect(grid.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should create 6 skeleton metric cards', () => {
+      const element = createPulseDashboardSkeleton();
+      const skeletonCards = element.querySelectorAll('.pulse-card--skeleton');
+
+      expect(skeletonCards.length).toBe(6);
+    });
+
+    it('should have skeleton header and body elements in cards', () => {
+      const element = createPulseDashboardSkeleton();
+      const firstCard = element.querySelector('.pulse-card--skeleton');
+
+      expect(firstCard.querySelector('.pulse-card__header')).not.toBeNull();
+      expect(firstCard.querySelector('.pulse-card__body')).not.toBeNull();
+    });
+  });
+
+  describe('createPulseDashboardError', () => {
+    it('should create error dashboard container', () => {
+      const element = createPulseDashboardError(() => {});
+
+      expect(element.tagName.toLowerCase()).toBe('section');
+      expect(element.className).toContain('pulse-dashboard');
+      expect(element.className).toContain('pulse-dashboard--error');
+    });
+
+    it('should set aria-label for error state', () => {
+      const element = createPulseDashboardError(() => {});
+
+      expect(element.getAttribute('aria-label')).toBe('Repository Pulse Dashboard - Error');
+    });
+
+    it('should set role="alert" for screen readers', () => {
+      const element = createPulseDashboardError(() => {});
+
+      expect(element.getAttribute('role')).toBe('alert');
+    });
+
+    it('should create error content container', () => {
+      const element = createPulseDashboardError(() => {});
+      const content = element.querySelector('.pulse-dashboard__error-content');
+
+      expect(content).not.toBeNull();
+    });
+
+    it('should display error icon', () => {
+      const element = createPulseDashboardError(() => {});
+      const icon = element.querySelector('.pulse-dashboard__error-icon');
+
+      expect(icon).not.toBeNull();
+      expect(icon.textContent).toBe('⚠️');
+      expect(icon.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    it('should display error message', () => {
+      const element = createPulseDashboardError(() => {});
+      const message = element.querySelector('.pulse-dashboard__error-message');
+
+      expect(message).not.toBeNull();
+      expect(message.textContent).toContain('Unable to load');
+    });
+
+    it('should display error description', () => {
+      const element = createPulseDashboardError(() => {});
+      const description = element.querySelector('.pulse-dashboard__error-description');
+
+      expect(description).not.toBeNull();
+      expect(description.textContent).toContain('problem fetching');
+    });
+
+    it('should create retry button', () => {
+      const element = createPulseDashboardError(() => {});
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      expect(button).not.toBeNull();
+      expect(button.tagName.toLowerCase()).toBe('button');
+      expect(button.type).toBe('button');
+      expect(button.textContent).toBe('Retry');
+    });
+
+    it('should set aria-label on retry button', () => {
+      const element = createPulseDashboardError(() => {});
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      expect(button.getAttribute('aria-label')).toBe('Retry loading pulse data');
+    });
+
+    it('should call onRetry callback when retry button is clicked', () => {
+      const onRetry = vi.fn();
+      const element = createPulseDashboardError(onRetry);
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      button.click();
+
+      expect(onRetry).toHaveBeenCalledTimes(1);
+    });
+
+    it('should call onRetry callback multiple times on multiple clicks', () => {
+      const onRetry = vi.fn();
+      const element = createPulseDashboardError(onRetry);
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      button.click();
+      button.click();
+      button.click();
+
+      expect(onRetry).toHaveBeenCalledTimes(3);
+    });
+
+    it('should handle undefined onRetry gracefully', () => {
+      const element = createPulseDashboardError(undefined);
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      // Should not throw when clicking
+      expect(() => button.click()).not.toThrow();
+    });
+
+    it('should handle null onRetry gracefully', () => {
+      const element = createPulseDashboardError(null);
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      // Should not throw when clicking
+      expect(() => button.click()).not.toThrow();
+    });
+
+    it('should handle non-function onRetry gracefully', () => {
+      const element = createPulseDashboardError('not a function');
+      const button = element.querySelector('.pulse-dashboard__retry-btn');
+
+      // Should not throw when clicking
+      expect(() => button.click()).not.toThrow();
     });
   });
 });
