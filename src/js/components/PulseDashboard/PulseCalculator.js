@@ -27,7 +27,8 @@ import {
   TIME_MS,
   COMMUNITY,
   ISSUES,
-  PR_HEALTH
+  PR_HEALTH,
+  BUS_FACTOR
 } from './constants.js';
 
 // =============================================================================
@@ -1017,6 +1018,210 @@ function generatePRSparkline(prs, days) {
       const index = days - 1 - daysAgo;
       sparkline[index]++;
     }
+  }
+
+  return sparkline;
+}
+
+/**
+ * Calculate bus factor from contributor data
+ * Analyzes contributor concentration risk on a 1-10 scale
+ * Lower bus factor = higher risk (1 = single point of failure)
+ *
+ * @param {Object[]} contributors - Array of GitHub contributor objects
+ * @param {number} contributors[].total - Total commit count for this contributor
+ * @param {Object} contributors[].author - Author info
+ * @param {string} contributors[].author.login - Author username
+ * @returns {Object} MetricResult with bus factor value and risk level
+ *
+ * @example
+ * // Well-distributed team
+ * const contributors = [
+ *   { total: 100, author: { login: 'dev1' } },
+ *   { total: 80, author: { login: 'dev2' } },
+ *   { total: 60, author: { login: 'dev3' } },
+ *   { total: 40, author: { login: 'dev4' } },
+ *   { total: 20, author: { login: 'dev5' } }
+ * ];
+ * const result = calculateBusFactor(contributors);
+ * // result.value >= 5
+ * // result.riskLevel === 'healthy'
+ *
+ * @example
+ * // Single contributor (critical risk)
+ * const contributors = [{ total: 500, author: { login: 'solo' } }];
+ * const result = calculateBusFactor(contributors);
+ * // result.value === 1
+ * // result.riskLevel === 'critical'
+ *
+ * @example
+ * // Handle missing data
+ * const result = calculateBusFactor(null);
+ * // result.riskLevel === 'critical'
+ * // result.label === 'Contributor data unavailable'
+ */
+export function calculateBusFactor(contributors) {
+  // Handle missing or invalid contributor data
+  if (!contributors || !Array.isArray(contributors) || contributors.length === 0) {
+    return getDefaultMetric('busFactor');
+  }
+
+  // Filter out contributors without valid data
+  const validContributors = contributors.filter(c =>
+    c && typeof c.total === 'number' && c.total > 0 && c.author?.login
+  );
+
+  // No valid contributors = critical risk
+  if (validContributors.length === 0) {
+    return getDefaultMetric('busFactor');
+  }
+
+  // Sort by contribution count (descending)
+  const sorted = [...validContributors].sort((a, b) => b.total - a.total);
+
+  // Calculate total commits across all contributors
+  const totalCommits = sorted.reduce((sum, c) => sum + c.total, 0);
+
+  // Calculate concentration percentage of top contributor
+  const topContributorCommits = sorted[0].total;
+  const topConcentration = (topContributorCommits / totalCommits) * 100;
+
+  // Count contributors with significant contributions (>5% of total)
+  const significantThreshold = totalCommits * 0.05;
+  const significantContributors = sorted.filter(c => c.total >= significantThreshold).length;
+
+  // Calculate how many contributors it takes to reach 80% of commits
+  // This is a key bus factor metric - lower number = higher concentration
+  let cumulativeCommits = 0;
+  let contributorsFor80Percent = 0;
+  const targetCommits = totalCommits * 0.8;
+
+  for (const contributor of sorted) {
+    cumulativeCommits += contributor.total;
+    contributorsFor80Percent++;
+    if (cumulativeCommits >= targetCommits) break;
+  }
+
+  // Calculate bus factor score (1-10)
+  // Based on both number of significant contributors and concentration
+  let busFactor;
+
+  // Primary factor: number of contributors to cover 80% of work
+  if (contributorsFor80Percent >= 5) {
+    busFactor = 10; // Excellent distribution
+  } else if (contributorsFor80Percent >= 4) {
+    busFactor = 8;
+  } else if (contributorsFor80Percent >= 3) {
+    busFactor = 6;
+  } else if (contributorsFor80Percent >= 2) {
+    busFactor = 4;
+  } else {
+    busFactor = 2; // Single contributor handles 80%+
+  }
+
+  // Adjust based on top contributor concentration
+  if (topConcentration >= BUS_FACTOR.CONCENTRATION.CRITICAL) {
+    busFactor = Math.max(BUS_FACTOR.MIN, busFactor - 3);
+  } else if (topConcentration >= BUS_FACTOR.CONCENTRATION.HIGH) {
+    busFactor = Math.max(BUS_FACTOR.MIN, busFactor - 2);
+  } else if (topConcentration >= BUS_FACTOR.CONCENTRATION.MODERATE) {
+    busFactor = Math.max(BUS_FACTOR.MIN, busFactor - 1);
+  } else if (topConcentration <= BUS_FACTOR.CONCENTRATION.DISTRIBUTED) {
+    busFactor = Math.min(BUS_FACTOR.MAX, busFactor + 1);
+  }
+
+  // Bonus for having many significant contributors
+  if (significantContributors >= 10) {
+    busFactor = Math.min(BUS_FACTOR.MAX, busFactor + 1);
+  }
+
+  // Clamp to valid range
+  busFactor = clamp(busFactor, BUS_FACTOR.MIN, BUS_FACTOR.MAX);
+
+  // Determine risk level based on bus factor
+  let riskLevel;
+  if (busFactor >= BUS_FACTOR.RISK.HEALTHY) {
+    riskLevel = 'healthy';
+  } else if (busFactor >= BUS_FACTOR.RISK.MODERATE) {
+    riskLevel = 'moderate';
+  } else if (busFactor >= BUS_FACTOR.RISK.HIGH) {
+    riskLevel = 'high';
+  } else {
+    riskLevel = 'critical';
+  }
+
+  // Map risk level to standard status
+  let status;
+  if (riskLevel === 'healthy') status = 'thriving';
+  else if (riskLevel === 'moderate') status = 'stable';
+  else if (riskLevel === 'high') status = 'cooling';
+  else status = 'at_risk';
+
+  // Calculate a normalized score (0-100) for aggregation
+  const score = ((busFactor - BUS_FACTOR.MIN) / (BUS_FACTOR.MAX - BUS_FACTOR.MIN)) * 100;
+
+  // Generate sparkline data showing contribution distribution
+  // Top 10 contributors' relative contribution percentages
+  const sparklineData = generateContributorSparkline(sorted, totalCommits);
+
+  // Calculate trend (not applicable for bus factor - it's a snapshot metric)
+  // We use 0 as trend since we can't compare historical contributor data
+  const trend = 0;
+  const direction = 'stable';
+
+  // Generate human-readable label
+  const contributorCount = validContributors.length;
+  const roundedConcentration = Math.round(topConcentration);
+  const riskLabelInfo = BUS_FACTOR.RISK_LABELS[riskLevel];
+  let label;
+
+  if (contributorCount === 1) {
+    label = `${riskLabelInfo.label}: Single contributor`;
+  } else if (riskLevel === 'healthy') {
+    label = `${riskLabelInfo.label}: ${significantContributors} active contributors`;
+  } else {
+    label = `${riskLabelInfo.label}: Top contributor ${roundedConcentration}%`;
+  }
+
+  return {
+    value: busFactor,
+    trend,
+    direction,
+    sparklineData,
+    status,
+    label,
+    riskLevel,
+    // Additional metadata
+    contributorCount,
+    significantContributors,
+    topConcentration: Math.round(topConcentration * 10) / 10,
+    contributorsFor80Percent,
+    topContributor: sorted[0]?.author?.login || 'unknown',
+    score: Math.round(score)
+  };
+}
+
+/**
+ * Generate sparkline data for contributor distribution
+ * Shows relative contribution percentages of top contributors
+ *
+ * @param {Object[]} sortedContributors - Contributors sorted by commits (desc)
+ * @param {number} totalCommits - Total commits across all contributors
+ * @returns {number[]} Array of contribution percentages (top 10 or fewer)
+ */
+function generateContributorSparkline(sortedContributors, totalCommits) {
+  const maxPoints = 10;
+  const count = Math.min(sortedContributors.length, maxPoints);
+  const sparkline = [];
+
+  for (let i = 0; i < count; i++) {
+    const percentage = (sortedContributors[i].total / totalCommits) * 100;
+    sparkline.push(Math.round(percentage * 10) / 10);
+  }
+
+  // Pad with zeros if fewer than maxPoints contributors
+  while (sparkline.length < maxPoints) {
+    sparkline.push(0);
   }
 
   return sparkline;
