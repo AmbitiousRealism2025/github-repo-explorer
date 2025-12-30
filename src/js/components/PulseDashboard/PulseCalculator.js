@@ -1720,3 +1720,92 @@ function getDefaultOverallPulse() {
     metricsUsed: 0
   };
 }
+
+/**
+ * Calculate all metrics from pulse data and return complete metrics object
+ * Wrapper function that calls all 6 calculators and aggregates into overall pulse
+ *
+ * @param {Object} pulseData - Object containing all data needed for calculations
+ * @param {Object} [pulseData.repo] - GitHub repository data
+ * @param {Object} [pulseData.participation] - GitHub stats participation data with weekly commits
+ * @param {Object[]} [pulseData.issues] - Array of GitHub issue objects
+ * @param {Object[]} [pulseData.prs] - Array of GitHub pull request objects
+ * @param {Object[]} [pulseData.contributors] - Array of GitHub contributor objects
+ * @param {Object[]} [pulseData.events] - Array of GitHub events (for community momentum)
+ * @param {Object[]} [pulseData.releases] - Array of GitHub release objects (for freshness)
+ * @returns {Object} Complete metrics object with metrics (6) and overall pulse
+ *
+ * @example
+ * // Calculate all metrics from repository data
+ * const pulseData = {
+ *   repo: { stargazers_count: 1000, forks_count: 100, created_at: '2020-01-01', pushed_at: '2024-01-15' },
+ *   participation: { all: [5, 10, 8, 12, 15, 20, 18, 22, ...] },
+ *   issues: [{ created_at: '2024-01-01', state: 'open' }, ...],
+ *   prs: [{ created_at: '2024-01-01', merged_at: '2024-01-02', merged: true }, ...],
+ *   contributors: [{ total: 100, author: { login: 'dev1' } }, ...],
+ *   events: [{ type: 'WatchEvent', created_at: '2024-01-10' }, ...],
+ *   releases: [{ published_at: '2024-01-01', tag_name: 'v1.0.0' }, ...]
+ * };
+ * const result = calculateAllMetrics(pulseData);
+ * // result.metrics.velocity, result.metrics.momentum, etc.
+ * // result.overall.status, result.overall.score, etc.
+ *
+ * @example
+ * // Handle minimal data
+ * const result = calculateAllMetrics({ repo: { stargazers_count: 100 } });
+ * // Returns metrics with defaults for missing data
+ */
+export function calculateAllMetrics(pulseData) {
+  // Handle missing or invalid input
+  if (!pulseData || typeof pulseData !== 'object') {
+    return getDefaultAllMetrics();
+  }
+
+  // Extract data from pulseData with defaults
+  const {
+    repo = null,
+    participation = null,
+    issues = [],
+    prs = [],
+    contributors = [],
+    events = [],
+    releases = []
+  } = pulseData;
+
+  // Calculate all 6 individual metrics
+  const metrics = {
+    velocity: calculateVelocityScore(participation),
+    momentum: calculateCommunityMomentum(repo, events),
+    issues: calculateIssueTemperature(issues),
+    prs: calculatePRHealth(prs),
+    busFactor: calculateBusFactor(contributors),
+    freshness: calculateFreshnessIndex(repo, releases)
+  };
+
+  // Calculate overall pulse from individual metrics
+  const overall = calculateOverallPulse(metrics);
+
+  return {
+    metrics,
+    overall
+  };
+}
+
+/**
+ * Get default all metrics result for missing or invalid data
+ *
+ * @returns {Object} Default metrics object with all metrics set to defaults
+ */
+function getDefaultAllMetrics() {
+  return {
+    metrics: {
+      velocity: getDefaultMetric('velocity'),
+      momentum: getDefaultMetric('momentum'),
+      issues: getDefaultMetric('issues'),
+      prs: getDefaultMetric('prs'),
+      busFactor: getDefaultMetric('busFactor'),
+      freshness: getDefaultMetric('freshness')
+    },
+    overall: getDefaultOverallPulse()
+  };
+}
