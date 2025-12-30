@@ -210,7 +210,9 @@
             "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const repo = {updated_at: new Date().toISOString(), pushed_at: new Date().toISOString()}; const r = m.calculateFreshnessIndex(repo, []); console.log(JSON.stringify(r)); process.exit(r.freshness !== undefined ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
             "expected": "Returns MetricResult with freshness classification and days since push"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented calculateFreshnessIndex(repo, releases) function. Calculates days since push, last release, and freshness score using weighted scoring (push 60%, release 25%, update 15%). Returns MetricResult with freshness classification. All 283 tests pass.",
+          "updated_at": "2025-12-30T17:59:54.181505+00:00"
         }
       ]
     },
@@ -242,7 +244,9 @@
             "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const metrics = {velocity: {status: 'stable'}, momentum: {status: 'stable'}, issues: {status: 'stable'}, prs: {status: 'stable'}, busFactor: {status: 'stable'}, freshness: {status: 'stable'}}; const r = m.calculateOverallPulse(metrics); console.log(JSON.stringify(r)); process.exit(r.status !== undefined ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
             "expected": "Returns overall status, score, pulseSpeed, concerns count"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented calculateOverallPulse(metrics) that aggregates all 6 metrics into single status, calculates weighted score, pulse speed, and concerns count. All 283 tests pass. Verification successful.",
+          "updated_at": "2025-12-30T18:03:29.307807+00:00"
         },
         {
           "id": "subtask-5-2",
@@ -260,7 +264,9 @@
             "command": "node -e \"import('./src/js/components/PulseDashboard/PulseCalculator.js').then(m => { const data = {repo: {stargazers_count: 100, forks_count: 10, created_at: '2020-01-01', updated_at: new Date().toISOString(), pushed_at: new Date().toISOString()}}; const r = m.calculateAllMetrics(data); console.log(Object.keys(r)); process.exit(r.metrics && r.overall ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
             "expected": "Returns object with metrics (6) and overall pulse"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Implemented calculateAllMetrics(pulseData) wrapper function that calls all 6 metric calculators and returns complete metrics object with metrics (6) and overall pulse. Verification passed. All 283 tests pass.",
+          "updated_at": "2025-12-30T18:05:35.217704+00:00"
         }
       ]
     },
@@ -290,7 +296,9 @@
             "command": "node -e \"import('./src/js/components/PulseDashboard/index.js').then(m => { console.log('Exports:', Object.keys(m).join(', ')); process.exit(m.calculateAllMetrics ? 0 : 1); }).catch(e => { console.error(e); process.exit(1); })\"",
             "expected": "Module exports calculateAllMetrics and individual calculators"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Created index.js exporting 32 public items: calculateAllMetrics, 7 individual calculators, 10 utility functions, and 14 constants. Verification passed - all exports accessible.",
+          "updated_at": "2025-12-30T18:07:38.168173+00:00"
         }
       ]
     },
@@ -320,7 +328,9 @@
             "command": "npm test -- --run src/js/__tests__/PulseDashboard.test.js 2>&1 | head -20",
             "expected": "Tests run without errors"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Created PulseDashboard.test.js with 166 tests including:\n- Mock data factories for repos, participation, issues, PRs, contributors, events, releases\n- Utility function tests: average, daysSince, daysBetween, getTrendDirection, getMetricStatus, getDefaultMetric, clamp, percentageChange, safeParseDate, emptySparkline\n- Calculator tests for all 7 metric calculators\n- Edge case tests for null inputs, empty arrays, invalid dates\n- MetricResult shape validation tests\nTotal tests: 449 (283 original + 166 new)",
+          "updated_at": "2025-12-30T18:12:23.553369+00:00"
         },
         {
           "id": "subtask-7-2",
@@ -525,5 +535,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T17:56:15.602271+00:00"
+  "last_updated": "2025-12-30T18:12:23.553377+00:00"
 }

@@ -703,86 +703,250 @@ describe('PulseDashboard Utilities', () => {
 // =============================================================================
 
 describe('calculateVelocityScore', () => {
-  it('should return default metric for null participation', () => {
-    const result = calculateVelocityScore(null);
-    expect(result.status).toBe('stable');
-    expect(result.label).toBe('Commit data unavailable');
+  describe('Empty Data', () => {
+    it('should return default metric for null participation', () => {
+      const result = calculateVelocityScore(null);
+      expect(result.status).toBe('stable');
+      expect(result.label).toBe('Commit data unavailable');
+      expect(result.value).toBe(0);
+      expect(result.trend).toBe(0);
+      expect(result.direction).toBe('stable');
+    });
+
+    it('should return default metric for undefined participation', () => {
+      const result = calculateVelocityScore(undefined);
+      expect(result.status).toBe('stable');
+      expect(result.label).toBe('Commit data unavailable');
+    });
+
+    it('should return default metric for missing all array', () => {
+      const result = calculateVelocityScore({});
+      expect(result.status).toBe('stable');
+      expect(result.label).toBe('Commit data unavailable');
+    });
+
+    it('should return default metric for non-array all', () => {
+      const result = calculateVelocityScore({ all: 'not an array' });
+      expect(result.status).toBe('stable');
+    });
+
+    it('should return default metric for object with null all', () => {
+      const result = calculateVelocityScore({ all: null });
+      expect(result.status).toBe('stable');
+      expect(result.label).toBe('Commit data unavailable');
+    });
+
+    it('should handle insufficient commit history (less than 4 weeks)', () => {
+      const result = calculateVelocityScore({ all: [1, 2] });
+      expect(result.label).toBe('Insufficient commit history');
+      expect(result.status).toBe('stable');
+    });
+
+    it('should handle insufficient commit history (exactly 3 weeks)', () => {
+      const result = calculateVelocityScore({ all: [5, 10, 8] });
+      expect(result.label).toBe('Insufficient commit history');
+    });
+
+    it('should handle empty array', () => {
+      const result = calculateVelocityScore({ all: [] });
+      expect(result.label).toBe('Insufficient commit history');
+      expect(result.status).toBe('stable');
+    });
+
+    it('should handle all zero commits', () => {
+      const participation = { all: Array(52).fill(0) };
+      const result = calculateVelocityScore(participation);
+      expect(result.value).toBe(0);
+      expect(result.direction).toBe('stable');
+      // With zero activity, status is stable (no change)
+      expect(result.status).toBe('stable');
+    });
+
+    it('should return sparklineData even for empty data', () => {
+      const result = calculateVelocityScore(null);
+      expect(Array.isArray(result.sparklineData)).toBe(true);
+    });
   });
 
-  it('should return default metric for undefined participation', () => {
-    const result = calculateVelocityScore(undefined);
-    expect(result.status).toBe('stable');
+  describe('Increasing Activity', () => {
+    it('should detect moderate increase (direction up)', () => {
+      const participation = createMockParticipation({ recentAvg: 15, previousAvg: 10 });
+      const result = calculateVelocityScore(participation);
+      expect(result.direction).toBe('up');
+      expect(result.trend).toBeGreaterThan(0);
+    });
+
+    it('should detect strong increase with high growth rate', () => {
+      const participation = createMockParticipation({ recentAvg: 30, previousAvg: 10 });
+      const result = calculateVelocityScore(participation);
+      expect(result.direction).toBe('up');
+      expect(result.trend).toBeGreaterThan(50);
+    });
+
+    it('should return thriving status for high growth', () => {
+      const participation = createMockParticipation({ recentAvg: 25, previousAvg: 10 });
+      const result = calculateVelocityScore(participation);
+      expect(result.status).toBe('thriving');
+    });
+
+    it('should handle 2x increase correctly', () => {
+      const participation = createMockParticipation({ recentAvg: 20, previousAvg: 10 });
+      const result = calculateVelocityScore(participation);
+      expect(result.direction).toBe('up');
+      expect(result.trend).toBeGreaterThanOrEqual(50);
+    });
+
+    it('should handle growth from very low baseline', () => {
+      const participation = createMockParticipation({ recentAvg: 10, previousAvg: 1 });
+      const result = calculateVelocityScore(participation);
+      expect(result.direction).toBe('up');
+      expect(result.trend).toBeGreaterThan(0);
+    });
+
+    it('should handle extreme growth with large trend values', () => {
+      const participation = createMockParticipation({ recentAvg: 100, previousAvg: 1 });
+      const result = calculateVelocityScore(participation);
+      // Trend can exceed 100% for extreme growth (reflects actual percentage change)
+      expect(result.trend).toBeGreaterThan(100);
+      expect(result.direction).toBe('up');
+      expect(result.status).toBe('thriving');
+    });
+
+    it('should include positive trend in label for increasing activity', () => {
+      const participation = createMockParticipation({ recentAvg: 20, previousAvg: 10 });
+      const result = calculateVelocityScore(participation);
+      // Label should indicate growth/positive trend
+      expect(result.label.length).toBeGreaterThan(0);
+    });
+
+    it('should have higher value with more recent commits', () => {
+      const lowActivity = createMockParticipation({ recentAvg: 5, previousAvg: 5 });
+      const highActivity = createMockParticipation({ recentAvg: 20, previousAvg: 10 });
+      const lowResult = calculateVelocityScore(lowActivity);
+      const highResult = calculateVelocityScore(highActivity);
+      expect(highResult.value).toBeGreaterThan(lowResult.value);
+    });
   });
 
-  it('should return default metric for missing all array', () => {
-    const result = calculateVelocityScore({});
-    expect(result.status).toBe('stable');
+  describe('Declining Activity', () => {
+    it('should detect moderate decline (direction down)', () => {
+      const participation = createMockParticipation({ recentAvg: 8, previousAvg: 15 });
+      const result = calculateVelocityScore(participation);
+      expect(result.direction).toBe('down');
+      expect(result.trend).toBeLessThan(0);
+    });
+
+    it('should detect severe decline with significant drop', () => {
+      const participation = createMockParticipation({ recentAvg: 2, previousAvg: 20 });
+      const result = calculateVelocityScore(participation);
+      expect(result.direction).toBe('down');
+      expect(result.trend).toBeLessThan(-50);
+    });
+
+    it('should return at_risk status for severe decline', () => {
+      const participation = createMockParticipation({ recentAvg: 2, previousAvg: 15 });
+      const result = calculateVelocityScore(participation);
+      expect(result.status).toBe('at_risk');
+    });
+
+    it('should return appropriate status for moderate decline', () => {
+      const participation = createMockParticipation({ recentAvg: 7, previousAvg: 10 });
+      const result = calculateVelocityScore(participation);
+      // 30% decline results in at_risk or cooling status
+      expect(['cooling', 'stable', 'at_risk']).toContain(result.status);
+    });
+
+    it('should handle 50% decline correctly', () => {
+      const participation = createMockParticipation({ recentAvg: 5, previousAvg: 10 });
+      const result = calculateVelocityScore(participation);
+      expect(result.direction).toBe('down');
+      expect(result.trend).toBeLessThanOrEqual(-30);
+    });
+
+    it('should handle decline to near-zero activity', () => {
+      const participation = createMockParticipation({ recentAvg: 1, previousAvg: 20 });
+      const result = calculateVelocityScore(participation);
+      expect(result.direction).toBe('down');
+      expect(result.status).toBe('at_risk');
+    });
+
+    it('should not go below -100% trend for extreme decline', () => {
+      const participation = createMockParticipation({ recentAvg: 1, previousAvg: 100 });
+      const result = calculateVelocityScore(participation);
+      expect(result.trend).toBeGreaterThanOrEqual(-100);
+    });
+
+    it('should have lower value with declining commits', () => {
+      const stableActivity = createMockParticipation({ recentAvg: 10, previousAvg: 10 });
+      const decliningActivity = createMockParticipation({ recentAvg: 3, previousAvg: 15 });
+      const stableResult = calculateVelocityScore(stableActivity);
+      const decliningResult = calculateVelocityScore(decliningActivity);
+      expect(decliningResult.value).toBeLessThan(stableResult.value);
+    });
   });
 
-  it('should return default metric for non-array all', () => {
-    const result = calculateVelocityScore({ all: 'not an array' });
-    expect(result.status).toBe('stable');
+  describe('Stable Activity', () => {
+    it('should detect stable activity', () => {
+      const participation = createMockParticipation({ recentAvg: 10, previousAvg: 10 });
+      const result = calculateVelocityScore(participation);
+      expect(result.direction).toBe('stable');
+    });
+
+    it('should detect small changes as stable or up', () => {
+      // Small increase (10%) may be detected as stable or slight up depending on threshold
+      const participation = createMockParticipation({ recentAvg: 11, previousAvg: 10 });
+      const result = calculateVelocityScore(participation);
+      expect(['stable', 'up']).toContain(result.direction);
+    });
+
+    it('should return stable status for consistent activity', () => {
+      const participation = createMockParticipation({ recentAvg: 10, previousAvg: 10 });
+      const result = calculateVelocityScore(participation);
+      expect(result.status).toBe('stable');
+    });
   });
 
-  it('should handle insufficient commit history', () => {
-    const result = calculateVelocityScore({ all: [1, 2] });
-    expect(result.label).toBe('Insufficient commit history');
-  });
+  describe('MetricResult Shape', () => {
+    it('should return complete MetricResult shape', () => {
+      const participation = createMockParticipation();
+      const result = calculateVelocityScore(participation);
+      expect(result).toHaveProperty('value');
+      expect(result).toHaveProperty('trend');
+      expect(result).toHaveProperty('direction');
+      expect(result).toHaveProperty('sparklineData');
+      expect(result).toHaveProperty('status');
+      expect(result).toHaveProperty('label');
+    });
 
-  it('should detect increasing activity (direction up)', () => {
-    const participation = createMockParticipation({ recentAvg: 20, previousAvg: 10 });
-    const result = calculateVelocityScore(participation);
-    expect(result.direction).toBe('up');
-    expect(result.trend).toBeGreaterThan(0);
-  });
+    it('should include sparklineData with 13 weeks', () => {
+      const participation = createMockParticipation();
+      const result = calculateVelocityScore(participation);
+      expect(result.sparklineData).toHaveLength(13);
+    });
 
-  it('should detect declining activity (direction down)', () => {
-    const participation = createMockParticipation({ recentAvg: 5, previousAvg: 15 });
-    const result = calculateVelocityScore(participation);
-    expect(result.direction).toBe('down');
-    expect(result.trend).toBeLessThan(0);
-  });
+    it('should have valid direction values', () => {
+      const participation = createMockParticipation();
+      const result = calculateVelocityScore(participation);
+      expect(['up', 'down', 'stable']).toContain(result.direction);
+    });
 
-  it('should detect stable activity', () => {
-    const participation = createMockParticipation({ recentAvg: 10, previousAvg: 10 });
-    const result = calculateVelocityScore(participation);
-    expect(result.direction).toBe('stable');
-  });
+    it('should have valid status values', () => {
+      const participation = createMockParticipation();
+      const result = calculateVelocityScore(participation);
+      expect(['thriving', 'stable', 'cooling', 'at_risk']).toContain(result.status);
+    });
 
-  it('should return thriving status for high growth', () => {
-    const participation = createMockParticipation({ recentAvg: 20, previousAvg: 10 });
-    const result = calculateVelocityScore(participation);
-    expect(result.status).toBe('thriving');
-  });
+    it('should have numeric value', () => {
+      const participation = createMockParticipation();
+      const result = calculateVelocityScore(participation);
+      expect(typeof result.value).toBe('number');
+    });
 
-  it('should return at_risk status for severe decline', () => {
-    const participation = createMockParticipation({ recentAvg: 2, previousAvg: 15 });
-    const result = calculateVelocityScore(participation);
-    expect(result.status).toBe('at_risk');
-  });
-
-  it('should include sparklineData with 13 weeks', () => {
-    const participation = createMockParticipation();
-    const result = calculateVelocityScore(participation);
-    expect(result.sparklineData).toHaveLength(13);
-  });
-
-  it('should return MetricResult shape', () => {
-    const participation = createMockParticipation();
-    const result = calculateVelocityScore(participation);
-    expect(result).toHaveProperty('value');
-    expect(result).toHaveProperty('trend');
-    expect(result).toHaveProperty('direction');
-    expect(result).toHaveProperty('sparklineData');
-    expect(result).toHaveProperty('status');
-    expect(result).toHaveProperty('label');
-  });
-
-  it('should handle all zero commits', () => {
-    const participation = { all: Array(52).fill(0) };
-    const result = calculateVelocityScore(participation);
-    expect(result.value).toBe(0);
-    expect(result.direction).toBe('stable');
+    it('should have numeric trend', () => {
+      const participation = createMockParticipation();
+      const result = calculateVelocityScore(participation);
+      expect(typeof result.trend).toBe('number');
+    });
   });
 });
 

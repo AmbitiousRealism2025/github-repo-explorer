@@ -83,11 +83,71 @@
         }
       ],
       "status": "completed"
+    },
+    "subtask-4-3": {
+      "attempts": [
+        {
+          "session": 8,
+          "timestamp": "2025-12-30T13:00:05.539710",
+          "approach": "Implemented: Implement calculateFreshnessIndex(repo, releases) - Days since push, last release, freshness score",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-5-1": {
+      "attempts": [
+        {
+          "session": 9,
+          "timestamp": "2025-12-30T13:03:40.838079",
+          "approach": "Implemented: Implement calculateOverallPulse(metrics) - Aggregate all 6 metrics into single status, pulse speed, ",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-5-2": {
+      "attempts": [
+        {
+          "session": 10,
+          "timestamp": "2025-12-30T13:05:45.635964",
+          "approach": "Implemented: Implement calculateAllMetrics(pulseData) - Wrapper that calls all calculators and returns complete m",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-6-1": {
+      "attempts": [
+        {
+          "session": 11,
+          "timestamp": "2025-12-30T13:07:46.496878",
+          "approach": "Implemented: Create index.js exporting all public functions: calculateAllMetrics, individual calculators, utility",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
+    },
+    "subtask-7-1": {
+      "attempts": [
+        {
+          "session": 12,
+          "timestamp": "2025-12-30T13:12:35.179321",
+          "approach": "Implemented: Create PulseDashboard.test.js with utility function tests and mock data factories",
+          "success": true,
+          "error": null
+        }
+      ],
+      "status": "completed"
     }
   },
   "stuck_subtasks": [],
   "metadata": {
     "created_at": "2025-12-30T12:31:39.501818",
-    "last_updated": "2025-12-30T12:56:23.464011"
+    "last_updated": "2025-12-30T13:12:35.179325"
   }
 }
