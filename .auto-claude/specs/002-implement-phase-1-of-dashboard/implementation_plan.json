@@ -314,8 +314,9 @@
             "command": "npm test -- --grep 'fetchPulseData' 2>&1 | tail -10",
             "expected": "pass"
           },
-          "status": "pending",
-          "notes": "Test that Promise.allSettled behavior returns null for failed endpoints while others succeed"
+          "status": "completed",
+          "notes": "Added 5 comprehensive tests for fetchPulseData: success case, partial failures, all failures, 202 processing status handling, and mixed errors. Uses URL-based mocking for parallel execution. All 299 tests passing.",
+          "updated_at": "2025-12-30T17:27:57.402091+00:00"
         },
         {
           "id": "subtask-5-7",
@@ -464,5 +465,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T17:24:35.040088+00:00"
+  "last_updated": "2025-12-30T17:27:57.402103+00:00"
 }
