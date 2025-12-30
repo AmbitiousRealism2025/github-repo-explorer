@@ -1,3 +1,20 @@
+/**
+ * CloneCommands Component
+ * Displays tabbed clone command options (HTTPS, SSH, GitHub CLI, Degit, Dev Container)
+ * with copy-to-clipboard functionality
+ * 
+ * @example
+ * import { createCloneCommands } from './components/CloneCommands.js';
+ * 
+ * // Create clone commands widget
+ * const cloneWidget = createCloneCommands('facebook/react', false);
+ * container.appendChild(cloneWidget);
+ * 
+ * // With dev container support
+ * const cloneWidget = createCloneCommands('microsoft/vscode', true);
+ * 
+ * @module components/CloneCommands
+ */
 import { showToast, escapeHtml } from '../common.js';
 
 export const createCloneCommands = (fullName, hasDevContainer = false) => {

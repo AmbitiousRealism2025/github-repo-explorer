@@ -1,3 +1,27 @@
+/**
+ * RepoGrid Component
+ * Renders repository cards in a grid layout with pagination and collection management
+ * 
+ * @example
+ * import { renderRepoGrid, renderPagination, handleFavoriteToggle, handleCollectionClick } from './components/RepoGrid.js';
+ * 
+ * // Render repository cards
+ * renderRepoGrid(containerElement, repositories, {
+ *   dateField: 'updated_at',    // Which date field to display
+ *   datePrefix: 'Updated',       // Label before date
+ *   showRemoveOnly: false,       // Show remove button only (for favorites page)
+ *   showCollectionButton: true   // Show add-to-collection button
+ * });
+ * 
+ * // Render pagination controls
+ * renderPagination(paginationElement, currentPage, totalResults, perPage);
+ * 
+ * // Attach event handlers
+ * container.addEventListener('click', (e) => handleFavoriteToggle(e, onUpdate));
+ * container.addEventListener('click', (e) => handleCollectionClick(e, onCollectionUpdate));
+ * 
+ * @module components/RepoGrid
+ */
 import { Storage, formatNumber, formatDate, getLanguageColor, showToast, Icons, escapeHtml } from '../common.js';
 import { MAX_SEARCH_PAGES, DEFAULT_PER_PAGE } from '../constants.js';
 

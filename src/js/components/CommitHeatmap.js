@@ -1,3 +1,21 @@
+/**
+ * CommitHeatmap Component
+ * Renders a GitHub-style contribution heatmap showing commit activity over 52 weeks
+ * 
+ * @example
+ * import { createCommitHeatmap } from './components/CommitHeatmap.js';
+ * import { getCommitActivity } from '../api.js';
+ * 
+ * // Fetch commit data and create heatmap
+ * const { data: commitData } = await getCommitActivity(owner, repo);
+ * const heatmap = createCommitHeatmap(commitData);
+ * container.appendChild(heatmap);
+ * 
+ * // Handles null/processing states gracefully
+ * const heatmap = createCommitHeatmap(null); // Shows "data not available" message
+ * 
+ * @module components/CommitHeatmap
+ */
 export const createCommitHeatmap = (commitData) => {
   const container = document.createElement('div');
   container.className = 'commit-heatmap';

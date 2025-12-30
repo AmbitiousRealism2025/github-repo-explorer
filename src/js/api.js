@@ -40,6 +40,10 @@ const setCachedResponse = (url, data) => {
   }
 };
 
+/**
+ * Clears the internal API response cache
+ * @returns {void}
+ */
 export const clearCache = () => {
   cache.clear();
   console.log('[Cache] Cleared');
@@ -103,6 +107,19 @@ const fetchWithRetry = async (url, retries = 3, backoff = 1000, useCache = true)
   }
 };
 
+/**
+ * Searches GitHub repositories with optional filters
+ * @param {string} query - Search query string
+ * @param {Object} [options={}] - Search options
+ * @param {string} [options.language=''] - Filter by programming language
+ * @param {number} [options.minStars=0] - Minimum star count filter
+ * @param {string} [options.sort='stars'] - Sort field (stars, forks, updated)
+ * @param {string} [options.order='desc'] - Sort order (asc, desc)
+ * @param {number} [options.page=1] - Page number for pagination
+ * @param {number} [options.perPage=30] - Results per page (max 100)
+ * @returns {Promise<{data: {items: Array, total_count: number}, rateLimit: {remaining: number, limit: number, reset: number}}>}
+ * @throws {Error} When API request fails after retries or rate limit exceeded
+ */
 export const searchRepositories = async (query, options = {}) => {
   const {
     language = '',
@@ -122,6 +139,16 @@ export const searchRepositories = async (query, options = {}) => {
   return fetchWithRetry(url);
 };
 
+/**
+ * Fetches trending repositories created within the last 7 days
+ * @param {Object} [options={}] - Filter options
+ * @param {string} [options.language=''] - Filter by programming language
+ * @param {string} [options.category='all'] - Filter by category (matches TRENDING_CATEGORIES keys)
+ * @param {number} [options.page=1] - Page number for pagination
+ * @param {number} [options.perPage=30] - Results per page (max 100)
+ * @returns {Promise<{data: {items: Array, total_count: number}, rateLimit: {remaining: number, limit: number, reset: number}}>}
+ * @throws {Error} When API request fails after retries
+ */
 export const getTrendingRepositories = async (options = {}) => {
   const {
     language = '',
@@ -153,6 +180,13 @@ export const getTrendingRepositories = async (options = {}) => {
   return fetchWithRetry(url);
 };
 
+/**
+ * Fetches detailed information for a single repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @returns {Promise<{data: Object, rateLimit: {remaining: number, limit: number, reset: number}}>}
+ * @throws {Error} When repository not found or API request fails
+ */
 export const getRepository = async (owner, repo) => {
   const url = `${API_BASE}/repos/${owner}/${repo}`;
   return fetchWithRetry(url);
@@ -167,6 +201,12 @@ const decodeBase64Utf8 = (base64) => {
   return new TextDecoder().decode(bytes);
 };
 
+/**
+ * Fetches and decodes the README file for a repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @returns {Promise<{data: {content: string, decodedContent: string, ...} | null, rateLimit: Object | null}>}
+ */
 export const getRepositoryReadme = async (owner, repo) => {
   try {
     const url = `${API_BASE}/repos/${owner}/${repo}/readme`;
@@ -186,21 +226,49 @@ export const getRepositoryReadme = async (owner, repo) => {
   }
 };
 
+/**
+ * Fetches programming language breakdown for a repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @returns {Promise<{data: Object<string, number>, rateLimit: {remaining: number, limit: number, reset: number}}>} Language names as keys, byte counts as values
+ * @throws {Error} When API request fails
+ */
 export const getRepositoryLanguages = async (owner, repo) => {
   const url = `${API_BASE}/repos/${owner}/${repo}/languages`;
   return fetchWithRetry(url);
 };
 
+/**
+ * Fetches recent events/activity for a repository
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {number} [perPage=10] - Number of events to fetch (max 100)
+ * @returns {Promise<{data: Array, rateLimit: {remaining: number, limit: number, reset: number}}>}
+ * @throws {Error} When API request fails
+ */
 export const getRepositoryEvents = async (owner, repo, perPage = 10) => {
   const url = `${API_BASE}/repos/${owner}/${repo}/events?per_page=${perPage}`;
   return fetchWithRetry(url);
 };
 
+/**
+ * Checks current GitHub API rate limit status
+ * @returns {Promise<{data: {resources: Object, rate: Object}, rateLimit: {remaining: number, limit: number, reset: number}}>}
+ * @throws {Error} When API request fails
+ */
 export const checkRateLimit = async () => {
   const url = `${API_BASE}/rate_limit`;
   return fetchWithRetry(url);
 };
 
+/**
+ * Fetches weekly commit activity for the past year (52 weeks)
+ * @param {string} owner - Repository owner's username
+ * @param {string} repo - Repository name
+ * @param {boolean} [retryOnce=true] - Whether to retry once if GitHub returns 202 (processing)
+ * @returns {Promise<{data: Array<{week: number, days: number[], total: number}> | null, processing: boolean, rateLimit: Object | null}>}
+ * @throws {Error} When API request fails
+ */
 export const getCommitActivity = async (owner, repo, retryOnce = true) => {
   const url = `${API_BASE}/repos/${owner}/${repo}/stats/commit_activity`;
   

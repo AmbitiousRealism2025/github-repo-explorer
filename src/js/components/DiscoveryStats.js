@@ -1,3 +1,23 @@
+/**
+ * DiscoveryStats Component
+ * Displays personal exploration statistics including repos explored,
+ * languages discovered, day streak, and top languages
+ * 
+ * @example
+ * import { createDiscoveryStats } from './components/DiscoveryStats.js';
+ * 
+ * // Create discovery stats widget (reads from localStorage automatically)
+ * const statsWidget = createDiscoveryStats();
+ * container.appendChild(statsWidget);
+ * 
+ * // Widget displays:
+ * // - Total repos explored count
+ * // - Number of unique languages seen
+ * // - Current day streak
+ * // - Top 5 most viewed languages
+ * 
+ * @module components/DiscoveryStats
+ */
 import { Storage } from '../common.js';
 
 export const createDiscoveryStats = () => {

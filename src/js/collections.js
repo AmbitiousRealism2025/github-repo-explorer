@@ -1,6 +1,38 @@
 import { initTheme, toggleTheme, Storage, formatNumber, formatDate, showToast, escapeHtml } from './common.js';
 import { initErrorBoundary } from './errorBoundary.js';
 
+// Import validation constants
+const MAX_IMPORT_SIZE = 10 * 1024; // 10KB max for base64 payload
+const MAX_REPOS_PER_IMPORT = 100;  // Maximum repositories per import
+const MAX_NAME_LENGTH = 100;       // Maximum collection name length
+
+/**
+ * Validates imported collection data structure and content
+ * @param {Object} data - Parsed import data
+ * @returns {boolean} True if valid, false otherwise
+ */
+const validateImportData = (data) => {
+  // Check basic structure
+  if (!data || typeof data !== 'object') return false;
+  
+  // Validate name
+  if (!data.name || typeof data.name !== 'string') return false;
+  if (data.name.length > MAX_NAME_LENGTH) return false;
+  if (data.name.trim().length === 0) return false;
+  
+  // Validate repos array
+  if (!Array.isArray(data.repos)) return false;
+  if (data.repos.length > MAX_REPOS_PER_IMPORT) return false;
+  
+  // Validate each repo entry (must be string in "owner/repo" format)
+  return data.repos.every(r => 
+    typeof r === 'string' && 
+    r.includes('/') && 
+    r.split('/').length === 2 &&
+    r.split('/').every(part => part.trim().length > 0)
+  );
+};
+
 initTheme();
 initErrorBoundary();
 
@@ -187,27 +219,38 @@ const checkImportHash = () => {
   const hash = window.location.hash;
   if (hash.startsWith('#import=')) {
     try {
-      const data = JSON.parse(decodeURIComponent(escape(atob(hash.substring(8)))));
-      if (data.name && Array.isArray(data.repos)) {
-        const existingNames = Storage.getCollections().map(c => c.name);
-        let newName = data.name;
-        let counter = 1;
-        while (existingNames.includes(newName)) {
-          newName = `${data.name} (${counter++})`;
-        }
-        
-        Storage.createCollection(newName, `Imported collection with ${data.repos.length} repositories`);
-        const collections = Storage.getCollections();
-        const newCollection = collections[collections.length - 1];
-        
-        data.repos.forEach(fullName => {
-          Storage.addToCollection(newCollection.id, { full_name: fullName, id: fullName });
-        });
-        
-        window.location.hash = '';
-        showToast(`Imported collection "${newName}"`, 'success');
-        renderCollections();
+      const importData = hash.substring(8);
+      
+      if (importData.length > MAX_IMPORT_SIZE) {
+        showToast('Import data too large', 'error');
+        return;
       }
+      
+      const data = JSON.parse(decodeURIComponent(escape(atob(importData))));
+      
+      if (!validateImportData(data)) {
+        showToast('Invalid collection format', 'error');
+        return;
+      }
+      
+      const existingNames = Storage.getCollections().map(c => c.name);
+      let newName = data.name;
+      let counter = 1;
+      while (existingNames.includes(newName)) {
+        newName = `${data.name} (${counter++})`;
+      }
+      
+      Storage.createCollection(newName, `Imported collection with ${data.repos.length} repositories`);
+      const collections = Storage.getCollections();
+      const newCollection = collections[collections.length - 1];
+      
+      data.repos.forEach(fullName => {
+        Storage.addToCollection(newCollection.id, { full_name: fullName, id: fullName });
+      });
+      
+      window.location.hash = '';
+      showToast(`Imported collection "${newName}"`, 'success');
+      renderCollections();
     } catch {
       showToast('Invalid import link', 'error');
     }

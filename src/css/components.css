@@ -1743,3 +1743,103 @@
   border-radius: 2px;
   transition: width 0.3s ease-out;
 }
+
+/* ============================================
+   Responsive Component Adjustments
+   ============================================ */
+
+/* Mobile adjustments */
+@media (max-width: 479px) {
+  .stats-box {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .stat-value {
+    font-size: var(--text-xl);
+  }
+  
+  .modal {
+    width: calc(100% - var(--space-md) * 2);
+    max-width: none;
+    margin: var(--space-md);
+  }
+  
+  .modal__body {
+    padding: var(--space-md);
+  }
+  
+  .modal__footer {
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+  
+  .modal__footer .btn {
+    flex: 1 1 auto;
+    min-width: 120px;
+  }
+  
+  .toast-container {
+    left: var(--space-md);
+    right: var(--space-md);
+    bottom: var(--space-md);
+  }
+  
+  .toast {
+    width: 100%;
+  }
+  
+  .discovery-stats__grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-sm);
+  }
+  
+  .clone-commands__input-wrapper {
+    flex-direction: column;
+  }
+  
+  .clone-commands__copy {
+    width: 100%;
+  }
+  
+  .collection-card__footer {
+    flex-direction: column;
+  }
+  
+  .collection-card__footer .btn {
+    width: 100%;
+  }
+  
+  .pagination {
+    flex-wrap: wrap;
+  }
+  
+  .pagination__btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  .compare-table th,
+  .compare-table td {
+    padding: var(--space-sm);
+    font-size: var(--text-xs);
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 480px) and (max-width: 767px) {
+  .discovery-stats__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Ensure touch targets on mobile */
+@media (max-width: 1024px) {
+  .btn {
+    min-height: 44px;
+  }
+  
+  .pagination__btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

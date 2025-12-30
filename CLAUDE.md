@@ -67,8 +67,15 @@ Each HTML page imports its corresponding script which handles page-specific init
 ### Styling
 
 - `theme.css` - CSS custom properties for dark/light themes (data-theme attribute on html)
-- `main.css` - Layout and base styles
-- `components.css` - Component-specific styles (cards, modals, pagination)
+- `main.css` - Layout, base styles, responsive breakpoints (480px, 640px, 768px, 1024px, 1280px)
+- `components.css` - Component-specific styles (cards, modals, pagination) with mobile adjustments
+- `accessibility.css` - Reduced motion, high contrast, skip links
+
+### Security
+
+- CSP headers in all HTML files (script-src, style-src, connect-src, img-src, font-src)
+- Collection import validation: 10KB size limit, schema validation
+- XSS prevention via `escapeHtml`, `safeText`, `sanitizeUrl`
 
 ### Data Flow
 
@@ -99,6 +106,17 @@ Tests use Vitest with jsdom environment. Test files are in `src/js/__tests__/`:
 | `collections.test.js` | Collection import/export |
 
 Current: **241 tests passing**
+
+## Next Steps (Phase 3 - Code Quality)
+
+Remaining improvements from AltCoder review (`AltCoder-review.md`):
+
+| Task | File | Description |
+|------|------|-------------|
+| Extract magic numbers | `HealthScore.js` | Move maintenance thresholds to constants |
+| Extract retry config | `api.js` | Move `RETRY_CONFIG` values to constants |
+| DOM query safety | `common.js` | Add `getRequiredElement(id)` helper |
+| Remove color fallbacks | `HealthScore.js` | Use CSS vars only (no inline fallbacks) |
 
 ---
 

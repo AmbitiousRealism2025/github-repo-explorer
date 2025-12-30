@@ -1,3 +1,24 @@
+/**
+ * HealthScore Component
+ * Calculates and displays a repository health score (0-100) based on maintenance,
+ * community, documentation, activity, and engagement metrics
+ * 
+ * @example
+ * import { calculateHealthScore, createHealthScore } from './components/HealthScore.js';
+ * 
+ * // Calculate score programmatically
+ * const scoreData = calculateHealthScore(repoData, {
+ *   hasReadme: true,
+ *   commitActivity: commitActivityArray  // Optional: 52-week commit data
+ * });
+ * console.log(scoreData.total, scoreData.breakdown);
+ * 
+ * // Create visual health score widget
+ * const healthWidget = createHealthScore(repoData, { hasReadme: true, commitActivity });
+ * container.appendChild(healthWidget);
+ * 
+ * @module components/HealthScore
+ */
 export const calculateHealthScore = (repo, options = {}) => {
   const {
     hasReadme = true,

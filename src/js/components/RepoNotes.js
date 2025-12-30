@@ -1,3 +1,21 @@
+/**
+ * RepoNotes Component
+ * Provides a textarea for adding personal notes to repositories
+ * Notes are persisted in localStorage and auto-saved on blur
+ * 
+ * @example
+ * import { createRepoNotes } from './components/RepoNotes.js';
+ * 
+ * // Create notes widget for a repository
+ * const notesWidget = createRepoNotes('facebook/react');
+ * container.appendChild(notesWidget);
+ * 
+ * // Notes are automatically saved to localStorage when:
+ * // - User clicks "Save Note" button
+ * // - Textarea loses focus (auto-save)
+ * 
+ * @module components/RepoNotes
+ */
 import { Storage, showToast, escapeHtml } from '../common.js';
 
 export const createRepoNotes = (repoFullName) => {
