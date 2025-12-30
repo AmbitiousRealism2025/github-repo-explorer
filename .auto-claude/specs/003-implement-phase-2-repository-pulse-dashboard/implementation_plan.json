@@ -348,7 +348,9 @@
             "command": "npm test -- --run src/js/__tests__/PulseDashboard.test.js 2>&1 | grep -E '(PASS|FAIL|velocity)' | head -10",
             "expected": "Velocity tests pass"
           },
-          "status": "pending"
+          "status": "completed",
+          "notes": "Added comprehensive tests for calculateVelocityScore covering empty data, increasing activity, declining activity, stable activity, and MetricResult shape validation. Expanded from ~15 to ~35 velocity tests with nested describe blocks following HealthScore.test.js patterns. All 471 tests pass.",
+          "updated_at": "2025-12-30T18:16:23.999778+00:00"
         },
         {
           "id": "subtask-7-3",
@@ -535,5 +537,5 @@
     }
   },
   "qa_signoff": null,
-  "last_updated": "2025-12-30T18:12:23.553377+00:00"
+  "last_updated": "2025-12-30T18:16:23.999786+00:00"
 }

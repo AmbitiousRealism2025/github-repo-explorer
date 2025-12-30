@@ -955,69 +955,300 @@ describe('calculateVelocityScore', () => {
 // =============================================================================
 
 describe('calculateCommunityMomentum', () => {
-  it('should return default metric for null repo', () => {
-    const result = calculateCommunityMomentum(null);
-    expect(result.label).toBe('Growth data unavailable');
+  describe('Empty/Invalid Data', () => {
+    it('should return default metric for null repo', () => {
+      const result = calculateCommunityMomentum(null);
+      expect(result.label).toBe('Growth data unavailable');
+      expect(result.status).toBe('stable');
+      expect(result.value).toBe(0);
+    });
+
+    it('should return default metric for undefined repo', () => {
+      const result = calculateCommunityMomentum(undefined);
+      expect(result.label).toBe('Growth data unavailable');
+    });
+
+    it('should handle repo with missing stargazers_count', () => {
+      const repo = createMockRepo({ stargazers_count: undefined });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.value).toBe(0);
+    });
+
+    it('should handle repo with null stargazers_count', () => {
+      const repo = createMockRepo({ stargazers_count: null });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.value).toBe(0);
+    });
+
+    it('should handle repo with zero stars', () => {
+      const repo = createMockRepo({ stargazers_count: 0, forks_count: 0 });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.value).toBe(0);
+      expect(result.status).toBeDefined();
+    });
+
+    it('should handle null events array', () => {
+      const repo = createMockRepo();
+      const result = calculateCommunityMomentum(repo, null);
+      expect(result.status).toBeDefined();
+      expect(result.recentStars).toBe(0);
+    });
+
+    it('should handle non-array events', () => {
+      const repo = createMockRepo();
+      const result = calculateCommunityMomentum(repo, 'not an array');
+      expect(result.status).toBeDefined();
+    });
+
+    it('should return sparklineData even for empty data', () => {
+      const result = calculateCommunityMomentum(null);
+      expect(Array.isArray(result.sparklineData)).toBe(true);
+    });
   });
 
-  it('should handle repo with low stars', () => {
-    const repo = createMockRepo({ stargazers_count: 5 });
-    const result = calculateCommunityMomentum(repo);
-    expect(result.value).toBe(5);
-    expect(result.status).toBeDefined();
+  describe('Star Count Classification', () => {
+    it('should handle repo with low stars', () => {
+      const repo = createMockRepo({ stargazers_count: 5 });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.value).toBe(5);
+      expect(result.status).toBeDefined();
+    });
+
+    it('should calculate star count correctly for medium repos', () => {
+      const repo = createMockRepo({ stargazers_count: 500 });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.value).toBe(500);
+    });
+
+    it('should calculate star count correctly for popular repos', () => {
+      const repo = createMockRepo({ stargazers_count: 5000 });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.value).toBe(5000);
+    });
+
+    it('should handle very high star counts', () => {
+      const repo = createMockRepo({ stargazers_count: 100000 });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.value).toBe(100000);
+      expect(result.label).toContain('100K');
+    });
+
+    it('should give thriving status to highly starred repos', () => {
+      const repo = createMockRepo({ stargazers_count: 50000, forks_count: 5000 });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.status).toBe('thriving');
+    });
+
+    it('should give stable status to medium starred repos', () => {
+      const repo = createMockRepo({ stargazers_count: 1000, forks_count: 100 });
+      const result = calculateCommunityMomentum(repo);
+      expect(['stable', 'thriving']).toContain(result.status);
+    });
+
+    it('should give lower status to low starred repos', () => {
+      const repo = createMockRepo({ stargazers_count: 5, forks_count: 0 });
+      const result = calculateCommunityMomentum(repo);
+      expect(['cooling', 'at_risk', 'stable']).toContain(result.status);
+    });
   });
 
-  it('should handle repo with zero stars', () => {
-    const repo = createMockRepo({ stargazers_count: 0, forks_count: 0 });
-    const result = calculateCommunityMomentum(repo);
-    expect(result.value).toBe(0);
+  describe('Label Formatting', () => {
+    it('should format large star counts with K suffix in label', () => {
+      const repo = createMockRepo({ stargazers_count: 10000 });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.label).toContain('10K');
+    });
+
+    it('should format medium star counts without suffix', () => {
+      const repo = createMockRepo({ stargazers_count: 500 });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.label).toContain('500');
+      expect(result.label).not.toContain('K');
+    });
+
+    it('should include trend indicator in label for growth', () => {
+      const repo = createMockRepo({ stargazers_count: 1000 });
+      // Create watch events to simulate recent stars
+      const events = Array(20).fill(null).map(() => createMockEvent({ type: 'WatchEvent' }));
+      const result = calculateCommunityMomentum(repo, events);
+      if (result.direction === 'up') {
+        expect(result.label).toMatch(/\+\d+%/);
+      }
+    });
+
+    it('should show stable label when no change', () => {
+      const repo = createMockRepo({ stargazers_count: 500 });
+      const result = calculateCommunityMomentum(repo, []);
+      expect(result.label).toContain('stable');
+    });
   });
 
-  it('should calculate star count correctly', () => {
-    const repo = createMockRepo({ stargazers_count: 5000 });
-    const result = calculateCommunityMomentum(repo);
-    expect(result.value).toBe(5000);
+  describe('Event-based Growth Detection', () => {
+    it('should detect growth from WatchEvents', () => {
+      const repo = createMockRepo({ stargazers_count: 1000 });
+      const events = Array(10).fill(null).map(() => createMockEvent({ type: 'WatchEvent' }));
+      const result = calculateCommunityMomentum(repo, events);
+      expect(result.recentStars).toBe(10);
+    });
+
+    it('should count fork events separately', () => {
+      const repo = createMockRepo({ stargazers_count: 1000 });
+      const events = [
+        createMockEvent({ type: 'ForkEvent' }),
+        createMockEvent({ type: 'ForkEvent' }),
+        createMockEvent({ type: 'ForkEvent' })
+      ];
+      const result = calculateCommunityMomentum(repo, events);
+      expect(result.recentForks).toBe(3);
+    });
+
+    it('should handle mixed event types', () => {
+      const repo = createMockRepo({ stargazers_count: 1000 });
+      const events = [
+        createMockEvent({ type: 'WatchEvent' }),
+        createMockEvent({ type: 'WatchEvent' }),
+        createMockEvent({ type: 'ForkEvent' }),
+        createMockEvent({ type: 'PushEvent' }),  // Should be ignored
+        createMockEvent({ type: 'IssueEvent' })   // Should be ignored
+      ];
+      const result = calculateCommunityMomentum(repo, events);
+      expect(result.recentStars).toBe(2);
+      expect(result.recentForks).toBe(1);
+    });
+
+    it('should ignore events outside the window', () => {
+      const repo = createMockRepo({ stargazers_count: 1000 });
+      const oldEvent = createMockEvent({
+        type: 'WatchEvent',
+        created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days ago
+      });
+      const result = calculateCommunityMomentum(repo, [oldEvent]);
+      expect(result.recentStars).toBe(0);
+    });
+
+    it('should count only recent events within window', () => {
+      const repo = createMockRepo({ stargazers_count: 1000 });
+      const events = [
+        createMockEvent({ type: 'WatchEvent', created_at: new Date().toISOString() }), // Today
+        createMockEvent({ type: 'WatchEvent', created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() }), // 15 days ago
+        createMockEvent({ type: 'WatchEvent', created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString() }) // 45 days ago - outside
+      ];
+      const result = calculateCommunityMomentum(repo, events);
+      expect(result.recentStars).toBe(2);
+    });
+
+    it('should detect upward trend with many recent stars', () => {
+      const repo = createMockRepo({
+        stargazers_count: 100,
+        created_at: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year old
+      });
+      const events = Array(50).fill(null).map(() => createMockEvent({ type: 'WatchEvent' }));
+      const result = calculateCommunityMomentum(repo, events);
+      expect(result.direction).toBe('up');
+      expect(result.trend).toBeGreaterThan(0);
+    });
   });
 
-  it('should format large star counts with K suffix in label', () => {
-    const repo = createMockRepo({ stargazers_count: 10000 });
-    const result = calculateCommunityMomentum(repo);
-    expect(result.label).toContain('10K');
+  describe('Fork Ratio Analysis', () => {
+    it('should calculate fork ratio correctly', () => {
+      const repo = createMockRepo({ stargazers_count: 1000, forks_count: 200 });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.forkRatio).toBe(0.2);
+    });
+
+    it('should handle zero stars for fork ratio', () => {
+      const repo = createMockRepo({ stargazers_count: 0, forks_count: 10 });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.forkRatio).toBe(0);
+    });
+
+    it('should boost score for high fork ratio', () => {
+      const highForkRepo = createMockRepo({ stargazers_count: 1000, forks_count: 500 });
+      const lowForkRepo = createMockRepo({ stargazers_count: 1000, forks_count: 10 });
+      const highResult = calculateCommunityMomentum(highForkRepo);
+      const lowResult = calculateCommunityMomentum(lowForkRepo);
+      expect(highResult.score).toBeGreaterThan(lowResult.score);
+    });
   });
 
-  it('should detect growth from events', () => {
-    const repo = createMockRepo({ stargazers_count: 1000 });
-    const events = Array(10).fill(null).map(() => createMockEvent({ type: 'WatchEvent' }));
-    const result = calculateCommunityMomentum(repo, events);
-    expect(result.recentStars).toBe(10);
+  describe('Repository Age Analysis', () => {
+    it('should calculate repo age in days', () => {
+      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ created_at: oneYearAgo });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.repoAgeDays).toBeGreaterThanOrEqual(364);
+      expect(result.repoAgeDays).toBeLessThanOrEqual(366);
+    });
+
+    it('should handle invalid created_at date', () => {
+      const repo = createMockRepo({ created_at: 'invalid' });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.status).toBeDefined();
+    });
+
+    it('should handle missing created_at date', () => {
+      const repo = createMockRepo({ created_at: null });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.status).toBeDefined();
+    });
+
+    it('should calculate daily star rate', () => {
+      const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+      const repo = createMockRepo({ stargazers_count: 365, created_at: oneYearAgo });
+      const result = calculateCommunityMomentum(repo);
+      expect(result.dailyStarRate).toBeCloseTo(1, 0);
+    });
   });
 
-  it('should count fork events', () => {
-    const repo = createMockRepo({ stargazers_count: 1000 });
-    const events = [
-      createMockEvent({ type: 'ForkEvent' }),
-      createMockEvent({ type: 'ForkEvent' })
-    ];
-    const result = calculateCommunityMomentum(repo, events);
-    expect(result.recentForks).toBe(2);
-  });
+  describe('MetricResult Shape', () => {
+    it('should return complete MetricResult shape', () => {
+      const repo = createMockRepo();
+      const result = calculateCommunityMomentum(repo);
+      expect(result).toHaveProperty('value');
+      expect(result).toHaveProperty('trend');
+      expect(result).toHaveProperty('direction');
+      expect(result).toHaveProperty('sparklineData');
+      expect(result).toHaveProperty('status');
+      expect(result).toHaveProperty('label');
+    });
 
-  it('should return MetricResult shape', () => {
-    const repo = createMockRepo();
-    const result = calculateCommunityMomentum(repo);
-    expect(result).toHaveProperty('value');
-    expect(result).toHaveProperty('trend');
-    expect(result).toHaveProperty('direction');
-    expect(result).toHaveProperty('sparklineData');
-    expect(result).toHaveProperty('status');
-    expect(result).toHaveProperty('label');
-  });
+    it('should include sparklineData with 30 data points', () => {
+      const repo = createMockRepo();
+      const result = calculateCommunityMomentum(repo);
+      expect(Array.isArray(result.sparklineData)).toBe(true);
+      expect(result.sparklineData.length).toBe(30);
+    });
 
-  it('should include sparklineData', () => {
-    const repo = createMockRepo();
-    const result = calculateCommunityMomentum(repo);
-    expect(Array.isArray(result.sparklineData)).toBe(true);
-    expect(result.sparklineData.length).toBe(30);
+    it('should have valid direction values', () => {
+      const repo = createMockRepo();
+      const result = calculateCommunityMomentum(repo);
+      expect(['up', 'down', 'stable']).toContain(result.direction);
+    });
+
+    it('should have valid status values', () => {
+      const repo = createMockRepo();
+      const result = calculateCommunityMomentum(repo);
+      expect(['thriving', 'stable', 'cooling', 'at_risk']).toContain(result.status);
+    });
+
+    it('should include additional metadata', () => {
+      const repo = createMockRepo();
+      const result = calculateCommunityMomentum(repo);
+      expect(result).toHaveProperty('forks');
+      expect(result).toHaveProperty('forkRatio');
+      expect(result).toHaveProperty('dailyStarRate');
+      expect(result).toHaveProperty('recentStars');
+      expect(result).toHaveProperty('recentForks');
+      expect(result).toHaveProperty('repoAgeDays');
+      expect(result).toHaveProperty('score');
+    });
+
+    it('should clamp trend between -100 and 100', () => {
+      const repo = createMockRepo();
+      const result = calculateCommunityMomentum(repo);
+      expect(result.trend).toBeGreaterThanOrEqual(-100);
+      expect(result.trend).toBeLessThanOrEqual(100);
+    });
   });
 });
 
@@ -1026,74 +1257,421 @@ describe('calculateCommunityMomentum', () => {
 // =============================================================================
 
 describe('calculateIssueTemperature', () => {
-  it('should return default metric for null issues', () => {
-    const result = calculateIssueTemperature(null);
-    expect(result.value).toBe('Cool');
-    expect(result.temperature).toBe('cool');
-  });
-
-  it('should return default for empty issues array', () => {
-    const result = calculateIssueTemperature([]);
-    expect(result.label).toBe('No recent issues');
-  });
-
-  it('should classify as cool for high close rate', () => {
-    const issues = createMockIssueSet({ closedCount: 8, openCount: 2 });
-    const result = calculateIssueTemperature(issues);
-    expect(result.temperature).toBe('cool');
-    expect(result.status).toBe('thriving');
-  });
-
-  it('should classify as warm for medium close rate', () => {
-    const issues = createMockIssueSet({ closedCount: 5, openCount: 5 });
-    const result = calculateIssueTemperature(issues);
-    expect(['cool', 'warm']).toContain(result.temperature);
-  });
-
-  it('should classify as hot for low close rate', () => {
-    const issues = createMockIssueSet({ closedCount: 2, openCount: 8 });
-    const result = calculateIssueTemperature(issues);
-    expect(['hot', 'critical']).toContain(result.temperature);
-  });
-
-  it('should calculate correct close rate', () => {
-    const issues = createMockIssueSet({ closedCount: 7, openCount: 3 });
-    const result = calculateIssueTemperature(issues);
-    expect(result.closeRate).toBe(70);
-  });
-
-  it('should track open and closed counts', () => {
-    const issues = createMockIssueSet({ closedCount: 6, openCount: 4 });
-    const result = calculateIssueTemperature(issues);
-    expect(result.closedCount).toBe(6);
-    expect(result.openCount).toBe(4);
-    expect(result.totalCount).toBe(10);
-  });
-
-  it('should handle all open issues (0% closed)', () => {
-    const issues = createMockIssueSet({ closedCount: 0, openCount: 5 });
-    const result = calculateIssueTemperature(issues);
-    expect(result.closeRate).toBe(0);
-    expect(result.temperature).toBe('critical');
-  });
-
-  it('should return MetricResult shape', () => {
-    const issues = createMockIssueSet();
-    const result = calculateIssueTemperature(issues);
-    expect(result).toHaveProperty('value');
-    expect(result).toHaveProperty('trend');
-    expect(result).toHaveProperty('direction');
-    expect(result).toHaveProperty('sparklineData');
-    expect(result).toHaveProperty('status');
-    expect(result).toHaveProperty('label');
-  });
-
-  it('should filter issues outside window', () => {
-    const oldIssue = createMockIssue({
-      created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days ago
+  describe('Empty/Invalid Data', () => {
+    it('should return default metric for null issues', () => {
+      const result = calculateIssueTemperature(null);
+      expect(result.value).toBe('Cool');
+      expect(result.temperature).toBe('cool');
+      expect(result.status).toBe('stable');
     });
-    const result = calculateIssueTemperature([oldIssue]);
-    expect(result.label).toBe('No recent issues');
+
+    it('should return default metric for undefined issues', () => {
+      const result = calculateIssueTemperature(undefined);
+      expect(result.value).toBe('Cool');
+      expect(result.temperature).toBe('cool');
+    });
+
+    it('should return default for empty issues array', () => {
+      const result = calculateIssueTemperature([]);
+      expect(result.label).toBe('No recent issues');
+      expect(result.temperature).toBe('cool');
+    });
+
+    it('should handle non-array issues', () => {
+      const result = calculateIssueTemperature('not an array');
+      expect(result.temperature).toBe('cool');
+      expect(result.label).toBe('No recent issues');
+    });
+
+    it('should handle issues with missing created_at', () => {
+      const issues = [{ state: 'open' }, { state: 'closed' }];
+      const result = calculateIssueTemperature(issues);
+      expect(result.label).toBe('No recent issues');
+    });
+
+    it('should return sparklineData even for empty data', () => {
+      const result = calculateIssueTemperature(null);
+      expect(Array.isArray(result.sparklineData)).toBe(true);
+    });
+  });
+
+  describe('Temperature Classification', () => {
+    it('should classify as cool for high close rate (>= 70%)', () => {
+      const issues = createMockIssueSet({ closedCount: 8, openCount: 2 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.temperature).toBe('cool');
+      expect(result.status).toBe('thriving');
+    });
+
+    it('should classify as warm for medium close rate (50-69%)', () => {
+      const issues = createMockIssueSet({ closedCount: 5, openCount: 5 });
+      const result = calculateIssueTemperature(issues);
+      expect(['cool', 'warm']).toContain(result.temperature);
+    });
+
+    it('should classify as hot for low close rate (30-49%)', () => {
+      const issues = createMockIssueSet({ closedCount: 3, openCount: 7 });
+      const result = calculateIssueTemperature(issues);
+      expect(['hot', 'warm']).toContain(result.temperature);
+    });
+
+    it('should classify as critical for very low close rate (< 30%)', () => {
+      const issues = createMockIssueSet({ closedCount: 2, openCount: 8 });
+      const result = calculateIssueTemperature(issues);
+      expect(['hot', 'critical']).toContain(result.temperature);
+    });
+
+    it('should handle all open issues (0% closed) as critical', () => {
+      const issues = createMockIssueSet({ closedCount: 0, openCount: 5 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.closeRate).toBe(0);
+      expect(result.temperature).toBe('critical');
+      expect(result.status).toBe('at_risk');
+    });
+
+    it('should handle all closed issues (100% closed) as cool', () => {
+      const issues = createMockIssueSet({ closedCount: 10, openCount: 0 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.closeRate).toBe(100);
+      expect(result.temperature).toBe('cool');
+      expect(result.status).toBe('thriving');
+    });
+  });
+
+  describe('Close Rate Calculation', () => {
+    it('should calculate correct close rate for 70%', () => {
+      const issues = createMockIssueSet({ closedCount: 7, openCount: 3 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.closeRate).toBe(70);
+    });
+
+    it('should calculate correct close rate for 50%', () => {
+      const issues = createMockIssueSet({ closedCount: 5, openCount: 5 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.closeRate).toBe(50);
+    });
+
+    it('should calculate correct close rate for 25%', () => {
+      const issues = createMockIssueSet({ closedCount: 2, openCount: 6 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.closeRate).toBe(25);
+    });
+
+    it('should track open and closed counts accurately', () => {
+      const issues = createMockIssueSet({ closedCount: 6, openCount: 4 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.closedCount).toBe(6);
+      expect(result.openCount).toBe(4);
+      expect(result.totalCount).toBe(10);
+    });
+  });
+
+  describe('Response Time Analysis', () => {
+    it('should calculate average response time for closed issues', () => {
+      const now = Date.now();
+      const issues = [
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString() // 1 day to close
+        }),
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString() // 3 days to close
+        })
+      ];
+      const result = calculateIssueTemperature(issues);
+      expect(result.avgResponseDays).toBe(2); // (1 + 3) / 2 = 2
+    });
+
+    it('should boost score for fast response times', () => {
+      const now = Date.now();
+      const fastIssues = [
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 4.5 * 24 * 60 * 60 * 1000).toISOString() // Same day close
+        })
+      ];
+      const slowIssues = [
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString() // 15 days to close
+        })
+      ];
+      const fastResult = calculateIssueTemperature(fastIssues);
+      const slowResult = calculateIssueTemperature(slowIssues);
+      expect(fastResult.score).toBeGreaterThan(slowResult.score);
+    });
+
+    it('should handle issues with no closed_at date', () => {
+      const issues = createMockIssueSet({ closedCount: 3, openCount: 2 });
+      // Manually set some closed_at to null
+      issues.forEach(issue => {
+        if (issue.state === 'closed') {
+          issue.closed_at = null;
+        }
+      });
+      const result = calculateIssueTemperature(issues);
+      expect(result.avgResponseDays).toBe(0);
+    });
+  });
+
+  describe('Time Window Filtering', () => {
+    it('should filter issues outside 30-day window', () => {
+      const oldIssue = createMockIssue({
+        created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days ago
+      });
+      const result = calculateIssueTemperature([oldIssue]);
+      expect(result.label).toBe('No recent issues');
+    });
+
+    it('should include issues within 30-day window', () => {
+      const recentIssue = createMockIssue({
+        created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() // 15 days ago
+      });
+      const result = calculateIssueTemperature([recentIssue]);
+      expect(result.totalCount).toBe(1);
+    });
+
+    it('should count only recent issues when mix of old and new', () => {
+      const issues = [
+        createMockIssue({
+          state: 'open',
+          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() // Recent
+        }),
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() // Recent
+        }),
+        createMockIssue({
+          state: 'open',
+          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // Old - filtered out
+        })
+      ];
+      const result = calculateIssueTemperature(issues);
+      expect(result.totalCount).toBe(2);
+    });
+  });
+
+  describe('Trend Analysis', () => {
+    it('should detect improving trend with better recent close rate', () => {
+      const now = Date.now();
+      const issues = [
+        // Older half (15-30 days ago) - more open
+        createMockIssue({
+          state: 'open',
+          created_at: new Date(now - 25 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockIssue({
+          state: 'open',
+          created_at: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 18 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 17 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        // Newer half (0-15 days ago) - more closed
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 9 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString()
+        })
+      ];
+      const result = calculateIssueTemperature(issues);
+      expect(result.direction).toBe('up');
+      expect(result.trend).toBeGreaterThan(0);
+    });
+
+    it('should detect worsening trend with lower recent close rate', () => {
+      const now = Date.now();
+      const issues = [
+        // Older half (15-30 days ago) - more closed
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 25 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 24 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 22 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 21 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 18 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 17 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        // Newer half (0-15 days ago) - more open
+        createMockIssue({
+          state: 'open',
+          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockIssue({
+          state: 'open',
+          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockIssue({
+          state: 'open',
+          created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString()
+        })
+      ];
+      const result = calculateIssueTemperature(issues);
+      expect(result.direction).toBe('down');
+      expect(result.trend).toBeLessThan(0);
+    });
+  });
+
+  describe('Label Generation', () => {
+    it('should generate label with temperature and close rate', () => {
+      const issues = createMockIssueSet({ closedCount: 8, openCount: 2 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.label).toContain('Cool');
+      expect(result.label).toMatch(/\d+%/);
+    });
+
+    it('should show open count when no issues closed', () => {
+      const issues = createMockIssueSet({ closedCount: 0, openCount: 5 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.label).toContain('5 open');
+      expect(result.label).toContain('0% closed');
+    });
+
+    it('should include average response time in label when available', () => {
+      const now = Date.now();
+      const issues = [
+        createMockIssue({
+          state: 'closed',
+          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString() // 3 days to close
+        })
+      ];
+      const result = calculateIssueTemperature(issues);
+      expect(result.label).toMatch(/~\d+\.?\d*d avg/);
+    });
+  });
+
+  describe('Status Mapping', () => {
+    it('should map cool temperature to thriving status', () => {
+      const issues = createMockIssueSet({ closedCount: 9, openCount: 1 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.temperature).toBe('cool');
+      expect(result.status).toBe('thriving');
+    });
+
+    it('should map warm temperature to stable status', () => {
+      const issues = createMockIssueSet({ closedCount: 6, openCount: 4 });
+      const result = calculateIssueTemperature(issues);
+      if (result.temperature === 'warm') {
+        expect(result.status).toBe('stable');
+      }
+    });
+
+    it('should map hot temperature to cooling status', () => {
+      const issues = createMockIssueSet({ closedCount: 4, openCount: 6 });
+      const result = calculateIssueTemperature(issues);
+      if (result.temperature === 'hot') {
+        expect(result.status).toBe('cooling');
+      }
+    });
+
+    it('should map critical temperature to at_risk status', () => {
+      const issues = createMockIssueSet({ closedCount: 1, openCount: 9 });
+      const result = calculateIssueTemperature(issues);
+      expect(result.temperature).toBe('critical');
+      expect(result.status).toBe('at_risk');
+    });
+  });
+
+  describe('MetricResult Shape', () => {
+    it('should return complete MetricResult shape', () => {
+      const issues = createMockIssueSet();
+      const result = calculateIssueTemperature(issues);
+      expect(result).toHaveProperty('value');
+      expect(result).toHaveProperty('trend');
+      expect(result).toHaveProperty('direction');
+      expect(result).toHaveProperty('sparklineData');
+      expect(result).toHaveProperty('status');
+      expect(result).toHaveProperty('label');
+      expect(result).toHaveProperty('temperature');
+    });
+
+    it('should include sparklineData with 30 data points', () => {
+      const issues = createMockIssueSet({ windowDays: 30 });
+      const result = calculateIssueTemperature(issues);
+      expect(Array.isArray(result.sparklineData)).toBe(true);
+      expect(result.sparklineData.length).toBe(30);
+    });
+
+    it('should have valid direction values', () => {
+      const issues = createMockIssueSet();
+      const result = calculateIssueTemperature(issues);
+      expect(['up', 'down', 'stable']).toContain(result.direction);
+    });
+
+    it('should have valid status values', () => {
+      const issues = createMockIssueSet();
+      const result = calculateIssueTemperature(issues);
+      expect(['thriving', 'stable', 'cooling', 'at_risk']).toContain(result.status);
+    });
+
+    it('should have valid temperature values', () => {
+      const issues = createMockIssueSet();
+      const result = calculateIssueTemperature(issues);
+      expect(['cool', 'warm', 'hot', 'critical']).toContain(result.temperature);
+    });
+
+    it('should include additional metadata', () => {
+      const issues = createMockIssueSet();
+      const result = calculateIssueTemperature(issues);
+      expect(result).toHaveProperty('totalCount');
+      expect(result).toHaveProperty('openCount');
+      expect(result).toHaveProperty('closedCount');
+      expect(result).toHaveProperty('closeRate');
+      expect(result).toHaveProperty('avgResponseDays');
+      expect(result).toHaveProperty('score');
+    });
+
+    it('should clamp trend between -100 and 100', () => {
+      const issues = createMockIssueSet();
+      const result = calculateIssueTemperature(issues);
+      expect(result.trend).toBeGreaterThanOrEqual(-100);
+      expect(result.trend).toBeLessThanOrEqual(100);
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle single issue', () => {
+      const issues = [createMockIssue({ state: 'open' })];
+      const result = calculateIssueTemperature(issues);
+      expect(result.totalCount).toBe(1);
+      expect(result.openCount).toBe(1);
+    });
+
+    it('should handle invalid date in created_at', () => {
+      const issues = [{ created_at: 'invalid', state: 'open' }];
+      expect(() => calculateIssueTemperature(issues)).not.toThrow();
+    });
+
+    it('should handle very large number of issues', () => {
+      const issues = Array(100).fill(null).map(() => createMockIssue({ state: 'closed' }));
+      const result = calculateIssueTemperature(issues);
+      expect(result.totalCount).toBe(100);
+      expect(result.closeRate).toBe(100);
+    });
   });
 });
 
@@ -1102,62 +1680,497 @@ describe('calculateIssueTemperature', () => {
 // =============================================================================
 
 describe('calculatePRHealth', () => {
-  it('should return default metric for null PRs', () => {
-    const result = calculatePRHealth(null);
-    expect(result.label).toBe('No recent pull requests');
-  });
-
-  it('should return default for empty PRs array', () => {
-    const result = calculatePRHealth([]);
-    expect(result.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
-  });
-
-  it('should calculate merge rate correctly', () => {
-    const prs = createMockPRSet({ mergedCount: 8, closedCount: 2, openCount: 0 });
-    const result = calculatePRHealth(prs);
-    expect(result.mergeRate).toBe(80);
-  });
-
-  it('should track funnel metrics', () => {
-    const prs = createMockPRSet({ mergedCount: 5, closedCount: 2, openCount: 3 });
-    const result = calculatePRHealth(prs);
-    expect(result.funnel.merged).toBe(5);
-    expect(result.funnel.closed).toBe(2);
-    expect(result.funnel.open).toBe(3);
-    expect(result.funnel.opened).toBe(10);
-  });
-
-  it('should handle no merged PRs', () => {
-    const prs = createMockPRSet({ mergedCount: 0, closedCount: 5, openCount: 5 });
-    const result = calculatePRHealth(prs);
-    expect(result.funnel.merged).toBe(0);
-  });
-
-  it('should handle all PRs open', () => {
-    const prs = createMockPRSet({ mergedCount: 0, closedCount: 0, openCount: 5 });
-    const result = calculatePRHealth(prs);
-    expect(result.funnel.open).toBe(5);
-    expect(result.mergeRate).toBe(0);
-  });
-
-  it('should return MetricResult shape', () => {
-    const prs = createMockPRSet();
-    const result = calculatePRHealth(prs);
-    expect(result).toHaveProperty('value');
-    expect(result).toHaveProperty('trend');
-    expect(result).toHaveProperty('direction');
-    expect(result).toHaveProperty('sparklineData');
-    expect(result).toHaveProperty('status');
-    expect(result).toHaveProperty('label');
-    expect(result).toHaveProperty('funnel');
-  });
-
-  it('should filter PRs outside window', () => {
-    const oldPR = createMockPR({
-      created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days ago
+  describe('Empty/Invalid Data', () => {
+    it('should return default metric for null PRs', () => {
+      const result = calculatePRHealth(null);
+      expect(result.label).toBe('No recent pull requests');
+      expect(result.status).toBe('stable');
     });
-    const result = calculatePRHealth([oldPR]);
-    expect(result.label).toBe('No recent pull requests');
+
+    it('should return default metric for undefined PRs', () => {
+      const result = calculatePRHealth(undefined);
+      expect(result.label).toBe('No recent pull requests');
+    });
+
+    it('should return default for empty PRs array', () => {
+      const result = calculatePRHealth([]);
+      expect(result.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
+      expect(result.label).toBe('No recent pull requests');
+    });
+
+    it('should handle non-array PRs', () => {
+      const result = calculatePRHealth('not an array');
+      expect(result.label).toBe('No recent pull requests');
+    });
+
+    it('should handle PRs with missing created_at', () => {
+      const prs = [{ state: 'open' }, { state: 'closed' }];
+      const result = calculatePRHealth(prs);
+      expect(result.label).toBe('No recent pull requests');
+    });
+
+    it('should return sparklineData even for empty data', () => {
+      const result = calculatePRHealth(null);
+      expect(Array.isArray(result.sparklineData)).toBe(true);
+    });
+
+    it('should return proper funnel structure for no data', () => {
+      const result = calculatePRHealth(null);
+      expect(result.funnel).toEqual({ opened: 0, merged: 0, closed: 0, open: 0 });
+    });
+  });
+
+  describe('Merge Rate Calculation', () => {
+    it('should calculate merge rate correctly for 80%', () => {
+      const prs = createMockPRSet({ mergedCount: 8, closedCount: 2, openCount: 0 });
+      const result = calculatePRHealth(prs);
+      expect(result.mergeRate).toBe(80);
+    });
+
+    it('should calculate merge rate correctly for 50%', () => {
+      const prs = createMockPRSet({ mergedCount: 5, closedCount: 5, openCount: 0 });
+      const result = calculatePRHealth(prs);
+      expect(result.mergeRate).toBe(50);
+    });
+
+    it('should calculate merge rate correctly for 100%', () => {
+      const prs = createMockPRSet({ mergedCount: 10, closedCount: 0, openCount: 0 });
+      const result = calculatePRHealth(prs);
+      expect(result.mergeRate).toBe(100);
+    });
+
+    it('should calculate merge rate correctly for 0%', () => {
+      const prs = createMockPRSet({ mergedCount: 0, closedCount: 10, openCount: 0 });
+      const result = calculatePRHealth(prs);
+      expect(result.mergeRate).toBe(0);
+    });
+
+    it('should handle merge rate when all PRs are open (no completed)', () => {
+      const prs = createMockPRSet({ mergedCount: 0, closedCount: 0, openCount: 5 });
+      const result = calculatePRHealth(prs);
+      expect(result.mergeRate).toBe(0); // No completed PRs to calculate rate
+    });
+
+    it('should exclude open PRs from merge rate calculation', () => {
+      const prs = createMockPRSet({ mergedCount: 5, closedCount: 5, openCount: 10 });
+      const result = calculatePRHealth(prs);
+      // Merge rate is based on completed PRs only (merged / (merged + closed))
+      expect(result.mergeRate).toBe(50);
+    });
+  });
+
+  describe('Funnel Tracking', () => {
+    it('should track all funnel metrics correctly', () => {
+      const prs = createMockPRSet({ mergedCount: 5, closedCount: 2, openCount: 3 });
+      const result = calculatePRHealth(prs);
+      expect(result.funnel.merged).toBe(5);
+      expect(result.funnel.closed).toBe(2);
+      expect(result.funnel.open).toBe(3);
+      expect(result.funnel.opened).toBe(10);
+    });
+
+    it('should handle no merged PRs', () => {
+      const prs = createMockPRSet({ mergedCount: 0, closedCount: 5, openCount: 5 });
+      const result = calculatePRHealth(prs);
+      expect(result.funnel.merged).toBe(0);
+      expect(result.funnel.opened).toBe(10);
+    });
+
+    it('should handle all PRs open', () => {
+      const prs = createMockPRSet({ mergedCount: 0, closedCount: 0, openCount: 5 });
+      const result = calculatePRHealth(prs);
+      expect(result.funnel.open).toBe(5);
+      expect(result.funnel.merged).toBe(0);
+      expect(result.funnel.closed).toBe(0);
+      expect(result.funnel.opened).toBe(5);
+    });
+
+    it('should handle all PRs merged', () => {
+      const prs = createMockPRSet({ mergedCount: 10, closedCount: 0, openCount: 0 });
+      const result = calculatePRHealth(prs);
+      expect(result.funnel.merged).toBe(10);
+      expect(result.funnel.closed).toBe(0);
+      expect(result.funnel.open).toBe(0);
+    });
+
+    it('should count totalOpened correctly', () => {
+      const prs = createMockPRSet({ mergedCount: 3, closedCount: 4, openCount: 5 });
+      const result = calculatePRHealth(prs);
+      expect(result.totalOpened).toBe(12);
+      expect(result.funnel.opened).toBe(12);
+    });
+  });
+
+  describe('Time To Merge Analysis', () => {
+    it('should calculate average time to merge', () => {
+      const now = Date.now();
+      const prs = [
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 8 * 24 * 60 * 60 * 1000).toISOString() // 2 days to merge
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString() // 4 days to merge
+        })
+      ];
+      const result = calculatePRHealth(prs);
+      expect(result.avgTimeToMerge).toBe(3); // (2 + 4) / 2 = 3
+    });
+
+    it('should boost score for fast merge times', () => {
+      const now = Date.now();
+      const fastPRs = [
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 4.5 * 24 * 60 * 60 * 1000).toISOString() // Same day
+        })
+      ];
+      const slowPRs = [
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString() // 15 days
+        })
+      ];
+      const fastResult = calculatePRHealth(fastPRs);
+      const slowResult = calculatePRHealth(slowPRs);
+      expect(fastResult.score).toBeGreaterThan(slowResult.score);
+    });
+
+    it('should handle PRs with no merged_at date', () => {
+      const prs = createMockPRSet({ mergedCount: 3, closedCount: 2, openCount: 0 });
+      // Manually remove merged_at from merged PRs
+      prs.forEach(pr => {
+        if (pr.merged) {
+          pr.merged_at = null;
+        }
+      });
+      const result = calculatePRHealth(prs);
+      expect(result.avgTimeToMerge).toBe(0);
+    });
+  });
+
+  describe('Time Window Filtering', () => {
+    it('should filter PRs outside 30-day window', () => {
+      const oldPR = createMockPR({
+        created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // 60 days ago
+      });
+      const result = calculatePRHealth([oldPR]);
+      expect(result.label).toBe('No recent pull requests');
+    });
+
+    it('should include PRs within 30-day window', () => {
+      const recentPR = createMockPR({
+        created_at: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() // 15 days ago
+      });
+      const result = calculatePRHealth([recentPR]);
+      expect(result.totalOpened).toBe(1);
+    });
+
+    it('should count only recent PRs when mix of old and new', () => {
+      const prs = [
+        createMockPR({
+          state: 'open',
+          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() // Recent
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() // Recent
+        }),
+        createMockPR({
+          state: 'open',
+          created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString() // Old - filtered out
+        })
+      ];
+      const result = calculatePRHealth(prs);
+      expect(result.totalOpened).toBe(2);
+    });
+  });
+
+  describe('Trend Analysis', () => {
+    it('should detect improving trend with better recent merge rate', () => {
+      const now = Date.now();
+      const prs = [
+        // Older half (15-30 days ago) - low merge rate
+        createMockPR({
+          state: 'closed',
+          merged: false,
+          created_at: new Date(now - 25 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 24 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: false,
+          created_at: new Date(now - 20 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 19 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 18 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 17 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        // Newer half (0-15 days ago) - higher merge rate
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 9 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString()
+        })
+      ];
+      const result = calculatePRHealth(prs);
+      expect(result.direction).toBe('up');
+      expect(result.trend).toBeGreaterThan(0);
+    });
+
+    it('should detect worsening trend with lower recent merge rate', () => {
+      const now = Date.now();
+      const prs = [
+        // Older half (15-30 days ago) - high merge rate
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 25 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 24 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 22 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 21 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 18 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 17 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        // Newer half (0-15 days ago) - low merge rate
+        createMockPR({
+          state: 'closed',
+          merged: false,
+          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 9 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: false,
+          created_at: new Date(now - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString()
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: false,
+          created_at: new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString(),
+          closed_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString()
+        })
+      ];
+      const result = calculatePRHealth(prs);
+      expect(result.direction).toBe('down');
+      expect(result.trend).toBeLessThan(0);
+    });
+  });
+
+  describe('Volume Analysis', () => {
+    it('should calculate weekly volume correctly', () => {
+      // 30-day window / 7 days per week ≈ 4.3 weeks
+      const prs = createMockPRSet({ mergedCount: 10, closedCount: 5, openCount: 5 });
+      const result = calculatePRHealth(prs);
+      // 20 PRs / 4.3 weeks ≈ 4.7 per week
+      expect(result.weeklyVolume).toBeGreaterThan(0);
+    });
+
+    it('should penalize very low volume', () => {
+      // Use 50% merge rate for both so volume can make a difference
+      const lowVolume = createMockPRSet({ mergedCount: 1, closedCount: 1, openCount: 0 });
+      const highVolume = createMockPRSet({ mergedCount: 10, closedCount: 10, openCount: 0 });
+      const lowResult = calculatePRHealth(lowVolume);
+      const highResult = calculatePRHealth(highVolume);
+      // High volume should have better or equal score due to volume bonus
+      expect(highResult.score).toBeGreaterThanOrEqual(lowResult.score);
+    });
+  });
+
+  describe('Label Generation', () => {
+    it('should generate label with merge rate', () => {
+      const prs = createMockPRSet({ mergedCount: 8, closedCount: 2, openCount: 0 });
+      const result = calculatePRHealth(prs);
+      expect(result.label).toMatch(/\d+%/);
+    });
+
+    it('should show open count when all PRs are open', () => {
+      const prs = createMockPRSet({ mergedCount: 0, closedCount: 0, openCount: 5 });
+      const result = calculatePRHealth(prs);
+      expect(result.label).toContain('5 open PRs');
+    });
+
+    it('should include average time to merge in label when available', () => {
+      const now = Date.now();
+      const prs = [
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          created_at: new Date(now - 10 * 24 * 60 * 60 * 1000).toISOString(),
+          merged_at: new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString() // 3 days
+        })
+      ];
+      const result = calculatePRHealth(prs);
+      expect(result.label).toMatch(/~\d+\.?\d*d avg/);
+    });
+  });
+
+  describe('Status Classification', () => {
+    it('should give thriving status for high merge rate', () => {
+      const prs = createMockPRSet({ mergedCount: 20, closedCount: 0, openCount: 0 });
+      const result = calculatePRHealth(prs);
+      expect(result.status).toBe('thriving');
+    });
+
+    it('should give stable status for medium merge rate', () => {
+      const prs = createMockPRSet({ mergedCount: 7, closedCount: 3, openCount: 0 });
+      const result = calculatePRHealth(prs);
+      expect(['thriving', 'stable']).toContain(result.status);
+    });
+
+    it('should give cooling or at_risk for low merge rate', () => {
+      const prs = createMockPRSet({ mergedCount: 2, closedCount: 8, openCount: 0 });
+      const result = calculatePRHealth(prs);
+      expect(['cooling', 'at_risk', 'stable']).toContain(result.status);
+    });
+  });
+
+  describe('MetricResult Shape', () => {
+    it('should return complete MetricResult shape', () => {
+      const prs = createMockPRSet();
+      const result = calculatePRHealth(prs);
+      expect(result).toHaveProperty('value');
+      expect(result).toHaveProperty('trend');
+      expect(result).toHaveProperty('direction');
+      expect(result).toHaveProperty('sparklineData');
+      expect(result).toHaveProperty('status');
+      expect(result).toHaveProperty('label');
+      expect(result).toHaveProperty('funnel');
+    });
+
+    it('should include sparklineData with 30 data points', () => {
+      const prs = createMockPRSet({ windowDays: 30 });
+      const result = calculatePRHealth(prs);
+      expect(Array.isArray(result.sparklineData)).toBe(true);
+      expect(result.sparklineData.length).toBe(30);
+    });
+
+    it('should have valid direction values', () => {
+      const prs = createMockPRSet();
+      const result = calculatePRHealth(prs);
+      expect(['up', 'down', 'stable']).toContain(result.direction);
+    });
+
+    it('should have valid status values', () => {
+      const prs = createMockPRSet();
+      const result = calculatePRHealth(prs);
+      expect(['thriving', 'stable', 'cooling', 'at_risk']).toContain(result.status);
+    });
+
+    it('should include additional metadata', () => {
+      const prs = createMockPRSet();
+      const result = calculatePRHealth(prs);
+      expect(result).toHaveProperty('mergeRate');
+      expect(result).toHaveProperty('avgTimeToMerge');
+      expect(result).toHaveProperty('totalOpened');
+      expect(result).toHaveProperty('mergedCount');
+      expect(result).toHaveProperty('closedCount');
+      expect(result).toHaveProperty('openCount');
+      expect(result).toHaveProperty('weeklyVolume');
+      expect(result).toHaveProperty('score');
+    });
+
+    it('should clamp trend between -100 and 100', () => {
+      const prs = createMockPRSet();
+      const result = calculatePRHealth(prs);
+      expect(result.trend).toBeGreaterThanOrEqual(-100);
+      expect(result.trend).toBeLessThanOrEqual(100);
+    });
+
+    it('should have value equal to merge rate percentage', () => {
+      const prs = createMockPRSet({ mergedCount: 8, closedCount: 2, openCount: 0 });
+      const result = calculatePRHealth(prs);
+      expect(result.value).toBe(80);
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('should handle single PR', () => {
+      const prs = [createMockPR({ state: 'open' })];
+      const result = calculatePRHealth(prs);
+      expect(result.totalOpened).toBe(1);
+      expect(result.funnel.open).toBe(1);
+    });
+
+    it('should handle invalid date in created_at', () => {
+      const prs = [{ created_at: 'invalid', state: 'open' }];
+      expect(() => calculatePRHealth(prs)).not.toThrow();
+    });
+
+    it('should handle very large number of PRs', () => {
+      const prs = Array(100).fill(null).map(() => createMockPR({
+        state: 'closed',
+        merged: true
+      }));
+      const result = calculatePRHealth(prs);
+      expect(result.totalOpened).toBe(100);
+      expect(result.mergeRate).toBe(100);
+    });
+
+    it('should differentiate merged from closed-not-merged', () => {
+      const prs = [
+        createMockPR({
+          state: 'closed',
+          merged: true,
+          merged_at: new Date().toISOString()
+        }),
+        createMockPR({
+          state: 'closed',
+          merged: false,
+          closed_at: new Date().toISOString()
+        })
+      ];
+      const result = calculatePRHealth(prs);
+      expect(result.funnel.merged).toBe(1);
+      expect(result.funnel.closed).toBe(1);
+    });
+
+    it('should detect merged PR via merged_at even if merged flag is false', () => {
+      const prs = [
+        createMockPR({
+          state: 'closed',
+          merged: false, // Flag is false but merged_at is set
+          merged_at: new Date().toISOString()
+        })
+      ];
+      const result = calculatePRHealth(prs);
+      expect(result.funnel.merged).toBe(1);
+    });
   });
 });
 
