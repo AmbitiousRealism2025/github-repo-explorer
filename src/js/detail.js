@@ -22,6 +22,7 @@ import { createHealthScore } from './components/HealthScore.js';
 import { createRepositoryDNA } from './components/RepositoryDNA/index.js';
 import { createPulseDashboard, createPulseDashboardSkeleton, createPulseDashboardError } from './components/PulseDashboard/index.js';
 import { calculateAllMetrics } from './components/PulseDashboard/PulseCalculator.js';
+import { renderMarkdown } from './markdown.js';
 
 initTheme();
 initMobileNav();
@@ -327,7 +328,8 @@ const loadRepository = async () => {
     }
     
     if (hasReadme) {
-      readmeContent.textContent = readmeResult.value.data.decodedContent;
+      // Render markdown to sanitized HTML (with security hooks for links)
+      readmeContent.innerHTML = renderMarkdown(readmeResult.value.data.decodedContent);
     } else {
       readmeContent.textContent = 'No README available';
     }
