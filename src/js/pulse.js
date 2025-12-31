@@ -73,9 +73,23 @@ const loadPulseDashboard = async () => {
       fetchPulseData(owner, repo)
     ]);
 
-    // Check if repository fetch failed
+    // Check if repository fetch failed with specific error messages
     if (repoResult.status === 'rejected') {
-      throw new Error(repoResult.reason?.message || 'Failed to load repository');
+      const errorMsg = repoResult.reason?.message || 'Failed to load repository';
+
+      // Provide user-friendly error messages for common cases
+      if (errorMsg.includes('not found') || errorMsg.includes('404')) {
+        errorMessage.textContent = `Repository "${repoParam}" not found. Please check the owner and repository name.`;
+      } else if (errorMsg.includes('Rate limit')) {
+        errorMessage.textContent = `${errorMsg}. Try again later or add a GitHub token in Settings.`;
+      } else if (errorMsg.includes('Forbidden')) {
+        errorMessage.textContent = 'Access forbidden. This repository may be private or require authentication.';
+      } else {
+        errorMessage.textContent = errorMsg;
+      }
+
+      showState('error');
+      return;
     }
 
     currentRepo = repoResult.value.data;
@@ -89,6 +103,43 @@ const loadPulseDashboard = async () => {
     githubLink.href = currentRepo.html_url;
     viewDetailsBtn.href = `/detail.html?repo=${encodeURIComponent(currentRepo.full_name)}`;
 
+    // Check if repository is archived
+    if (currentRepo.archived) {
+      const warningBanner = document.createElement('div');
+      warningBanner.className = 'pulse-banner pulse-banner--warning';
+      warningBanner.innerHTML = `
+        <svg class="pulse-banner__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <div class="pulse-banner__content">
+          <strong>Archived Repository:</strong> This repository is archived and read-only. Pulse metrics reflect its final state.
+        </div>
+      `;
+      pulseContent.insertBefore(warningBanner, pulseContent.firstChild);
+    }
+
+    // Check if repository is new (< 90 days old)
+    const repoAgeDays = Math.floor((Date.now() - new Date(currentRepo.created_at).getTime()) / (1000 * 60 * 60 * 24));
+    const isNewRepo = repoAgeDays < 90;
+
+    if (isNewRepo) {
+      const infoBanner = document.createElement('div');
+      infoBanner.className = 'pulse-banner pulse-banner--info';
+      infoBanner.innerHTML = `
+        <svg class="pulse-banner__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        <div class="pulse-banner__content">
+          <strong>New Repository:</strong> This repository is ${repoAgeDays} days old. Some metrics may show "Insufficient data" due to limited history.
+        </div>
+      `;
+      pulseContent.insertBefore(infoBanner, pulseContent.firstChild);
+    }
+
     // Get pulse data (may have partial failures)
     const pulseData = pulseDataResult.status === 'fulfilled'
       ? pulseDataResult.value
@@ -100,6 +151,28 @@ const loadPulseDashboard = async () => {
           releases: null,
           commits: null
         };
+
+    // Check for 202 responses (data being computed) in pulse data
+    const isDataProcessing =
+      pulseData.participation?.processing ||
+      pulseData.contributors?.processing ||
+      pulseData.commits?.processing;
+
+    if (isDataProcessing) {
+      const processingBanner = document.createElement('div');
+      processingBanner.className = 'pulse-banner pulse-banner--info';
+      processingBanner.innerHTML = `
+        <svg class="pulse-banner__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+        <div class="pulse-banner__content">
+          <strong>Computing...</strong> GitHub is still processing some statistics for this repository. Some metrics may be incomplete. Try refreshing in a few moments.
+        </div>
+      `;
+      pulseContent.insertBefore(processingBanner, pulseContent.firstChild);
+    }
 
     // Prepare data for metric calculations
     const metricsInput = {
