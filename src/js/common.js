@@ -1,4 +1,9 @@
 import { STORAGE_VERSION, STORAGE_KEYS, TOAST_DURATION_MS, TOAST_FADE_MS } from './constants.js';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+// Configure marked for GitHub Flavored Markdown
+marked.use({ gfm: true, breaks: true });
 
 const FAVORITES_KEY = STORAGE_KEYS.FAVORITES;
 const THEME_KEY = STORAGE_KEYS.THEME;
@@ -425,6 +430,20 @@ export const sanitizeUrl = (url) => {
   } catch {
     return null;
   }
+};
+
+/**
+ * Render markdown to sanitized HTML
+ * Uses marked for parsing and DOMPurify for XSS prevention
+ * @param {string} markdown - Raw markdown string
+ * @returns {string} Sanitized HTML string
+ */
+export const renderMarkdown = (markdown) => {
+  if (!markdown) return '';
+  const html = marked.parse(markdown);
+  return DOMPurify.sanitize(html, {
+    ADD_ATTR: ['target'],  // Allow target="_blank" on links
+  });
 };
 
 export const getRequiredElement = (id) => {
