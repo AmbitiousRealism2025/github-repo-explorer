@@ -2,16 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" 
-        content="default-src 'self'; 
-                 script-src 'self'; 
-                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
-                 font-src 'self' https://fonts.gstatic.com; 
-                 img-src 'self' data: https://avatars.githubusercontent.com; 
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self';
+                 script-src 'self';
+                 style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+                 font-src 'self' https://fonts.gstatic.com;
+                 img-src 'self' data: https://avatars.githubusercontent.com;
                  connect-src https://api.github.com;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Organize your favorite repositories into smart collections">
-  <title>Collections - GitHub Explorer</title>
+  <meta name="description" content="Repository Pulse Dashboard - predictive trend analysis and vital signs metrics">
+  <title>Repository Pulse - GitHub Explorer</title>
   <link rel="stylesheet" href="/src/css/main.css">
 </head>
 <body>
@@ -29,9 +29,9 @@
           <a href="/" class="header__nav-link">Search</a>
           <a href="/trending.html" class="header__nav-link">Trending</a>
           <a href="/favorites.html" class="header__nav-link">Favorites</a>
-          <a href="/collections.html" class="header__nav-link active">Collections</a>
+          <a href="/collections.html" class="header__nav-link">Collections</a>
           <a href="/compare.html" class="header__nav-link">Compare</a>
-          <a href="/pulse.html" class="header__nav-link">Pulse</a>
+          <a href="/pulse.html" class="header__nav-link active">Pulse</a>
         </nav>
         <div class="header__actions">
           <button class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open navigation menu" aria-expanded="false" aria-controls="mobile-nav">
@@ -85,7 +85,7 @@
             </a>
           </li>
           <li class="mobile-nav__item">
-            <a href="/collections.html" class="mobile-nav__link active">
+            <a href="/collections.html" class="mobile-nav__link">
               <svg class="mobile-nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
               Collections
             </a>
@@ -97,8 +97,10 @@
             </a>
           </li>
           <li class="mobile-nav__item">
-            <a href="/pulse.html" class="mobile-nav__link">
-              <svg class="mobile-nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <a href="/pulse.html" class="mobile-nav__link mobile-nav__link--active">
+              <svg class="mobile-nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+              </svg>
               Pulse
             </a>
           </li>
@@ -114,28 +116,53 @@
 
     <main class="main" id="main-content">
       <div class="container">
-        <div class="page-header">
-          <h1 class="page-title">Smart Collections</h1>
-          <p class="page-subtitle">Organize repositories into named collections for research and comparison</p>
-        </div>
+        <section id="loading-state">
+          <div class="skeleton skeleton--title" style="width: 300px; height: 2rem; margin-bottom: 1rem;"></div>
+          <div class="skeleton skeleton--text" style="width: 60%; margin-bottom: 2rem;"></div>
+          <div class="pulse-dashboard-skeleton">
+            <div class="skeleton" style="height: 200px; margin-bottom: 1.5rem;"></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+              <div class="skeleton" style="height: 180px;"></div>
+              <div class="skeleton" style="height: 180px;"></div>
+              <div class="skeleton" style="height: 180px;"></div>
+              <div class="skeleton" style="height: 180px;"></div>
+              <div class="skeleton" style="height: 180px;"></div>
+              <div class="skeleton" style="height: 180px;"></div>
+            </div>
+          </div>
+        </section>
 
-        <div class="collections-actions mb-lg">
-          <button class="btn btn--primary" id="create-collection-btn">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-            New Collection
-          </button>
-        </div>
+        <section id="pulse-content" class="hidden">
+          <div class="page-header">
+            <div class="flex-between gap-md">
+              <div>
+                <h1 class="page-title" id="repo-name"></h1>
+                <p class="page-subtitle" id="repo-description"></p>
+              </div>
+              <div class="flex gap-sm">
+                <a class="btn btn--secondary" id="view-details-btn" href="#">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                  View Details
+                </a>
+                <a class="btn btn--primary" id="github-link" href="#" target="_blank" rel="noopener noreferrer">
+                  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M3.75 2h3.5a.75.75 0 0 1 0 1.5h-3.5a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3.5a.75.75 0 0 1 1.5 0v3.5A1.75 1.75 0 0 1 12.25 14h-8.5A1.75 1.75 0 0 1 2 12.25v-8.5C2 2.784 2.784 2 3.75 2Zm6.854-1h4.146a.25.25 0 0 1 .25.25v4.146a.25.25 0 0 1-.427.177L13.03 4.03 9.28 7.78a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042l3.75-3.75-1.543-1.543A.25.25 0 0 1 10.604 1Z"/></svg>
+                  View on GitHub
+                </a>
+              </div>
+            </div>
+          </div>
 
-        <div id="collections-list" class="collections-grid"></div>
+          <div id="pulse-container"></div>
+        </section>
 
-        <section id="empty-state" class="empty-state hidden">
+        <section id="error-state" class="empty-state hidden">
           <svg class="empty-state__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
           </svg>
-          <h2 class="empty-state__title">No collections yet</h2>
-          <p class="empty-state__description">Create your first collection to organize repositories by project, technology, or research topic.</p>
+          <h2 class="empty-state__title">Repository not found</h2>
+          <p class="empty-state__description" id="error-message">The repository you're looking for doesn't exist or is private.</p>
+          <a href="/" class="btn btn--primary mt-md">Back to Search</a>
         </section>
       </div>
     </main>
@@ -146,35 +173,8 @@
         <p class="footer__rate-limit" id="rate-limit-display"></p>
       </div>
     </footer>
-
-    <div class="modal-overlay" id="collection-modal">
-      <div class="modal">
-        <div class="modal__header">
-          <h2 class="modal__title" id="modal-title">New Collection</h2>
-          <button class="modal__close" id="modal-close" aria-label="Close modal">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-        <div class="modal__body">
-          <div class="form-group">
-            <label class="filter-label" for="collection-name">Collection Name</label>
-            <input type="text" class="input" id="collection-name" placeholder="e.g., Auth Libraries">
-          </div>
-          <div class="form-group mt-md">
-            <label class="filter-label" for="collection-description">Description (optional)</label>
-            <textarea class="input" id="collection-description" rows="3" placeholder="What is this collection for?"></textarea>
-          </div>
-        </div>
-        <div class="modal__footer">
-          <button class="btn btn--secondary" id="modal-cancel">Cancel</button>
-          <button class="btn btn--primary" id="modal-save">Save Collection</button>
-        </div>
-      </div>
-    </div>
   </div>
 
-  <script type="module" src="/src/js/collections.js"></script>
+  <script type="module" src="/src/js/pulse.js"></script>
 </body>
 </html>

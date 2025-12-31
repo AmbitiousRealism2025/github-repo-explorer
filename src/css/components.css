@@ -2894,6 +2894,83 @@
 }
 
 /* ============================================
+   Pulse Banners (Info, Warning, Error)
+   ============================================ */
+
+.pulse-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--radius-md);
+  border: 1px solid;
+  margin-bottom: var(--space-md);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.pulse-banner__icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pulse-banner__content {
+  flex: 1;
+}
+
+.pulse-banner__content strong {
+  font-weight: 600;
+}
+
+/* Info Banner (New Repo, Processing) */
+.pulse-banner--info {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--color-text-primary);
+}
+
+.pulse-banner--info .pulse-banner__icon {
+  color: #3b82f6;
+}
+
+/* Warning Banner (Archived Repo) */
+.pulse-banner--warning {
+  background-color: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: var(--color-text-primary);
+}
+
+.pulse-banner--warning .pulse-banner__icon {
+  color: #f59e0b;
+}
+
+/* Error Banner */
+.pulse-banner--error {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--color-text-primary);
+}
+
+.pulse-banner--error .pulse-banner__icon {
+  color: #ef4444;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 640px) {
+  .pulse-banner {
+    padding: var(--space-sm) var(--space-md);
+    font-size: var(--text-xs);
+  }
+
+  .pulse-banner__icon {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* ============================================
    Pulse Metric Cards
    ============================================ */
 

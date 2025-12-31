@@ -14,6 +14,7 @@ export default defineConfig({
         trending: resolve(__dirname, 'trending.html'),
         collections: resolve(__dirname, 'collections.html'),
         compare: resolve(__dirname, 'compare.html'),
+        pulse: resolve(__dirname, 'pulse.html'),
       },
     },
   },

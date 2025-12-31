@@ -39,6 +39,7 @@ const repoName = getRequiredElement('repo-name');
 const repoDescription = getRequiredElement('repo-description');
 const favoriteBtn = getRequiredElement('favorite-btn');
 const favoriteText = getRequiredElement('favorite-text');
+const pulseBtn = getRequiredElement('pulse-btn');
 const githubLink = getRequiredElement('github-link');
 
 const statStars = getRequiredElement('stat-stars');
@@ -293,6 +294,10 @@ const loadRepository = async () => {
     repoName.textContent = currentRepo.full_name;
     repoDescription.textContent = currentRepo.description || 'No description available';
     githubLink.href = currentRepo.html_url;
+
+    // Set up Pulse button to link to pulse page for this repo
+    pulseBtn.href = `/pulse.html?repo=${encodeURIComponent(currentRepo.full_name)}`;
+    pulseBtn.style.display = '';
     
     statStars.textContent = formatNumber(currentRepo.stargazers_count);
     statForks.textContent = formatNumber(currentRepo.forks_count);
